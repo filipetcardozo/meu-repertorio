@@ -1,0 +1,140 @@
+import * as React from 'react';
+import List from '@mui/material/List';
+import ListItem from '@mui/material/ListItem';
+import ListItemButton from '@mui/material/ListItemButton';
+import ListItemIcon from '@mui/material/ListItemIcon';
+import ListItemText from '@mui/material/ListItemText';
+import InboxIcon from '@mui/icons-material/MoveToInbox';
+import LibraryMusicIcon from '@mui/icons-material/LibraryMusic';
+import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
+import HomeIcon from '@mui/icons-material/Home';
+import HistoryEduIcon from '@mui/icons-material/HistoryEdu';
+import LyricsIcon from '@mui/icons-material/Lyrics';
+
+import Typography from '@mui/material/Typography'
+
+import Link from '@mui/material/Link';
+
+
+const paths = ["app", "show-sheets-musics", "sheet-music-create", "registered-lyrics", "manage-lyrics"]
+
+const SideBarComponent = (open: any) => {
+    // const location = useLocation()
+    // React.useEffect(() => {
+    //     let pathArray = location.pathname.split("app/")[1]
+    //     paths.map((value: string, index: number) => {
+    //         if (value == pathArray) open.setActiveMenu(index)
+    //     })
+    // }, [location])
+
+    return (
+        <>
+            <List sx={{ p: 0 }}>
+                <ListItem key="inicio" style={{ textDecoration: "none", color: "inherit" }} disablePadding sx={{ display: 'block', backgroundColor: open.activeMenu == 0 ? "#e4f1ff" : "" }}>
+                    <ListItemButton
+                        sx={{
+                            minHeight: 48,
+                            justifyContent: open ? 'initial' : 'center',
+                            px: 2.5,
+                        }}
+                    >
+                        <ListItemIcon
+                            sx={{
+                                minWidth: 0,
+                                mr: open ? 3 : 'auto',
+                                justifyContent: 'center',
+                            }}
+                        >
+                            <HomeIcon />
+                        </ListItemIcon>
+                        <ListItemText primary={<Typography fontSize={15}>Início</Typography>} sx={{ textDecoration: "none", opacity: open ? 1 : 0 }} />
+                    </ListItemButton>
+                </ListItem>
+                {/* If we need to refresh the page */}
+                {/* <ListItem component="a" href="/sheets-musics" style={{ textDecoration: "none", color: "inherit" }} disablePadding sx={{ display: 'block', backgroundColor: open.activeMenu == 2 ? "#e4f1ff" : "" }}> */}
+                <ListItem key="show-sheets-musics" style={{ textDecoration: "none", color: "inherit" }} disablePadding sx={{ display: 'block', backgroundColor: open.activeMenu == 1 ? "#e4f1ff" : "" }}>
+                    <ListItemButton
+                        sx={{
+                            minHeight: 48,
+                            justifyContent: open ? 'initial' : 'center',
+                            px: 2.5,
+                        }}
+                    >
+                        <ListItemIcon
+                            sx={{
+                                minWidth: 0,
+                                mr: open ? 3 : 'auto',
+                                justifyContent: 'center',
+                            }}
+                        >
+                            <LyricsIcon />
+                        </ListItemIcon>
+                        <ListItemText primary={<Typography fontSize={15}>Partituras cadastradas</Typography>} sx={{ opacity: open ? 1 : 0 }} />
+                    </ListItemButton>
+                </ListItem>
+                <ListItem key="create-lyric" style={{ textDecoration: "none", color: "inherit" }} disablePadding sx={{ display: 'block', backgroundColor: open.activeMenu == 2 ? "#e4f1ff" : "" }}>
+                    <ListItemButton
+                        sx={{
+                            minHeight: 48,
+                            justifyContent: open ? 'initial' : 'center',
+                            px: 2.5,
+                        }}
+                    >
+                        <ListItemIcon
+                            sx={{
+                                minWidth: 0,
+                                mr: open ? 3 : 'auto',
+                                justifyContent: 'center',
+                            }}
+                        >
+                            <HistoryEduIcon />
+                        </ListItemIcon>
+                        <ListItemText primary={<Typography fontSize={15}>Criar partitura</Typography>} sx={{ opacity: open ? 1 : 0 }} />
+                    </ListItemButton>
+                </ListItem>
+                <ListItem key="registered-lyrics" style={{ textDecoration: "none", color: "inherit" }} disablePadding sx={{ display: 'block', backgroundColor: open.activeMenu == 3 ? "#e4f1ff" : "" }}>
+                    <ListItemButton
+                        sx={{
+                            minHeight: 48,
+                            justifyContent: open ? 'initial' : 'center',
+                            px: 2.5,
+                        }}
+                    >
+                        <ListItemIcon
+                            sx={{
+                                minWidth: 0,
+                                mr: open ? 3 : 'auto',
+                                justifyContent: 'center',
+                            }}
+                        >
+                            <LibraryMusicIcon />
+                        </ListItemIcon>
+                        <ListItemText primary={<Typography fontSize={15}>Músicas cadastradas</Typography>} sx={{ opacity: open ? 1 : 0 }} />
+                    </ListItemButton>
+                </ListItem>
+                <ListItem key="adicionar-cifras" style={{ textDecoration: "none", color: "inherit" }} disablePadding sx={{ display: 'block', backgroundColor: open.activeMenu == 4 ? "#e4f1ff" : "" }}>
+                    <ListItemButton
+                        sx={{
+                            minHeight: 48,
+                            justifyContent: open ? 'initial' : 'center',
+                            px: 2.5,
+                        }}
+                    >
+                        <ListItemIcon
+                            sx={{
+                                minWidth: 0,
+                                mr: open ? 3 : 'auto',
+                                justifyContent: 'center',
+                            }}
+                        >
+                            <PlaylistAddIcon />
+                        </ListItemIcon>
+                        <ListItemText primary={<Typography fontSize={15}>Adicionar Cifras</Typography>} sx={{ opacity: open ? 1 : 0 }} />
+                    </ListItemButton>
+                </ListItem>
+            </List>
+        </>
+    )
+}
+
+export default SideBarComponent;
