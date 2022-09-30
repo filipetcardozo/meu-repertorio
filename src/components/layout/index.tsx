@@ -19,11 +19,9 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { openedMixin, closedMixin, DrawerHeader, AppBar, Drawer } from "./drawerConfig";
 
 
-export const Layout = ({ children }: any) => {
+export const Layout = ({ children, activeMenu }: any) => {
     const theme = useTheme();
     const [open, setOpen] = React.useState(true);
-
-    const [activeMenu, setActiveMenu] = React.useState(0)
 
     const handleDrawerOpen = () => {
         setOpen(true);
@@ -67,7 +65,7 @@ export const Layout = ({ children }: any) => {
                 </DrawerHeader>
                 <Divider />
                 {/* Navbar Component */}
-                <SidebarComponent open={open} activeMenu={activeMenu} setActiveMenu={setActiveMenu} />
+                <SidebarComponent open={open} activeMenu={activeMenu} />
             </Drawer>
             <Box component="main" sx={{ flexGrow: 1 }}>
                 <DrawerHeader />

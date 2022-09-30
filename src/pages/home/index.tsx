@@ -6,7 +6,7 @@ import { LyricCard } from '../../components/lyrics-components/lyric-card'
 import { Layout } from '../../components/layout'
 
 const HomePage = () => {
-    return <Layout>
+    return <Layout activeMenu={0}>
         <h1>Home Page</h1>
         <LyricCard />
     </Layout>
