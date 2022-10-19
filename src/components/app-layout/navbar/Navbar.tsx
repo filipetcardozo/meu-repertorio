@@ -15,8 +15,10 @@ import AccountCircle from '@mui/icons-material/AccountCircle';
 import MailIcon from '@mui/icons-material/Mail';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import MoreIcon from '@mui/icons-material/MoreVert';
+import { useRouter } from 'next/router'
 
-// import { getAuth, signOut } from "firebase/auth";
+import { getAuth, signOut } from "firebase/auth";
+import { useAuth } from '../../../hooks/useAuth';
 
 const Search = styled('div')(({ theme }) => ({
     position: 'relative',
@@ -59,9 +61,9 @@ const StyledInputBase = styled(InputBase)(({ theme }) => ({
 }));
 
 const NavbarComponent = () => {
-    //   let redirect = useNavigate()
+    const router = useRouter()
+    const { signOut } = useAuth()
 
-    // const [auth, setAuth] = React.useState(true);
     const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
 
     const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -75,17 +77,7 @@ const NavbarComponent = () => {
     const handleClose = () => setAnchorEl(null)
 
     const handleSignOut = () => {
-        // const auth = getAuth();
-
-        setAnchorEl(null);
-
-        // signOut(auth).then(() => {
-        //     console.log("Sign-out successful.")
-        //     redirect('/login')
-        // }).catch((error) => {
-        //     console.log(error)
-        // });
-
+        signOut()
     };
 
 
@@ -102,22 +94,6 @@ const NavbarComponent = () => {
                 />
             </Search>
             <Box sx={{ flexGrow: 1 }} />
-            <Box sx={{ display: { xs: 'none', md: 'flex' } }}>
-                <IconButton size="large" aria-label="show 4 new mails" color="inherit">
-                    <Badge badgeContent={4} color="error">
-                        <MailIcon />
-                    </Badge>
-                </IconButton>
-                <IconButton
-                    size="large"
-                    aria-label="show 17 new notifications"
-                    color="inherit"
-                >
-                    <Badge badgeContent={17} color="error">
-                        <NotificationsIcon />
-                    </Badge>
-                </IconButton>
-            </Box>
             <IconButton
                 size="large"
                 aria-label="account of current user"

@@ -54,7 +54,7 @@ const SideBarComponent = (open: any) => {
                 {/* If we need to refresh the page */}
                 {/* <ListItem component="a" href="/sheets-musics" style={{ textDecoration: "none", color: "inherit" }} disablePadding sx={{ display: 'block', backgroundColor: open.activeMenu == 2 ? "#e4f1ff" : "" }}> */}
                 <ListItem key="show-sheets-musics" style={{ textDecoration: "none", color: "inherit" }} disablePadding sx={{ display: 'block', backgroundColor: open.activeMenu == 1 ? "#e4f1ff" : "" }}>
-                    <Link href={"/registered-sheet-music"}>
+                    <Link href={"/sheet-music/registered-sheet-music"}>
                         <ListItemButton
                             sx={{
                                 minHeight: 48,

@@ -1,7 +1,7 @@
 import React from "react";
 
 // Components
-import { Layout } from "../../../components/layout";
+import { Layout } from "../../../components/app-layout";
 
 const ChangeLyric = () => {
     return <Layout activeMenu={4}>

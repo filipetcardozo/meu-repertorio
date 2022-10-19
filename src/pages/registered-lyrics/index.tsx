@@ -2,7 +2,7 @@ import React from "react";
 import './style.module.scss'
 
 // Components
-import { Layout } from "../../components/layout";
+import { Layout } from "../../components/app-layout";
 
 const RegisteredLyrics = () => {
     return <Layout activeMenu={3}>
