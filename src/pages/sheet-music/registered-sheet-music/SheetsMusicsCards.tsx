@@ -24,7 +24,7 @@ import { Layout } from "../../../components/app-layout";
 
 // Hooks
 import { useSheetsMusics } from "../../../hooks/useSheetsMusics";
-import { SheetsMusicsCard } from "../../../components/sheets-musics/sheets-musics-card";
+import { SheetsMusicsCard } from "../../../components/sheet-music-card";
 import { useAuth, useProtectPage } from "../../../hooks/useAuth";
 
 export const SheetsMusicsCards = () => {

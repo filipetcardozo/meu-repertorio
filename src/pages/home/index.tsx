@@ -2,7 +2,6 @@ import React, { useEffect } from 'react'
 import styles from './style.module.scss'
 
 // Components
-import { LyricCard } from '../../components/lyrics-components/lyric-card'
 import { Layout } from '../../components/app-layout'
 
 // Redux
@@ -12,7 +11,6 @@ import { useDispatch, useSelector } from 'react-redux'
 import { useRouter } from 'next/router'
 
 // Authentication
-import { HomeLyrics } from '../../components/home/home-lyrics'
 import { useAuth } from '../../hooks/useAuth'
 import { useProtectPage } from '../../hooks/useAuth'
 

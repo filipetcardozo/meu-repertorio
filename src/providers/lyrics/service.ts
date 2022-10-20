@@ -1,4 +1,4 @@
-import { collection, getDocs, getDoc, addDoc, doc, limit, startAfter, orderBy, DocumentSnapshot } from "firebase/firestore";
+import { collection, getDocs, getDoc, addDoc, doc, limit, startAfter, orderBy, DocumentSnapshot, updateDoc, deleteDoc } from "firebase/firestore";
 import { getFirestore } from "firebase/firestore";
 import { getApp } from "firebase/app";
 
@@ -59,13 +59,11 @@ export async function getAllUserRegisteredLyrics() {
 }
 
 // Get specific user registered lyric
-export async function getSpecificUserRegisteredLyrics(lyricId: any) {
+export async function getSpecificUserRegisteredLyrics(uid: string, lyricId: any) {
     console.log("GET SPECIFIC REGISTERED LYRICS")
 
-    const auth = getAuth();
-
     const queryRef = collection(database, "userLyricsRegistered");
-    const q = query(queryRef, where("userId", "==", auth.currentUser?.uid), where("lyricId", "==", lyricId));
+    const q = query(queryRef, where("userId", "==", uid), where("lyricId", "==", lyricId));
     const querySpecificLyricOfUser = await getDocs(q)
     if (querySpecificLyricOfUser.empty) return false;
 
@@ -153,4 +151,89 @@ export async function getAllSheetsMusics(uid: string) {
         sheetsMusics.push(sheetMusic)
     })
     return sheetsMusics
+}
+
+export async function updateUserRegisteredLyricOffset(registeredId: any, newOffset: any) {
+    const docRef = doc(database, "userLyricsRegistered", registeredId);
+    await updateDoc(docRef, {
+        offset: newOffset
+    })
+        .then(() => {
+            console.log('REGISTERED LYRIC OFFSET UPDATED')
+        })
+        .catch((error) => console.log('Error in update registereds lyrics: ' + error))
+
+}
+
+export async function updateUserRegisteredLyricStars(registeredId: any, newStars: any) {
+    const docRef = doc(database, "userLyricsRegistered", registeredId);
+    await updateDoc(docRef, {
+        stars: newStars
+    })
+        .then(() => {
+            console.log('REGISTERED LYRIC STARS UPDATED')
+        })
+        .catch((error) => console.log('Error in update registereds lyrics stars: ' + error))
+}
+
+// Put a Sheet Music
+export async function putSheetMusic(sheetMusic: any) {
+    try {
+        const docRef = await addDoc(collection(database, "sheetsMusics"), sheetMusic);
+        console.log("SHEET MUSIC written with ID: ", docRef.id);
+        return docRef.id;
+    } catch (e) {
+        console.error("Error adding SHEET MUSIC: ", e);
+        return false;
+    }
+}
+
+// Put a Registered Lyric
+export async function putUserLyricRegistered(lyricToRegister: any) {
+    try {
+        const docRef = await addDoc(collection(database, "userLyricsRegistered"), lyricToRegister);
+        console.log("USER REGISTERED LYRIC written with ID: ", docRef.id);
+        return docRef.id;
+    } catch (e) {
+        console.error("Error adding USER REGISTERED LYRIC: ", e);
+        return false;
+    }
+}
+
+
+// Update specific Sheet Music
+export async function updateUserSheetMusic(sheetMusicId: any, newSheetMusic: any) {
+    const docRef = doc(database, "sheetsMusics", sheetMusicId);
+    await updateDoc(docRef, {
+        description: newSheetMusic.description,
+        sheetMusicName: newSheetMusic.sheetMusicName,
+        lyrics: newSheetMusic.lyrics
+    })
+        .then(() => {
+            console.log('SUCCESSFULLY UPDATED SHEET MUSIC')
+            return true;
+        })
+        .catch((error) => {
+            console.log('Error in update SHEET MUSIC: ' + error)
+            return false;
+        })
+}
+
+// Put a lyric
+export async function deleteSheetMusic(sheetMusicId: string) {
+    console.log(sheetMusicId)
+    try {
+        const docRef = doc(database, "sheetsMusics", sheetMusicId)
+        await deleteDoc(docRef)
+            .then((value: any) => {
+                console.log('Sheet Music Deleted')
+                console.log(value)
+            })
+            .catch((error) => console.log('Error in update registereds lyrics stars: ' + error))
+
+        return true;
+    } catch (e) {
+        console.error("Error deleting sheet music: ", e);
+        return false;
+    }
 }

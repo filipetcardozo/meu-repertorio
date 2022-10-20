@@ -16,9 +16,8 @@ export const useSheetsMusics = () => {
     const { isLogged, uid } = useAuth()
 
     useEffect(() => {
-        console.log('here')
-        if (isLogged && uid && sheetsMusics.length == 0) {
-            getLyrics.getAllSheetsMusics(uid)
+        if (isLogged) {
+            getLyrics.getAllSheetsMusics(uid!)
                 .then((sheets) => {
                     setSheetsMusics(sheets)
                 })
