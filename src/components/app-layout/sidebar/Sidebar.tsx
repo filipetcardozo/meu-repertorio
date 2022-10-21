@@ -76,7 +76,7 @@ const SideBarComponent = (open: any) => {
                     </Link>
                 </ListItem>
                 <ListItem key="create-sheet-music" style={{ textDecoration: "none", color: "inherit" }} disablePadding sx={{ display: 'block', backgroundColor: open.activeMenu == 2 ? "#e4f1ff" : "" }}>
-                    <Link href={"/sheet-music/create-sheet-music"}>
+                    <Link href={"/sheet-music/manage-sheet-music"}>
                         <ListItemButton
                             sx={{
                                 minHeight: 48,
@@ -119,7 +119,7 @@ const SideBarComponent = (open: any) => {
                         </ListItemButton>
                     </ListItem>
                 </Link>
-                <Link href={"/lyric/create-lyric"}>
+                <Link href={"/lyric/manage-lyric"}>
                     <ListItem key="adicionar-cifras" style={{ textDecoration: "none", color: "inherit" }} disablePadding sx={{ display: 'block', backgroundColor: open.activeMenu == 4 ? "#e4f1ff" : "" }}>
                         <ListItemButton
                             sx={{

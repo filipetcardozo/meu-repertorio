@@ -237,3 +237,27 @@ export async function deleteSheetMusic(sheetMusicId: string) {
         return false;
     }
 }
+
+// Put a lyric
+export async function putLyric(lyricToAdd: any) {
+    try {
+        const docRef = await addDoc(collection(database, "lyrics"), lyricToAdd);
+        console.log("LYRIC written with ID: ", docRef.id);
+        return docRef.id;
+    } catch (e) {
+        console.error("Error adding LYRIC: ", e);
+        return false;
+    }
+}
+
+// Put a Composer
+export async function putComposer(composerToAdd: any) {
+    try {
+        const docRef = await addDoc(collection(database, "composers"), composerToAdd);
+        console.log("COMPOSER written with ID: ", docRef.id);
+        return docRef.id;
+    } catch (e) {
+        console.error("Error adding COMPOSER: ", e);
+        return false;
+    }
+}

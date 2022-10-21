@@ -19,19 +19,14 @@ import { ListSheetMusic } from './ListSheetMusic';
 import { updateSheetMusic } from './updateSheetMusic';
 import { registerSheetMusic } from './registerSheetMusic';
 import { Router } from 'next/router';
-
-const auth = getAuth();
-const userId: any = auth.currentUser?.uid
+import { useAuth } from '../../hooks/useAuth';
 
 export const ManageSheetMusicComponent = ({ sheetMusicId }: { sheetMusicId: any }) => {
     // let params = useParams<{ sheetMusicId?: string }>()
     // let redirect = useNavigate()
+    const { uid } = useAuth()
 
     const [lyrics, setLyrics] = useState<any>([])
-
-    useEffect(() => {
-        console.log(lyrics)
-    }, [lyrics])
 
     // All Musics
     const [sheetMusicToAdd, setSheetMusicToAdd] = useState<any>({
@@ -83,7 +78,7 @@ export const ManageSheetMusicComponent = ({ sheetMusicId }: { sheetMusicId: any 
     const [filteredValue, setFilteredValue] = useState("Todas as músicas")
     // Get sheets musics registereds
     useEffect(() => {
-        getAllSheetsMusics(userId)
+        getAllSheetsMusics(uid!)
             .then((sheets: any) => {
                 setSheetsMusics(sheets)
             })
@@ -151,11 +146,8 @@ export const ManageSheetMusicComponent = ({ sheetMusicId }: { sheetMusicId: any 
 
         // debugger
         if (sheetMusicId != "") {
-            console.log("Updated")
             updateSheetMusic(sheetMusicToAdd, setLoadingAddSheetMusic, setOpenAlertUpdateSheetMusic)
         } else {
-            console.log(userId)
-            console.log(sheetMusicToAdd)
             registerSheetMusic(sheetMusicToAdd, setLoadingAddSheetMusic, setOpenAlertAddSheetMusic)
         }
     }
