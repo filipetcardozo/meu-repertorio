@@ -11,7 +11,6 @@ function MyApp({ Component, pageProps }: AppProps) {
     <SnackbarProvider maxSnack={3}>
       <Component {...pageProps} />
     </SnackbarProvider>
-
   </AuthProvider>
 }
 

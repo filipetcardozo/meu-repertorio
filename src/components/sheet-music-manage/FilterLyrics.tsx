@@ -6,11 +6,6 @@ import ListItem from '@mui/material/ListItem';
 import ListItemAvatar from '@mui/material/ListItemAvatar';
 import ListItemText from '@mui/material/ListItemText';
 import Avatar from '@mui/material/Avatar';
-import InputLabel from '@mui/material/InputLabel';
-import MenuItem from '@mui/material/MenuItem';
-import FormControl from '@mui/material/FormControl';
-import Select, { SelectChangeEvent } from '@mui/material/Select';
-import ListSubheader from '@mui/material/ListSubheader';
 import PlaylistAddCheckIcon from '@mui/icons-material/PlaylistAddCheck';
 import CircularProgress from '@mui/material/CircularProgress';
 import TextField from '@mui/material/TextField'
@@ -20,12 +15,11 @@ import algoliasearch from 'algoliasearch/lite';
 import { InstantSearch, useHits } from 'react-instantsearch-hooks-web';
 import { useSearchBox } from 'react-instantsearch-hooks-web';
 
-
 const searchClient = algoliasearch('M91WDCEXS4', '0fa682d5b69e7040b462c96daecbb0fd');
 
-export const FilterLyrics = (params: any) => {
-    const handlePushMusicToSheets = params.handlePushMusicToSheets
-    const lyricsToAdd: any[] = params.lyricsToAdd
+export const FilterLyrics = ({
+    sheetsMusics, lyrics, handlePushMusicToSheets, lyricsToAdd
+}: any) => {
 
     function CustomHits() {
         const { hits } = useHits();
@@ -35,7 +29,6 @@ export const FilterLyrics = (params: any) => {
                 hits.length > 0 ? hits.map((value: any, index: number) => {
                     return <Grid key={index} item xs={6}>
                         <ListItem
-                            button
                             onClick={() => {
                                 let newValue = {
                                     composerId: value.composerId,
@@ -45,13 +38,11 @@ export const FilterLyrics = (params: any) => {
                                     lyricStyle: value.lyricStyle,
                                     originalTone: "A"
                                 }
-                                console.log(newValue)
-
                                 handlePushMusicToSheets(newValue, index)
                             }}
                             key={index}
                             sx={{
-                                padding: 2, backgroundColor: `${lyricsToAdd.filter((values) => values.lyricId == value.objectID).length > 0 ? "#dff0ff" : "#eaf0f5"}`, borderRadius: 2,
+                                padding: 2, backgroundColor: `${lyricsToAdd.filter((values: any) => values.lyricId == value.objectID).length > 0 ? "#dff0ff" : "#eaf0f5"}`, borderRadius: 2,
                                 '&:hover': {
                                     // boxShadow: 1,
                                     cursor: "pointer",
@@ -60,7 +51,7 @@ export const FilterLyrics = (params: any) => {
                             }}
 
                             secondaryAction={
-                                lyricsToAdd.filter((values) => values.lyricId == value.objectID).length > 0 ? <PlaylistAddCheckIcon fontSize="small" /> : null
+                                lyricsToAdd.filter((values: any) => values.lyricId == value.objectID).length > 0 ? <PlaylistAddCheckIcon fontSize="small" /> : null
                             }
                         >
                             <ListItemAvatar>

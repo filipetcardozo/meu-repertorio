@@ -2,8 +2,6 @@ import { useEffect, useState } from "react"
 import { registerSheetMusic } from "../components/sheet-music-manage/registerSheetMusic"
 import { updateSheetMusic } from "../components/sheet-music-manage/updateSheetMusic"
 import { deleteSheetMusic, getAllSheetsMusics, getSheetMusic } from "../providers/lyrics/service"
-import { useAlert } from "./useAlert"
-import { useAuth } from "./useAuth"
 import { useSnackbar } from "notistack";
 
 export const useSheetMusicManage = ({ sheetMusicId }: { sheetMusicId: any }) => {
@@ -24,7 +22,6 @@ export const useSheetMusicManage = ({ sheetMusicId }: { sheetMusicId: any }) => 
     })
     const [lyricsToAdd, setLyricsToAdd] = useState<any[]>([])
     const [sheetsMusics, setSheetsMusics] = useState<any[]>([])
-    const [filteredValue, setFilteredValue] = useState("Todas as músicas")
     const [loadingAddSheetMusic, setLoadingAddSheetMusic] = useState(false)
 
     const { enqueueSnackbar } = useSnackbar();
@@ -34,8 +31,6 @@ export const useSheetMusicManage = ({ sheetMusicId }: { sheetMusicId: any }) => 
             getSheetMusic(sheetMusicId)
                 .then((value) => {
                     if (value) {
-                        console.log("Sheet Music for change:")
-                        console.log(value)
                         sheetMusicToAdd.id = value.id
                         sheetMusicToAdd.description = value.description
                         sheetMusicToAdd.sheetMusicName = value.sheetMusicName
@@ -55,19 +50,6 @@ export const useSheetMusicManage = ({ sheetMusicId }: { sheetMusicId: any }) => 
                 })
         }
     }, [])
-
-    useEffect(() => {
-        if (filteredValue.startsWith("Partitura:")) {
-            let newFiltered = sheetsMusics.filter((el) => el.sheetMusicName == filteredValue.replace("Partitura: ", ""))
-
-            if (newFiltered.length > 0) setLyrics(newFiltered[0].lyrics);
-        }
-
-        if (filteredValue.startsWith("Gênero:")) {
-            console.log("GENNNERO")
-        }
-
-    }, [filteredValue])
 
     const handleDeleteSheetMusic = () => {
         deleteSheetMusic(sheetMusicId)
@@ -115,9 +97,7 @@ export const useSheetMusicManage = ({ sheetMusicId }: { sheetMusicId: any }) => 
         sheetMusicToAdd,
         lyricsToAdd,
         sheetsMusics,
-        filteredValue,
         loadingAddSheetMusic,
-        setFilteredValue,
         setSheetMusicToAdd,
         setLyricsToAdd,
         handleDeleteSheetMusic,

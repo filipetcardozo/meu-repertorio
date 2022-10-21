@@ -24,7 +24,7 @@ import { styled } from '@mui/material/styles';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { FiEdit } from 'react-icons/fi';
 import Link from "next/link";
-import { SheetsMusicsCards } from "../../pages/sheet-music/registered-sheet-music/SheetsMusicsCards";
+import { SheetsMusicsCards } from "../../pages/sheet-music/all-sheet-music/SheetsMusicsCards";
 import { useRouter } from "next/router";
 
 export const SheetsMusicsCard = ({ sheetMusic, index }: { sheetMusic: any, index: any }) => {

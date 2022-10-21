@@ -20,9 +20,7 @@ export const ManageSheetMusicComponent = ({ sheetMusicId }: { sheetMusicId: any 
         sheetMusicToAdd,
         lyricsToAdd,
         sheetsMusics,
-        filteredValue,
         loadingAddSheetMusic,
-        setFilteredValue,
         setSheetMusicToAdd,
         setLyricsToAdd,
         handleDeleteSheetMusic,
@@ -84,8 +82,8 @@ export const ManageSheetMusicComponent = ({ sheetMusicId }: { sheetMusicId: any 
                     </Grid>
                     {/* {<FilterLyrics />} */}
                     <Grid item xs={8} minHeight={400}>
-                        {<FilterLyrics sheetsMusics={sheetsMusics} setFilteredValue={setFilteredValue}
-                            filteredValue={filteredValue} lyrics={lyrics} handlePushMusicToSheets={handlePushMusicToSheets}
+                        {<FilterLyrics sheetsMusics={sheetsMusics}
+                            lyrics={lyrics} handlePushMusicToSheets={handlePushMusicToSheets}
                             lyricsToAdd={lyricsToAdd} />}
                     </Grid>
                     <Grid item xs={12} textAlign="center" position="relative">
