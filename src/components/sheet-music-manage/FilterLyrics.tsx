@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import React, { useCallback, useEffect, useState } from 'react';
 import Grid from '@mui/material/Grid'
 import List from '@mui/material/List';
@@ -23,18 +24,12 @@ import { useSearchBox } from 'react-instantsearch-hooks-web';
 const searchClient = algoliasearch('M91WDCEXS4', '0fa682d5b69e7040b462c96daecbb0fd');
 
 export const FilterLyrics = (params: any) => {
-
-    const lyrics = params.lyrics
     const handlePushMusicToSheets = params.handlePushMusicToSheets
     const lyricsToAdd: any[] = params.lyricsToAdd
 
-    const filteredValue = params.filteredValue
-    const setFilteredValue = params.setFilteredValue
-    const sheetsMusics = params.sheetsMusics
-
     function CustomHits() {
-        const { hits, results, sendEvent } = useHits();
-        // console.log(hits)
+        const { hits } = useHits();
+
         return <>
             {
                 hits.length > 0 ? hits.map((value: any, index: number) => {
@@ -86,7 +81,7 @@ export const FilterLyrics = (params: any) => {
     }
 
     function CustomSearchBox() {
-        const { query, refine, clear, isSearchStalled } = useSearchBox();
+        const { refine, } = useSearchBox();
 
         const [valueToSearch, setValueToSearch] = React.useState("")
 
@@ -127,42 +122,12 @@ export const FilterLyrics = (params: any) => {
 
     }
 
-    return <>
-        <FormControl variant="filled" fullWidth>
-            <InputLabel id="demo-simple-select-filled-label">Filtro</InputLabel>
-            <Select
-                labelId="demo-simple-select-filled-label"
-                id="demo-simple-select-filled"
-                margin="none"
-                defaultValue="Todas as músicas"
-                onChange={(event) => setFilteredValue(event.target.value)}
-            >
-                <ListSubheader>Mais utilizados</ListSubheader>
-                <MenuItem value={"Todas as músicas"}>Todas as músicas</MenuItem>
-                <MenuItem value={"Todas as músicas cadastradas"}>Todas as músicas cadastradas</MenuItem>
-
-                <ListSubheader>Filtrar por partitura</ListSubheader>
-                {
-                    sheetsMusics.length > 0 ? sheetsMusics.map((value: any, index: number) => {
-                        return <MenuItem key={index} value={"Partitura: " + value.sheetMusicName}>{value.sheetMusicName}</MenuItem>
-                    }) : <MenuItem disabled>Ainda não foi cadastrada nenhuma partitura</MenuItem>
-                }
-
-                <ListSubheader>Filtrar por gênero musical</ListSubheader>
-                <MenuItem value={"Gênero: Sertanejo"}>Sertanejo</MenuItem>
-                <MenuItem value={"Gênero: Samba"}>Samba</MenuItem>
-                <MenuItem value={"Gênero: Pagode"}>Pagode</MenuItem>
-                <MenuItem value={"Gênero: Rock"}>Rock</MenuItem>
-                <MenuItem value={"Gênero: Gospel/Religioso"}>Gospel/Religioso</MenuItem>
-            </Select>
-        </FormControl>
-        <List dense={true}>
-            <Grid container spacing={2}>
-                <InstantSearch searchClient={searchClient} indexName="lyrics">
-                    <CustomSearchBox />
-                    <CustomHits />
-                </InstantSearch>
-            </Grid>
-        </List>
-    </>
+    return <List dense={true}>
+        <Grid container spacing={2}>
+            <InstantSearch searchClient={searchClient} indexName="lyrics">
+                <CustomSearchBox />
+                <CustomHits />
+            </InstantSearch>
+        </Grid>
+    </List>
 }

@@ -2,19 +2,20 @@ import { getAuth } from "firebase/auth";
 import { useAuth } from "../../hooks/useAuth";
 import { getSpecificUserRegisteredLyrics, putUserLyricRegistered, updateUserSheetMusic } from "../../providers/lyrics/service";
 
-export function updateSheetMusic(sheetMusicToUpdate: any, setLoadingAddSheetMusic: any, setOpenAlertUpdateSheetMusic: any) {
-    
+export function updateSheetMusic(sheetMusicToUpdate: any, setLoadingAddSheetMusic: any, callOpenAlert: any) {
+
     const auth = getAuth();
     const userId: any = auth.currentUser?.uid
 
     setLoadingAddSheetMusic(true)
     updateUserSheetMusic(sheetMusicToUpdate.id, sheetMusicToUpdate)
         .then((value: any) => {
-            setOpenAlertUpdateSheetMusic(true)
+            callOpenAlert({ severity: "success", alertMessage: "Partitura atualizada com sucesso!" })
             setLoadingAddSheetMusic(false)
         })
         .catch((error) => {
-            console.log('Error in update sheet music')
+            callOpenAlert({ severity: "error", alertMessage: "Ops... algum erro ocorreu." })
+            setLoadingAddSheetMusic(false)
             return false;
         })
 

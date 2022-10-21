@@ -2,7 +2,7 @@ import { GiConsoleController } from "react-icons/gi"
 import { getAuth } from "firebase/auth";
 import { getSpecificUserRegisteredLyrics, putSheetMusic, putUserLyricRegistered } from "../../providers/lyrics/service";
 
-export function registerSheetMusic(sheetMusicToAdd: any, setLoadingAddSheetMusic: any, setOpenAlertAddSheetMusic: any) {
+export function registerSheetMusic(sheetMusicToAdd: any, setLoadingAddSheetMusic: any, callOpenAlert: any) {
     const auth = getAuth();
     const userId: any = auth.currentUser?.uid
 
@@ -22,12 +22,13 @@ export function registerSheetMusic(sheetMusicToAdd: any, setLoadingAddSheetMusic
     putSheetMusic(sheetMusicToAdd)
         .then((value) => {
             if (value) {
-                setOpenAlertAddSheetMusic(true)
+                callOpenAlert({ severity: "success", alertMessage: "Partitura cadastrada com sucesso!" })
                 setLoadingAddSheetMusic(false)
             }
         })
         .catch((error) => {
-            console.log('Error in add sheet music')
+            callOpenAlert({ severity: "error", alertMessage: "Ops... algum problema ocorreu!" })
+            setLoadingAddSheetMusic(false)
             return false;
         })
 
