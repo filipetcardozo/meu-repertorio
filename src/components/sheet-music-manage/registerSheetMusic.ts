@@ -23,6 +23,7 @@ export function registerSheetMusic(sheetMusicToAdd: any, setLoadingAddSheetMusic
         .then((value) => {
             if (value) {
                 callOpenAlert({ severity: "success", alertMessage: "Partitura cadastrada com sucesso!" })
+
                 setLoadingAddSheetMusic(false)
             }
         })

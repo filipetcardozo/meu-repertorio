@@ -13,8 +13,6 @@ import Tooltip from '@mui/material/Tooltip';
 import { FilterLyrics } from './FilterLyrics';
 import { ListSheetMusic } from './ListSheetMusic';
 import { useSheetMusicManage } from '../../hooks/useSheetMusicManage';
-import { AlertComponent } from '../alert';
-import { useAlert } from '../../hooks/useAlert';
 
 export const ManageSheetMusicComponent = ({ sheetMusicId }: { sheetMusicId: any }) => {
     const {
@@ -30,11 +28,7 @@ export const ManageSheetMusicComponent = ({ sheetMusicId }: { sheetMusicId: any 
         handleDeleteSheetMusic,
         handleAddSheetMusic,
         handlePushMusicToSheets,
-        handleDeleteMusicSheet,
-        alertMessage,
-        openAlert,
-        severity,
-        handleCloseAlert,
+        handleDeleteMusicSheet
     } = useSheetMusicManage({ sheetMusicId })
 
     const Alert = React.forwardRef<HTMLDivElement, AlertProps>(function Alert(
@@ -123,26 +117,6 @@ export const ManageSheetMusicComponent = ({ sheetMusicId }: { sheetMusicId: any 
                     </Grid>
                 </Grid>
             </Box>
-
-            <AlertComponent alertMessage={alertMessage} openAlert={openAlert} severity={severity} handleCloseAlert={handleCloseAlert} />
-
-            {/* <Snackbar open={openAlertAlredyAdd} autoHideDuration={3000} onClose={handleClose}>
-                <Alert onClose={handleClose} severity="warning" sx={{ width: '100%' }}>
-                    Essa música já foi adicionada ao repertório.
-                </Alert>
-            </Snackbar>
-
-            <Snackbar open={openAlertAddSheetMusic} autoHideDuration={3000} onClose={handleClose}>
-                <Alert onClose={handleClose} severity="success" sx={{ width: '100%' }}>
-                    Repertório adicionado com sucesso!
-                </Alert>
-            </Snackbar>
-
-            <Snackbar open={openAlertUpdateSheetMusic} autoHideDuration={3000} onClose={handleClose}>
-                <Alert onClose={handleClose} severity="success" sx={{ width: '100%' }}>
-                    Repertório atualizado com sucesso!
-                </Alert>
-            </Snackbar> */}
         </>
     )
 }

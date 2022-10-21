@@ -4,7 +4,7 @@ import { updateSheetMusic } from "../components/sheet-music-manage/updateSheetMu
 import { deleteSheetMusic, getAllSheetsMusics, getSheetMusic } from "../providers/lyrics/service"
 import { useAlert } from "./useAlert"
 import { useAuth } from "./useAuth"
-
+import { useSnackbar } from "notistack";
 
 export const useSheetMusicManage = ({ sheetMusicId }: { sheetMusicId: any }) => {
     const [lyrics, setLyrics] = useState<any>([])
@@ -27,16 +27,7 @@ export const useSheetMusicManage = ({ sheetMusicId }: { sheetMusicId: any }) => 
     const [filteredValue, setFilteredValue] = useState("Todas as músicas")
     const [loadingAddSheetMusic, setLoadingAddSheetMusic] = useState(false)
 
-    const {
-        alertMessage,
-        openAlert,
-        severity,
-        handleCloseAlert,
-        setAlertMessage,
-        setOpenAlert,
-        setSeverity,
-        callOpenAlert
-    } = useAlert()
+    const { enqueueSnackbar } = useSnackbar();
 
     useEffect(() => {
         if (sheetMusicId) {
@@ -94,9 +85,9 @@ export const useSheetMusicManage = ({ sheetMusicId }: { sheetMusicId: any }) => 
 
         // debugger
         if (sheetMusicId != "") {
-            updateSheetMusic(sheetMusicToAdd, setLoadingAddSheetMusic, callOpenAlert)
+            updateSheetMusic(sheetMusicToAdd, setLoadingAddSheetMusic, enqueueSnackbar)
         } else {
-            registerSheetMusic(sheetMusicToAdd, setLoadingAddSheetMusic, callOpenAlert)
+            registerSheetMusic(sheetMusicToAdd, setLoadingAddSheetMusic, enqueueSnackbar)
         }
     }
 
@@ -132,13 +123,6 @@ export const useSheetMusicManage = ({ sheetMusicId }: { sheetMusicId: any }) => 
         handleDeleteSheetMusic,
         handleAddSheetMusic,
         handlePushMusicToSheets,
-        handleDeleteMusicSheet,
-        alertMessage,
-        openAlert,
-        severity,
-        handleCloseAlert,
-        setAlertMessage,
-        setOpenAlert,
-        setSeverity
+        handleDeleteMusicSheet
     }
 }
