@@ -16,7 +16,7 @@ import { DrawerHeader, AppBar, Drawer } from "./drawerConfig";
 
 export const Layout = ({ children, activeMenu }: any) => {
     const theme = useTheme();
-    const [open, setOpen] = React.useState(true);
+    const [open, setOpen] = React.useState(false);
 
     const handleDrawerOpen = () => {
         setOpen(true);
@@ -54,7 +54,6 @@ export const Layout = ({ children, activeMenu }: any) => {
                         src={logo}
                         alt="Logo Easy Show"
                     />
-                    <Box component={"img"} src="EasyShowLogo.png" alt="" sx={{ maxWidth: "160px" }} />
                     <IconButton onClick={handleDrawerClose}>
                         {theme.direction === 'rtl' ? <ChevronRightIcon /> : <ChevronLeftIcon />}
                     </IconButton>

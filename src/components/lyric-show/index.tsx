@@ -1,34 +1,18 @@
 import { useEffect, useState } from "react"
 import { Markup } from 'interweave';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button'
 import Typography from '@mui/material/Typography'
 import NextPlanIcon from '@mui/icons-material/NextPlan';
 import IconButton from '@mui/material/IconButton';
 import Fab from '@mui/material/Fab';
-import ButtonGroup from '@mui/material/ButtonGroup';
-import { BsArrowUpRightCircle } from 'react-icons/bs';
-import { MdExpandLess } from 'react-icons/md';
-import { MdArrowDropUp } from 'react-icons/md';
 import Stack from "@mui/material/Stack"
-import Chip from '@mui/material/Chip';
 import Badge from '@mui/material/Badge';
 import RemoveIcon from '@mui/icons-material/Remove';
-import { BsMusicNoteList } from 'react-icons/bs';
 import AddIcon from '@mui/icons-material/Add';
-import { GiMusicalScore } from 'react-icons/gi';
-import { GiMusicalNotes } from 'react-icons/gi';
-import SaveIcon from '@mui/icons-material/SaveOutlined';
-import PlaylistAddCheckCircleIcon from '@mui/icons-material/PlaylistAddCheckCircleOutlined';
-import { GrUpdate } from 'react-icons/gr'
-import CloudSyncIcon from '@mui/icons-material/CloudSyncOutlined';
 import SaveAsIcon from '@mui/icons-material/SaveAs';
 import Tooltip, { TooltipProps, tooltipClasses } from '@mui/material/Tooltip';
 import { styled } from '@mui/material/styles';
-import { LoadingButton } from "@mui/lab";
 import CircularProgress from '@mui/material/CircularProgress';
-import { green } from "@mui/material/colors";
-import { ConstructionOutlined } from "@mui/icons-material";
 
 const scaleNotes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
@@ -440,6 +424,7 @@ export const LyricShow = (params: any) => {
             <Markup content={htmlLyric} />
         </Box >
     }
+
     function htmlContentSecond() {
         if (!htmlLyricSecond) return htmlNextMusic();
 
@@ -448,6 +433,7 @@ export const LyricShow = (params: any) => {
             {lengthSecondColumn < 20 ? htmlNextMusic() : ""}
         </Box>
     }
+
     function htmlContentThird() {
         if (!htmlLyricThird && lengthSecondColumn >= 20) return htmlNextMusic();
 
@@ -456,6 +442,7 @@ export const LyricShow = (params: any) => {
             {htmlNextMusic()}
         </Box>
     }
+    
     function htmlNextMusic() {
         if (htmlLyricNextMusic) return <Box display="inline" color="#00000066">
             <Box justifyContent="center" >
