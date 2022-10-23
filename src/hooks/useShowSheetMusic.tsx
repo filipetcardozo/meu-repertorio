@@ -9,7 +9,7 @@ export const useShowSheetMusic = ({ sheetMusicId }: { sheetMusicId: string }) =>
     const { uid } = useAuth()
     const db = database
 
-    const [lyricToShow, setLyricToShow] = useState({})
+    const [lyricToShow, setLyricToShow] = useState<any>({})
 
     // Lyrics to show in this sheet
     let [sheetMusicToShow, setSheetMusicToShow] = useState<any>({ lyrics: [{ offset: 0 }] })

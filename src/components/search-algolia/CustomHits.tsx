@@ -3,8 +3,11 @@ import ListItem from '@mui/material/ListItem';
 import ListItemText from '@mui/material/ListItemText';
 import ListItemAvatar from '@mui/material/ListItemAvatar';
 import Avatar from '@mui/material/Avatar';
+import { useRouter } from 'next/router'
 
 export const CustomHits = ({ hits }: any) => {
+    const router = useRouter()
+
     return <>
         {
             hits.length > 0 ? hits.map((value: any, index: number) => {
@@ -24,7 +27,7 @@ export const CustomHits = ({ hits }: any) => {
                                 lyricStyle: value.lyricStyle,
                                 originalTone: "A"
                             }
-                            // navigate(`/app/lyric/${value.objectID}`)
+                            router.push(`/lyric/lyric-show/${value.objectID}`)
                         }}
                         key={index}
                         sx={{

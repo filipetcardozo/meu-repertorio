@@ -9,15 +9,21 @@ import { getAuth } from "firebase/auth";
 import { firebaseApp, database } from "../../../firebaseConfig";
 
 // Get specific lyric
-export async function getLyric(idLyric: string) {
+export async function getLyric(idLyric: any) {
     console.log("GET SPECIFIC LYRIC")
 
     let lyric: any = {}
     const docRef = doc(database, "lyrics", idLyric)
     const querySnapshot = await getDoc(docRef);
-    lyric = { ...querySnapshot.data() }
-    lyric.id = querySnapshot.id
-    return lyric
+
+    if (querySnapshot.exists()) {
+        lyric = { ...querySnapshot.data() }
+        lyric.id = querySnapshot.id
+        return lyric
+    } else {
+        return undefined;
+    }
+
 }
 
 // Get specific Sheet Music

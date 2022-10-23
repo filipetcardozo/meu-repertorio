@@ -20,6 +20,7 @@ import { useShowSheetMusic } from "../../hooks/useShowSheetMusic";
 import { SkeletonComponent } from "./Skeleton";
 import { LyricShow } from "../lyric-show";
 import { useRouter } from "next/dist/client/router";
+import { useLyricShow } from "../../hooks/useLyricShow";
 
 const Alert = React.forwardRef<HTMLDivElement, AlertProps>(function Alert(
     props,
@@ -118,15 +119,15 @@ export const SheetMusicShow = ({ sheetMusicId }: { sheetMusicId: any }) => {
     });
 
     const RenderLyric = () => {
-        return <LyricShow changeOffSet={changeOffSet}
+        return <LyricShow
+            changeOffSet={changeOffSet}
             handleNext={handleNext}
-            // lyricToShow={sheetMusicToShow.lyrics[activeStep]}
             lyricToShow={lyricToShow}
-            sheetMusic={sheetMusicToShow} setSheetMusic={setSheetMusicToShow}
             nextLyricToShow={sheetMusicToShow.lyrics[activeStep + 1]}
             offsetsUpdateds={offsetsUpdateds[activeStep]}
             updateOffset={updateOffset}
             offsetIsUpdating={offsetIsUpdating}
+            offsetLyricToShow={lyricToShow.offset!}
         />
 
     }
