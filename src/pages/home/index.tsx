@@ -6,7 +6,7 @@ import { Layout } from '../../components/app-layout'
 // Authentication
 import { useAuth } from '../../hooks/useAuth'
 import { useProtectPage } from '../../hooks/useAuth'
-import { HomeLyrics } from './HomeComponent'
+import { HomeLyrics } from '../../components/home/HomeComponent'
 
 // Algolia
 import { InstantSearch, SearchBox, Hits, useHits } from 'react-instantsearch-hooks-web';
