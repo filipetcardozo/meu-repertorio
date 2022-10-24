@@ -1,15 +1,17 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import { doc, getDoc } from "firebase/firestore";
 import { useEffect, useState } from "react";
 import { database } from "../../firebaseConfig";
-import { getSheetMusic, getSpecificUserRegisteredLyrics, updateUserRegisteredLyricOffset, updateUserRegisteredLyricStars } from "../providers/lyrics/service";
+import { getRegisteredLyric, getSheetMusic, updateUserRegisteredLyricOffset, updateUserRegisteredLyricStars } from "../providers/lyrics/services";
 import { useAuth } from "./useAuth";
+import { useStorageSheetMusic } from "./useStorageSheetMusic";
 
 
 export const useShowSheetMusic = ({ sheetMusicId }: { sheetMusicId: string }) => {
     const { uid } = useAuth()
     const db = database
 
-    const [lyricToShow, setLyricToShow] = useState({})
+    const [lyricToShow, setLyricToShow] = useState<any>({})
 
     // Lyrics to show in this sheet
     let [sheetMusicToShow, setSheetMusicToShow] = useState<any>({ lyrics: [{ offset: 0 }] })
@@ -19,7 +21,7 @@ export const useShowSheetMusic = ({ sheetMusicId }: { sheetMusicId: string }) =>
 
     // Stepper
     const [activeStep, setActiveStep] = useState(0);
-    const [completed, setCompleted] = useState<boolean[]>([]);
+    const [completed, setCompleted] = useState<boolean[] | any>([]);
     const [startTime, setStartTime] = useState(new Date().getTime())
     const [readyToRender, setReadyToRender] = useState(false)
 
@@ -33,6 +35,11 @@ export const useShowSheetMusic = ({ sheetMusicId }: { sheetMusicId: string }) =>
     const [starValueAfter, setStartValueAfter] = useState(0)
     const [displacementStart, setDisplacementStart] = useState(false)
     const [updatingStarsLoading, setUpdatingStarsLoading] = useState(false)
+
+    const {
+        callGetCompletedSheetMusicLocalStorage,
+        callPutCompletedSheetMusicLocalStorage
+    } = useStorageSheetMusic()
 
     // Request of the sheet music and later of each song individually
     const getSheet = async () => {
@@ -48,10 +55,10 @@ export const useShowSheetMusic = ({ sheetMusicId }: { sheetMusicId: string }) =>
                 const docRef = doc(db, "lyrics", value.lyricId)
                 allGetDocs.push(getDoc(docRef))
 
-                allGetDocsRegistered.push(getSpecificUserRegisteredLyrics(uid!, value.lyricId))
+                allGetDocsRegistered.push(getRegisteredLyric(uid!, value.lyricId!))
             })
 
-            Promise.all(allGetDocs)
+            await Promise.all(allGetDocs)
                 .then(values => {
                     values.forEach((lyric: any) => {
                         let indexOf = sheet.lyrics.map(function (e: any) { return e.lyricId; }).indexOf(lyric.id)
@@ -90,7 +97,14 @@ export const useShowSheetMusic = ({ sheetMusicId }: { sheetMusicId: string }) =>
 
     useEffect(() => {
         getSheet()
+            .then(() => {
+                let completedStorage = callGetCompletedSheetMusicLocalStorage(sheetMusicId)
+                if (completedStorage) {
+                    setCompleted(completedStorage)
+                }
+            })
     }, [])
+
 
     function handleNext() {
         if (activeStep == sheetMusicToShow.lyrics.length - 1) return;
@@ -138,6 +152,12 @@ export const useShowSheetMusic = ({ sheetMusicId }: { sheetMusicId: string }) =>
         setActiveStep((prevActiveStep: any) => step);
         setLyricToShow(sheetMusicToShow.lyrics[step])
     }
+
+    useEffect(() => {
+        if (readyToRender) {
+            callPutCompletedSheetMusicLocalStorage(sheetMusicId, completed)
+        }
+    }, [completed])
 
     const downHandler = ({ key }: any) => {
         if (key == "ArrowRight" || key == " ") handleNext()

@@ -1,22 +1,20 @@
 import {
     getLyric,
     getSheetMusic,
-    getAllUserRegisteredLyrics,
-    getSpecificUserRegisteredLyrics,
+    getAllRegisteredLyrics,
+    getRegisteredLyric,
     getAllComposers,
-    getAllLyrics,
     getLyricsPaginate,
     getAllSheetsMusics
-} from "./service";
+} from "./services";
 
 export const getLyricsServices = () => {
     return {
         getLyric,
         getSheetMusic,
-        getAllUserRegisteredLyrics,
-        getSpecificUserRegisteredLyrics,
+        getAllRegisteredLyrics,
+        getRegisteredLyric,
         getAllComposers,
-        getAllLyrics,
         getLyricsPaginate,
         getAllSheetsMusics
     }

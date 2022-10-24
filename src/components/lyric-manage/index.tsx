@@ -23,7 +23,7 @@ import { getFirestore } from "firebase/firestore";
 import TextField from '@mui/material/TextField';
 import Autocomplete from '@mui/material/Autocomplete';
 import { initializeApp } from "firebase/app";
-import { getAllComposers, putComposer, putLyric } from '../../providers/lyrics/service';
+import { getAllComposers, putComposer, putLyric } from '../../providers/lyrics/services';
 
 
 export const LyricManage = ({ idLyric }: { idLyric: string | undefined }) => {

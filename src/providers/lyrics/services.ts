@@ -1,31 +1,38 @@
 import { collection, getDocs, getDoc, addDoc, doc, limit, startAfter, orderBy, DocumentSnapshot, updateDoc, deleteDoc } from "firebase/firestore";
-import { getFirestore } from "firebase/firestore";
-import { getApp } from "firebase/app";
-
 import { query, where } from "firebase/firestore";
-
 import { getAuth } from "firebase/auth";
-
 import { firebaseApp, database } from "../../../firebaseConfig";
+import { getLyricType, lyricType } from "../../types/lyricType";
+import { getAllSheetsMusicsType, getSheetMusicType, sheetMusicType } from "../../types/sheetMusicType";
+import { getAllRegisteredLyricsType, getRegisteredLyricType, registeredLyricType } from "../../types/registeredLyricType";
+import { composerType, getAllComposersType, getComposerType } from "../../types/composerType";
+
+// Types
 
 // Get specific lyric
-export async function getLyric(idLyric: string) {
+export const getLyric: getLyricType = async (idLyric) => {
     console.log("GET SPECIFIC LYRIC")
 
     let lyric: any = {}
     const docRef = doc(database, "lyrics", idLyric)
     const querySnapshot = await getDoc(docRef);
-    lyric = { ...querySnapshot.data() }
-    lyric.id = querySnapshot.id
-    return lyric
+
+    if (querySnapshot.exists()) {
+        lyric = { ...querySnapshot.data() }
+        lyric.id = querySnapshot.id
+        return lyric
+    } else {
+        return undefined;
+    }
+
 }
 
 // Get specific Sheet Music
-export async function getSheetMusic(id: string) {
+export const getSheetMusic: getSheetMusicType = async (idSheetMusic) => {
     console.log("GET SPECIFIC SHEETS MUSICS")
 
     let sheetMusic: any
-    const docRef = doc(database, "sheetsMusics", id)
+    const docRef = doc(database, "sheetsMusics", idSheetMusic)
     const querySnapshot = await getDoc(docRef);
 
     if (querySnapshot.exists()) {
@@ -39,7 +46,7 @@ export async function getSheetMusic(id: string) {
 }
 
 // Get specific user registereds lyrics
-export async function getAllUserRegisteredLyrics() {
+export const getAllRegisteredLyrics: getAllRegisteredLyricsType = async () => {
     console.log("GET REGISTERED LYRICS")
 
     const auth = getAuth();
@@ -59,24 +66,28 @@ export async function getAllUserRegisteredLyrics() {
 }
 
 // Get specific user registered lyric
-export async function getSpecificUserRegisteredLyrics(uid: string, lyricId: any) {
+export const getRegisteredLyric: getRegisteredLyricType = async (uid, lyricId) => {
     console.log("GET SPECIFIC REGISTERED LYRICS")
 
     const queryRef = collection(database, "userLyricsRegistered");
     const q = query(queryRef, where("userId", "==", uid), where("lyricId", "==", lyricId));
     const querySpecificLyricOfUser = await getDocs(q)
-    if (querySpecificLyricOfUser.empty) return false;
 
-    if (querySpecificLyricOfUser.docs.length > 1) return false;
+    if (!querySpecificLyricOfUser.empty) {
+        let newLyricRegistered = querySpecificLyricOfUser.docs[0].data()
+        newLyricRegistered.id = querySpecificLyricOfUser.docs[0].id
 
-    let newLyricRegistered = querySpecificLyricOfUser.docs[0].data()
-    newLyricRegistered.id = querySpecificLyricOfUser.docs[0].id
+        return newLyricRegistered as registeredLyricType;
+    } else {
+        return undefined;
+    }
 
-    return newLyricRegistered;
+
 }
 
 // Get all Composers
-export async function getAllComposers() {
+export const getAllComposers: getAllComposersType = async () => {
+
     console.log("GET ALL COMPOSERS")
 
     let composers: any = []
@@ -87,20 +98,6 @@ export async function getAllComposers() {
         composers.push(composer)
     });
     return composers
-}
-
-// Get all musics
-export async function getAllLyrics() {
-    console.log("GET ALL LYRICS")
-
-    let lyrics: any = []
-    const querySnapshot = await getDocs(collection(database, "lyrics"));
-    querySnapshot.forEach((doc) => {
-        let lyric = doc.data()
-        lyric.lyricId = doc.id
-        lyrics.push(lyric)
-    });
-    return lyrics
 }
 
 // Get all musics paginates
@@ -135,7 +132,7 @@ export async function getLyricsPaginate(startsInValue?: any) {
 }
 
 // Get all sheets musics
-export async function getAllSheetsMusics(uid: string) {
+export const getAllSheetsMusics: getAllSheetsMusicsType = async (uid) => {
     console.log("GET ALL SHEETS MUSICS")
 
     // const auth = getAuth();
@@ -162,7 +159,6 @@ export async function updateUserRegisteredLyricOffset(registeredId: any, newOffs
             console.log('REGISTERED LYRIC OFFSET UPDATED')
         })
         .catch((error) => console.log('Error in update registereds lyrics: ' + error))
-
 }
 
 export async function updateUserRegisteredLyricStars(registeredId: any, newStars: any) {
@@ -177,7 +173,7 @@ export async function updateUserRegisteredLyricStars(registeredId: any, newStars
 }
 
 // Put a Sheet Music
-export async function putSheetMusic(sheetMusic: any) {
+export async function putSheetMusic(sheetMusic: sheetMusicType) {
     try {
         const docRef = await addDoc(collection(database, "sheetsMusics"), sheetMusic);
         console.log("SHEET MUSIC written with ID: ", docRef.id);
@@ -189,7 +185,7 @@ export async function putSheetMusic(sheetMusic: any) {
 }
 
 // Put a Registered Lyric
-export async function putUserLyricRegistered(lyricToRegister: any) {
+export async function putUserLyricRegistered(lyricToRegister: registeredLyricType) {
     try {
         const docRef = await addDoc(collection(database, "userLyricsRegistered"), lyricToRegister);
         console.log("USER REGISTERED LYRIC written with ID: ", docRef.id);
@@ -221,7 +217,6 @@ export async function updateUserSheetMusic(sheetMusicId: any, newSheetMusic: any
 
 // Put a lyric
 export async function deleteSheetMusic(sheetMusicId: string) {
-    console.log(sheetMusicId)
     try {
         const docRef = doc(database, "sheetsMusics", sheetMusicId)
         await deleteDoc(docRef)
@@ -239,7 +234,7 @@ export async function deleteSheetMusic(sheetMusicId: string) {
 }
 
 // Put a lyric
-export async function putLyric(lyricToAdd: any) {
+export async function putLyric(lyricToAdd: lyricType) {
     try {
         const docRef = await addDoc(collection(database, "lyrics"), lyricToAdd);
         console.log("LYRIC written with ID: ", docRef.id);
@@ -251,7 +246,7 @@ export async function putLyric(lyricToAdd: any) {
 }
 
 // Put a Composer
-export async function putComposer(composerToAdd: any) {
+export async function putComposer(composerToAdd: composerType) {
     try {
         const docRef = await addDoc(collection(database, "composers"), composerToAdd);
         console.log("COMPOSER written with ID: ", docRef.id);

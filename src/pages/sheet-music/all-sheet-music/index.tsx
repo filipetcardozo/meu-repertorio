@@ -5,7 +5,7 @@ import { Layout } from "../../../components/app-layout";
 
 // Hooks
 import { useAuth, useProtectPage } from "../../../hooks/useAuth";
-import { SheetsMusicsCards } from "./SheetsMusicsCards";
+import { SheetsMusicsCards } from "../../../components/sheet-music-card/SheetsMusicsCards";
 
 const RegisteredSheetMusic = () => {
     // States
