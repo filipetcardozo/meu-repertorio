@@ -16,7 +16,7 @@ import LinearProgress from '@mui/material/LinearProgress';
 import { AppProps } from 'next/app';
 import { Box, CircularProgress, Stack } from '@mui/material';
 import { useSearchAlgolia } from '../../hooks/useSearchAlgolia';
-import { CustomHits } from '../../components/search-algolia/CustomHits';
+import { CustomHits } from '../search-algolia/CustomHits';
 
 export const HomeLyrics = () => {
     const {
