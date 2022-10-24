@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { Layout } from "../../../components/app-layout";
 import { useAuth } from "../../../hooks/useAuth";
-import { LyricShowPage } from "./LyricShow";
+import { LyricShowPage } from "../../../components/lyric-show/LyricShow";
 
 const LyricShow = () => {
     const { isLogged } = useAuth()

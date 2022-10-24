@@ -1,6 +1,6 @@
 import { GiConsoleController } from "react-icons/gi"
 import { getAuth } from "firebase/auth";
-import { getSpecificUserRegisteredLyrics, putSheetMusic, putUserLyricRegistered } from "../../providers/lyrics/service";
+import { getRegisteredLyric, putSheetMusic, putUserLyricRegistered } from "../../providers/lyrics/services";
 
 export function registerSheetMusic(sheetMusicToAdd: any, setLoadingAddSheetMusic: any, callOpenAlert: any) {
     const auth = getAuth();
@@ -35,7 +35,7 @@ export function registerSheetMusic(sheetMusicToAdd: any, setLoadingAddSheetMusic
 
     // Add new lyrics that haven't been registered yet
     sheetMusicToAdd.lyrics.map((lyric: any) => {
-        getSpecificUserRegisteredLyrics(userId, lyric.lyricId)
+        getRegisteredLyric(userId, lyric.lyricId)
             .then((value: any) => {
                 if (!value) {
                     lyric.offset = 0

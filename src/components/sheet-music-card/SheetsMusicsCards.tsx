@@ -2,8 +2,8 @@ import React from "react";
 import Grid from '@mui/material/Grid'
 
 // Hooks
-import { useSheetsMusics } from "../../../hooks/useSheetsMusics";
-import { SheetsMusicsCard } from "../../../components/sheet-music-card";
+import { useSheetsMusics } from "../../hooks/useSheetsMusics";
+import { SheetsMusicsCard } from ".";
 
 export const SheetsMusicsCards = () => {
     // States

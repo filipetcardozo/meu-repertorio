@@ -30,7 +30,7 @@ const LightTooltip = styled(({ className, ...props }: TooltipProps) => (
     },
 }));
 
-export const LyricShow = ({
+export const LyricShowComponent = ({
     changeOffSet,
     handleNext,
     lyricToShow,
@@ -38,7 +38,9 @@ export const LyricShow = ({
     offsetsUpdateds,
     updateOffset,
     offsetIsUpdating,
-    offsetLyricToShow
+    offsetLyricToShow,
+    isOneLyric,
+    offsetChanged
 }: any) => {
 
     const {
@@ -77,38 +79,69 @@ export const LyricShow = ({
                             <RemoveIcon sx={{ color: "#1976d2a1" }} fontSize="inherit" />
                         </IconButton>
                         <Box display="flex" alignItems="center" justifyContent="center" style={{ width: "25px", height: "25px", color: "#1976d2" }}>
-                            <Typography variant="h6" fontWeight="bold" sx={{ pt: 0.2 }} fontSize={13} color="#1976d2a1">{writeTone(lyricToShow)}</Typography>
+                            <Typography variant="h6" fontWeight="bold" sx={{ pt: 0.2 }} fontSize={13} color="#1976d2a1">
+                                {writeTone(lyricToShow)}
+                            </Typography>
                         </Box>
                         <IconButton aria-label="delete" size="small" onClick={() => { changeOffSet(true) }}>
                             <AddIcon sx={{ color: "#1976d2a1" }} fontSize="inherit" />
                         </IconButton>
                     </Stack>
                     {
-                        offsetsUpdateds.offsetChanged ?
-                            offsetIsUpdating ?
-                                <CircularProgress
-                                    size={12}
-                                    sx={{
-                                        color: "primary",
-                                        position: "absolute", right: 34, bottom: 35,
+                        isOneLyric ?
+                            offsetChanged ?
+                                offsetIsUpdating ?
+                                    <CircularProgress
+                                        size={12}
+                                        sx={{
+                                            color: "primary",
+                                            position: "absolute", right: 34, bottom: 35,
 
-                                    }}
-                                />
+                                        }}
+                                    />
+                                    :
+                                    <IconButton size="small" className="blob"
+                                        sx={{
+                                            color: "#1976d2", position: "absolute", right: 27, bottom: 28,
+                                        }}
+                                        onClick={() => updateOffset()}
+                                    >
+                                        <LightTooltip title="Salvar novo tom" placement="top">
+                                            <SaveAsIcon fontSize="inherit" />
+                                        </LightTooltip>
+                                    </IconButton>
                                 :
-                                <IconButton size="small" className="blob"
-                                    sx={{
-                                        color: "#1976d2", position: "absolute", right: 27, bottom: 28,
-                                    }}
-                                    onClick={() => updateOffset()}
-                                >
-                                    <LightTooltip title="Salvar novo tom" placement="top">
-                                        <SaveAsIcon fontSize="inherit" />
-                                    </LightTooltip>
-                                </IconButton>
-                            :
-                            <></>
+                                <></>
+                            : <></>
                     }
 
+                    {
+                        !isOneLyric ?
+                            offsetsUpdateds.offsetChanged ?
+                                offsetIsUpdating ?
+                                    <CircularProgress
+                                        size={12}
+                                        sx={{
+                                            color: "primary",
+                                            position: "absolute", right: 34, bottom: 35,
+
+                                        }}
+                                    />
+                                    :
+                                    <IconButton size="small" className="blob"
+                                        sx={{
+                                            color: "#1976d2", position: "absolute", right: 27, bottom: 28,
+                                        }}
+                                        onClick={() => updateOffset()}
+                                    >
+                                        <LightTooltip title="Salvar novo tom" placement="top">
+                                            <SaveAsIcon fontSize="inherit" />
+                                        </LightTooltip>
+                                    </IconButton>
+                                :
+                                <></> :
+                            <></>
+                    }
                 </Badge>
             </Stack>
 
@@ -158,9 +191,11 @@ export const LyricShow = ({
 
     return <>
         {/* <Button variant="outlined" onClick={() => setHabiliteSolo(!habiliteSolo)}>
-            Mostrar solo
+            Mostrar solosx={{ px: 3, py: 2, backgroundColor: "#1976d212", borderRadius: 1.4, boxShadow: 2 }}
         </Button> */}
-        <Box sx={{ display: "flex", fontSize: "14px", lineHeight: "15px", gap: 4, fontFamily: "monospace" }}>
+        <Box sx={{
+            display: "flex", fontSize: "14px", lineHeight: "15px", gap: 4, fontFamily: "monospace"
+        }}>
             {FirstColumn()}
             {SecondColumn()}
             {ThirdColumn()}

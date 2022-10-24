@@ -1,7 +1,8 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useState } from "react"
 import { registerSheetMusic } from "../components/sheet-music-manage/registerSheetMusic"
 import { updateSheetMusic } from "../components/sheet-music-manage/updateSheetMusic"
-import { deleteSheetMusic, getAllSheetsMusics, getSheetMusic } from "../providers/lyrics/service"
+import { deleteSheetMusic, getAllSheetsMusics, getSheetMusic } from "../providers/lyrics/services"
 import { useSnackbar } from "notistack";
 
 export const useSheetMusicManage = ({ sheetMusicId }: { sheetMusicId: any }) => {

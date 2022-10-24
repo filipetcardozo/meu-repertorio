@@ -1,6 +1,6 @@
 import { getAuth } from "firebase/auth";
 import { useAuth } from "../../hooks/useAuth";
-import { getSpecificUserRegisteredLyrics, putUserLyricRegistered, updateUserSheetMusic } from "../../providers/lyrics/service";
+import { getRegisteredLyric, putUserLyricRegistered, updateUserSheetMusic } from "../../providers/lyrics/services";
 
 export function updateSheetMusic(sheetMusicToUpdate: any, setLoadingAddSheetMusic: any, enqueueSnackbar: any) {
 
@@ -21,7 +21,7 @@ export function updateSheetMusic(sheetMusicToUpdate: any, setLoadingAddSheetMusi
 
     // Add new lyrics that haven't been registered yet
     sheetMusicToUpdate.lyrics.map((lyric: any) => {
-        getSpecificUserRegisteredLyrics(userId, lyric.lyricId)
+        getRegisteredLyric(userId, lyric.lyricId)
             .then((value: any) => {
                 if (!value) {
                     lyric.offset = 0

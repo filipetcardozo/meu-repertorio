@@ -18,7 +18,7 @@ import Divider from '@mui/material/Divider'
 import IconButton from '@mui/material/IconButton';
 import { useShowSheetMusic } from "../../hooks/useShowSheetMusic";
 import { SkeletonComponent } from "./Skeleton";
-import { LyricShow } from "../lyric-show";
+import { LyricShowComponent } from "../lyric-show";
 import { useRouter } from "next/dist/client/router";
 import { useLyricShow } from "../../hooks/useLyricShow";
 
@@ -119,7 +119,7 @@ export const SheetMusicShow = ({ sheetMusicId }: { sheetMusicId: any }) => {
     });
 
     const RenderLyric = () => {
-        return <LyricShow
+        return <LyricShowComponent
             changeOffSet={changeOffSet}
             handleNext={handleNext}
             lyricToShow={lyricToShow}
@@ -128,6 +128,7 @@ export const SheetMusicShow = ({ sheetMusicId }: { sheetMusicId: any }) => {
             updateOffset={updateOffset}
             offsetIsUpdating={offsetIsUpdating}
             offsetLyricToShow={lyricToShow.offset!}
+            isOneLyric={false}
         />
 
     }

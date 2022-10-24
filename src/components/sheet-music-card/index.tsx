@@ -24,10 +24,11 @@ import { styled } from '@mui/material/styles';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { FiEdit } from 'react-icons/fi';
 import Link from "next/link";
-import { SheetsMusicsCards } from "../../pages/sheet-music/all-sheet-music/SheetsMusicsCards";
+import { SheetsMusicsCards } from "./SheetsMusicsCards";
 import { useRouter } from "next/router";
+import { sheetMusicType } from "../../types/sheetMusicType";
 
-export const SheetsMusicsCard = ({ sheetMusic, index }: { sheetMusic: any, index: any }) => {
+export const SheetsMusicsCard = ({ sheetMusic, index }: { sheetMusic: sheetMusicType, index: any }) => {
     const router = useRouter()
 
     // States
@@ -41,10 +42,10 @@ export const SheetsMusicsCard = ({ sheetMusic, index }: { sheetMusic: any, index
         return composersFiltered;
     }
 
-    // Redirect to change sheet music
-    // const [redirectChangeSheetMusic, setRedirectChangeSheetMusic] = useState("")
-    // if (redirectChangeSheetMusic != "") <Navigate to={"/sheets-musics/" + redirectChangeSheetMusic} replace />;
+    function writeCompleteds() {
 
+        return sheetMusic.completed + "/" + sheetMusic.lyrics.length
+    }
 
     if (!sheetMusic) return <></>;
 
@@ -57,7 +58,6 @@ export const SheetsMusicsCard = ({ sheetMusic, index }: { sheetMusic: any, index
             }
             action={
                 <IconButton
-                    // onClick={() => setRedirectChangeSheetMusic(value.id || "")}
                     onClick={() => {
                         router.push(`/sheet-music/manage-sheet-music/${sheetMusic.id}`)
                     }}
@@ -67,7 +67,6 @@ export const SheetsMusicsCard = ({ sheetMusic, index }: { sheetMusic: any, index
                 </IconButton>
             }
             title={sheetMusic.sheetMusicName}
-        // subheader="September 14, 2016"
         />
         <CardContent>
             {/* <Typography variant="h6" fontSize={17} fontWeight="bold" textAlign="center" mb={1} component="div">
@@ -94,10 +93,13 @@ export const SheetsMusicsCard = ({ sheetMusic, index }: { sheetMusic: any, index
             </Box>
         </CardContent>
 
-        <CardActions>
+        <CardActions sx={{ justifyContent: "space-between" }}>
             <Link style={{ textDecoration: "none" }} href={`/sheet-music/show-sheet-music/${sheetMusic.id}`} >
                 <Button sx={{ fontWeight: "bold" }} size="small" startIcon={<PlayCircleOutlineIcon sx={{ position: "relative", bottom: 1.3, left: 3 }} />}>Iniciar Show</Button>
             </Link>
+            <Typography sx={{ mr: 1, fontSize: 16 }} color="primary" >
+                {sheetMusic.completed ? sheetMusic.completed + "/" + sheetMusic.lyrics.length : ""}
+            </Typography>
         </CardActions>
-    </Card>
+    </Card >
 }
