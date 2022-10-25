@@ -2,6 +2,7 @@ import React, { useEffect } from 'react'
 
 // Components
 import { Layout } from '../../components/app-layout'
+import Head from 'next/head'
 
 // Authentication
 import { useAuth } from '../../hooks/useAuth'
@@ -26,6 +27,10 @@ const HomePage = () => {
     }
 
     return <Layout activeMenu={0}>
+        <Head>
+            <title>Home - Meu Repertório</title>
+            <meta name="viewport" content="initial-scale=1.0, width=device-width" />
+        </Head>
         <InstantSearch searchClient={searchClient} indexName="lyrics">
             <HomeLyrics />
         </InstantSearch>
