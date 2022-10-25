@@ -1,19 +1,13 @@
-import { useRouter } from "next/router";
-import React from "react";
+import React, { useEffect } from 'react';
+import { Layout } from '../components/app-layout';
+import { useAuth } from '../hooks/useAuth';
 import Head from 'next/head'
 
-// Components
-import { Layout } from "../../../components/app-layout";
-import { LyricManage } from "../../../components/lyric-manage";
-import { useAuth } from "../../../hooks/useAuth";
-
-const ChangeLyric = () => {
-    const router = useRouter()
-    const { id } = router.query
+const Custom404 = () => {
     const { isLogged } = useAuth()
 
     if (isLogged != true) {
-        return <Layout activeMenu={2}>
+        return <Layout activeMenu={1}>
             <Head>
                 <title>Meu Repertório</title>
                 <meta name="viewport" content="initial-scale=1.0, width=device-width" />
@@ -27,8 +21,8 @@ const ChangeLyric = () => {
             <title>Meu Repertório</title>
             <meta name="viewport" content="initial-scale=1.0, width=device-width" />
         </Head>
-        <LyricManage idLyric={id ? id[0] : undefined} />
+        Ops... página não encontrada.
     </Layout>
 }
 
-export default ChangeLyric;
+export default Custom404;
