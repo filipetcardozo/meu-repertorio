@@ -30,15 +30,14 @@ export const useSheetsMusics = () => {
                         }
 
                     })
-                    callGetCompletedSheetMusicLocalStorage(sheets[0].id!)
-
                     setSheetsMusics(sheets)
                 })
         }
     }, [])
 
     return {
-        sheetsMusics
+        sheetsMusics,
+        setSheetsMusics
     }
 
 }

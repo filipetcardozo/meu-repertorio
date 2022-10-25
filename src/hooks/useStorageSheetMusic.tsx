@@ -11,8 +11,13 @@ export const useStorageSheetMusic = () => {
         putCompletedSheetMusicLocalStorage(sheetMusicId, newCompletedSteps)
     }
 
+    function callDeleteCompletedSheetMusicLocalStorage(sheetMusicId: string) {
+        localStorage.removeItem(sheetMusicId);
+    }
+
     return {
         callGetCompletedSheetMusicLocalStorage,
-        callPutCompletedSheetMusicLocalStorage
+        callPutCompletedSheetMusicLocalStorage,
+        callDeleteCompletedSheetMusicLocalStorage
     }
 }
