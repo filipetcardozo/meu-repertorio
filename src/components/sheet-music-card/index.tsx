@@ -1,9 +1,5 @@
-import { useEffect, useState } from "react"
 
-import React, { useMemo } from "react";
-
-import { getAuth, onAuthStateChanged } from "firebase/auth";
-
+import React from "react";
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
 import CardActions from '@mui/material/CardActions';
@@ -24,12 +20,17 @@ import { styled } from '@mui/material/styles';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { FiEdit } from 'react-icons/fi';
 import Link from "next/link";
-import { SheetsMusicsCards } from "./SheetsMusicsCards";
 import { useRouter } from "next/router";
 import { sheetMusicType } from "../../types/sheetMusicType";
+import Tooltip from '@mui/material/Tooltip';
+import InfoIcon from '@mui/icons-material/InfoOutlined';
+import { useStorageSheetMusic } from "../../hooks/useStorageSheetMusic";
+import { useSnackbar } from "notistack";
 
-export const SheetsMusicsCard = ({ sheetMusic, index }: { sheetMusic: sheetMusicType, index: any }) => {
+export const SheetsMusicsCard = ({ sheetMusic, setSheetsMusics, sheetsMusics, index }: { sheetMusic: sheetMusicType, setSheetsMusics: any, sheetsMusics: any, index: any }) => {
     const router = useRouter()
+    const { enqueueSnackbar } = useSnackbar();
+    const { callDeleteCompletedSheetMusicLocalStorage } = useStorageSheetMusic()
 
     // States
     function renderComposers(composers: any) {
@@ -42,9 +43,12 @@ export const SheetsMusicsCard = ({ sheetMusic, index }: { sheetMusic: sheetMusic
         return composersFiltered;
     }
 
-    function writeCompleteds() {
-
-        return sheetMusic.completed + "/" + sheetMusic.lyrics.length
+    function cleanCompleted() {
+        callDeleteCompletedSheetMusicLocalStorage(sheetMusic.id!)
+        console.log(sheetsMusics)
+        sheetsMusics[index].completed = undefined
+        setSheetsMusics([...sheetsMusics])
+        enqueueSnackbar("O histórico da partitura foi limpado!", { variant: "success" })
     }
 
     if (!sheetMusic) return <></>;
@@ -69,9 +73,6 @@ export const SheetsMusicsCard = ({ sheetMusic, index }: { sheetMusic: sheetMusic
             title={sheetMusic.sheetMusicName}
         />
         <CardContent>
-            {/* <Typography variant="h6" fontSize={17} fontWeight="bold" textAlign="center" mb={1} component="div">
-                                    {value.sheetMusicName}
-                                </Typography> */}
             <Typography sx={{ fontSize: 13 }} color="text.secondary">
                 {sheetMusic.description}
             </Typography>
@@ -97,9 +98,22 @@ export const SheetsMusicsCard = ({ sheetMusic, index }: { sheetMusic: sheetMusic
             <Link style={{ textDecoration: "none" }} href={`/sheet-music/show-sheet-music/${sheetMusic.id}`} >
                 <Button sx={{ fontWeight: "bold" }} size="small" startIcon={<PlayCircleOutlineIcon sx={{ position: "relative", bottom: 1.3, left: 3 }} />}>Iniciar Show</Button>
             </Link>
-            <Typography sx={{ mr: 1, fontSize: 16 }} color="primary" >
-                {sheetMusic.completed ? sheetMusic.completed + "/" + sheetMusic.lyrics.length : ""}
-            </Typography>
+            {
+                sheetMusic.completed ?
+                    <Tooltip
+                        title="Aqui está sendo informado a quantidade de músicas já tocadas. Se você deseja resetar essa informação clique em cima do número."
+                    >
+                        <Button variant="text" onClick={() => cleanCompleted()}>
+                            <Box sx={{ display: "flex", alignItems: "center", mr: 1, gap: 0.5 }}>
+                                <Typography sx={{ fontSize: 16 }} color="primary" >
+                                    {sheetMusic.completed + "/" + sheetMusic.lyrics.length}
+                                </Typography>
+                                <InfoIcon color="primary" sx={{ fontSize: 16, pb: 0.2 }} />
+                            </Box>
+                        </Button>
+                    </Tooltip> : <></>
+            }
+
         </CardActions>
     </Card >
 }
