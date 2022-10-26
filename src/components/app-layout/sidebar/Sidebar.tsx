@@ -10,22 +10,10 @@ import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 import HomeIcon from '@mui/icons-material/Home';
 import HistoryEduIcon from '@mui/icons-material/HistoryEdu';
 import LyricsIcon from '@mui/icons-material/Lyrics';
-
 import Typography from '@mui/material/Typography'
-
 import Link from 'next/link'
 
-const paths = ["app", "show-sheets-musics", "sheet-music-create", "registered-lyrics", "manage-lyrics"]
-
 const SideBarComponent = (open: any) => {
-    // const location = useLocation()
-    // React.useEffect(() => {
-    //     let pathArray = location.pathname.split("app/")[1]
-    //     paths.map((value: string, index: number) => {
-    //         if (value == pathArray) open.setActiveMenu(index)
-    //     })
-    // }, [location])
-
     return (
         <>
             <List sx={{ p: 0 }}>
