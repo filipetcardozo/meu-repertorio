@@ -1,13 +1,15 @@
 import { useRouter } from 'next/router'
 import { Layout } from "../../../components/app-layout"
 import { ManageSheetMusicComponent } from '../../../components/sheet-music-manage'
-import { useAuth } from '../../../hooks/useAuth'
+import { useAuth, useProtectPage } from '../../../hooks/useAuth'
 import Head from 'next/head'
 
 const ManageSheetMusic = () => {
     const router = useRouter()
     const { id } = router.query
     const { isLogged } = useAuth()
+
+    useProtectPage({redirectTo: "/login"})
 
     if (isLogged != true) {
         return <Layout activeMenu={2}>

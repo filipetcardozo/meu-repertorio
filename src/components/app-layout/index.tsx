@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import SidebarComponent from './sidebar/Sidebar';
 import NavbarComponent from './navbar/Navbar';
-import * as React from 'react';
+import React, {useEffect} from 'react'
 import { styled, useTheme, Theme, CSSObject } from '@mui/material/styles';
 import Box from '@mui/material/Box';
 import Toolbar from '@mui/material/Toolbar';
@@ -25,7 +25,7 @@ export const Layout = ({ children, activeMenu }: any) => {
         profileConfigs
     } = useStorageProfileConfigs()
 
-    React.useEffect(() => {
+    useEffect(() => {
         if (profileConfigs) {
             setOpen(profileConfigs.expandedSidebar)
         }

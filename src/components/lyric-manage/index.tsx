@@ -1,7 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-import * as React from 'react';
 import Box from '@mui/material/Box';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import Grid from '@mui/material/Grid'
 import Container from '@mui/material/Container';
 import LoadingButton from '@mui/lab/LoadingButton';

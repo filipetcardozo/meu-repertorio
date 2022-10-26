@@ -2,14 +2,8 @@
 import React, { useEffect, useState, useMemo } from 'react';
 
 // Algolia
-import algoliasearch from 'algoliasearch/lite';
 import { InstantSearch, SearchBox, Hits, useHits } from 'react-instantsearch-hooks-web';
-import TextField from '@mui/material/TextField'
 import { useSearchBox, UseSearchBoxProps, Configure } from 'react-instantsearch-hooks-web';
-import LinearProgress from '@mui/material/LinearProgress';
-import { AppProps } from 'next/app';
-import { Box, CircularProgress, Stack } from '@mui/material';
-
 
 export const useSearchAlgolia = () => {
     const [valueToSearch, setValueToSearch] = useState("")

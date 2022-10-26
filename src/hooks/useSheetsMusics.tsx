@@ -28,7 +28,6 @@ export const useSheetsMusics = () => {
                             let count = completedValues.filter((value: any) => value === true).length;
                             sheets[index].completed = count
                         }
-
                     })
                     setSheetsMusics(sheets)
                 })

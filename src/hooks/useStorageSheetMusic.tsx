@@ -3,8 +3,8 @@ export const useStorageSheetMusic = () => {
         let sheetMusic = localStorage.getItem(sheetMusicId)
 
         if (sheetMusic) {
-            sheetMusic = JSON.parse(sheetMusic)
-            return sheetMusic
+            let newSheetMusic = JSON.parse(sheetMusic) as boolean[]
+            return newSheetMusic
         } else {
             return undefined
         }

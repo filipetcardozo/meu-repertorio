@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React from 'react'
 
 // Components
 import { Layout } from '../../components/app-layout'

@@ -1,26 +1,12 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-import Container from '@mui/material/Container'
 import Grid from '@mui/material/Grid'
 import TextField from '@mui/material/TextField'
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography'
 import Head from 'next/head'
-
-import Avatar from '@mui/material/Avatar';
-import Button from '@mui/material/Button';
-import CssBaseline from '@mui/material/CssBaseline';
-import FormControlLabel from '@mui/material/FormControlLabel';
-import Checkbox from '@mui/material/Checkbox';
 import Link from '@mui/material/Link';
-import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
-import { createTheme, ThemeProvider } from '@mui/material/styles';
-import Paper from '@mui/material/Paper';
 import LoadingButton from '@mui/lab/LoadingButton';
-import LyricsIcon from '@mui/icons-material/Lyrics';
-import { signInWithEmailAndPassword, getAuth, setPersistence, browserSessionPersistence } from "firebase/auth";
 import { useEffect, useState } from 'react'
-import { ContactMailSharp } from '@mui/icons-material';
-import { width } from '@mui/system';
 import { useRouter } from 'next/router'
 import Image from 'next/image'
 import loginBackground from '../../../public/login-background.jpg'
@@ -46,7 +32,7 @@ function Copyright(props: any) {
     );
 }
 
-const LoginComponent = () => {
+const Login = () => {
     const [loginInfos, setLoginInfos] = useState<LoginInfosInterface>({ email: "", password: "" })
     const router = useRouter()
     const { signIn, loading, isLogged } = useAuth()
@@ -206,4 +192,4 @@ const LoginComponent = () => {
     </>
 }
 
-export default LoginComponent;
+export default Login;

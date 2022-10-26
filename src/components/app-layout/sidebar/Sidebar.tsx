@@ -88,28 +88,6 @@ const SideBarComponent = (open: any) => {
                         </ListItemButton>
                     </Link>
                 </ListItem>
-                <Link href={"/registered-lyrics"}>
-                    <ListItem key="registered-lyrics" style={{ textDecoration: "none", color: "inherit" }} disablePadding sx={{ display: 'block', backgroundColor: open.activeMenu == 3 ? "#e4f1ff" : "" }}>
-                        <ListItemButton
-                            sx={{
-                                minHeight: 48,
-                                justifyContent: open ? 'initial' : 'center',
-                                px: 2.5,
-                            }}
-                        >
-                            <ListItemIcon
-                                sx={{
-                                    minWidth: 0,
-                                    mr: open ? 1.5 : 'auto',
-                                    justifyContent: 'center',
-                                }}
-                            >
-                                <LibraryMusicIcon />
-                            </ListItemIcon>
-                            <ListItemText primary={<Typography fontSize={15}>Músicas cadastradas</Typography>} sx={{ opacity: open ? 1 : 0 }} />
-                        </ListItemButton>
-                    </ListItem>
-                </Link>
                 <Link href={"/lyric/manage-lyric"}>
                     <ListItem key="adicionar-cifras" style={{ textDecoration: "none", color: "inherit" }} disablePadding sx={{ display: 'block', backgroundColor: open.activeMenu == 4 ? "#e4f1ff" : "" }}>
                         <ListItemButton
