@@ -1,6 +1,7 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import SidebarComponent from './sidebar/Sidebar';
 import NavbarComponent from './navbar/Navbar';
-import * as React from 'react';
+import React, {useEffect} from 'react'
 import { styled, useTheme, Theme, CSSObject } from '@mui/material/styles';
 import Box from '@mui/material/Box';
 import Toolbar from '@mui/material/Toolbar';
@@ -13,16 +14,30 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import Image from 'next/image'
 import logo from '../../../public/EasyShowLogo.png'
 import { DrawerHeader, AppBar, Drawer } from "./drawerConfig";
+import { useStorageProfileConfigs } from '../../hooks/useStorageProfileConfigs';
 
 export const Layout = ({ children, activeMenu }: any) => {
     const theme = useTheme();
-    const [open, setOpen] = React.useState(false);
+    const [open, setOpen] = React.useState(true);
+
+    const {
+        changeSidebar,
+        profileConfigs
+    } = useStorageProfileConfigs()
+
+    useEffect(() => {
+        if (profileConfigs) {
+            setOpen(profileConfigs.expandedSidebar)
+        }
+    }, [profileConfigs])
 
     const handleDrawerOpen = () => {
+        changeSidebar(true)
         setOpen(true);
     };
 
     const handleDrawerClose = () => {
+        changeSidebar(false)
         setOpen(false);
     };
 

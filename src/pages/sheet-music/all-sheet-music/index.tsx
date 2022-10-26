@@ -8,7 +8,7 @@ import { Layout } from "../../../components/app-layout";
 import { useAuth, useProtectPage } from "../../../hooks/useAuth";
 import { SheetsMusicsCards } from "../../../components/sheet-music-card/SheetsMusicsCards";
 
-const RegisteredSheetMusic = () => {
+const AllSheetMusic = () => {
     // States
     const { isLogged } = useAuth()
 
@@ -33,4 +33,4 @@ const RegisteredSheetMusic = () => {
     </Layout>
 }
 
-export default RegisteredSheetMusic;
+export default AllSheetMusic;

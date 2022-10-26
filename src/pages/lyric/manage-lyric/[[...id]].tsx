@@ -7,7 +7,7 @@ import { Layout } from "../../../components/app-layout";
 import { LyricManage } from "../../../components/lyric-manage";
 import { useAuth } from "../../../hooks/useAuth";
 
-const ChangeLyric = () => {
+const ManageLyric = () => {
     const router = useRouter()
     const { id } = router.query
     const { isLogged } = useAuth()
@@ -31,4 +31,4 @@ const ChangeLyric = () => {
     </Layout>
 }
 
-export default ChangeLyric;
+export default ManageLyric;

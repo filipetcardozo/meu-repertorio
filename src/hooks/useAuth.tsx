@@ -4,9 +4,8 @@ import { onAuthStateChanged, signInWithEmailAndPassword, User, signOut as callSi
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { firebaseApp } from "../../firebaseConfig";
 import { useRouter } from 'next/router'
-import { CollectionsBookmarkOutlined, ConstructionOutlined, Router } from "@mui/icons-material";
-import { isSymbolObject } from "util/types";
-
+import { getUserInfos } from "../providers/user/services";
+import { getUserInfosType, userInfosType } from "../types/userInfos";
 interface Auth {
     isLogged: boolean | undefined;
     loading: boolean;
@@ -16,6 +15,7 @@ interface Auth {
     signIn(value: SignIn): void;
     signUp(value: any): void;
     signOut(): void;
+    userInfos?: userInfosType;
 }
 
 interface SignIn {
@@ -35,6 +35,7 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
     const [error, setError] = useState("")
     const [uid, setUid] = useState("")
     const [user, setUser] = useState<User>()
+    const [userInfos, setUserInfos] = useState<userInfosType>()
     const router = useRouter()
 
     const auth = getAuth(firebaseApp);
@@ -72,9 +73,19 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
 
     function checkOnAuthStateUser(user: User | null) {
         if (user) {
+            getUserInfos(user.uid)
+                .then((v: any) => {
+                    setUserInfos({ ...v })
+                })
+                .catch((e) => {
+                    console.log(e)
+                })
+
             setUser(user)
             setUid(user.uid)
             setIsLogged(true)
+
+
         } else {
             setUser(undefined)
             setIsLogged(false)
@@ -92,7 +103,8 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
         signIn,
         signOut,
         signUp,
-    }), [isLogged, loading, error, uid, user])
+        userInfos
+    }), [isLogged, loading, error, uid, user, userInfos])
 
     useEffect(() => {
         setLoading(true)

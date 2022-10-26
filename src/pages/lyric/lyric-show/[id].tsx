@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Layout } from "../../../components/app-layout";
 import { useAuth } from "../../../hooks/useAuth";
 import { LyricShowPage } from "../../../components/lyric-show/LyricShow";

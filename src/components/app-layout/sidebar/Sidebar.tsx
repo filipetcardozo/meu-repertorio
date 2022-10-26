@@ -10,21 +10,12 @@ import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 import HomeIcon from '@mui/icons-material/Home';
 import HistoryEduIcon from '@mui/icons-material/HistoryEdu';
 import LyricsIcon from '@mui/icons-material/Lyrics';
-
 import Typography from '@mui/material/Typography'
-
 import Link from 'next/link'
-
-const paths = ["app", "show-sheets-musics", "sheet-music-create", "registered-lyrics", "manage-lyrics"]
+import { useAuth } from '../../../hooks/useAuth';
 
 const SideBarComponent = (open: any) => {
-    // const location = useLocation()
-    // React.useEffect(() => {
-    //     let pathArray = location.pathname.split("app/")[1]
-    //     paths.map((value: string, index: number) => {
-    //         if (value == pathArray) open.setActiveMenu(index)
-    //     })
-    // }, [location])
+    const { userInfos } = useAuth()
 
     return (
         <>
@@ -41,7 +32,7 @@ const SideBarComponent = (open: any) => {
                             <ListItemIcon
                                 sx={{
                                     minWidth: 0,
-                                    mr: open ? 3 : 'auto',
+                                    mr: open ? 1.5 : 'auto',
                                     justifyContent: 'center',
                                 }}
                             >
@@ -65,13 +56,13 @@ const SideBarComponent = (open: any) => {
                             <ListItemIcon
                                 sx={{
                                     minWidth: 0,
-                                    mr: open ? 3 : 'auto',
+                                    mr: open ? 1.5 : 'auto',
                                     justifyContent: 'center',
                                 }}
                             >
                                 <LyricsIcon />
                             </ListItemIcon>
-                            <ListItemText primary={<Typography fontSize={15}>Partituras cadastradas</Typography>} sx={{ opacity: open ? 1 : 0 }} />
+                            <ListItemText primary={<Typography fontSize={15}>Repertórios cadastrados</Typography>} sx={{ opacity: open ? 1 : 0 }} />
                         </ListItemButton>
                     </Link>
                 </ListItem>
@@ -87,38 +78,16 @@ const SideBarComponent = (open: any) => {
                             <ListItemIcon
                                 sx={{
                                     minWidth: 0,
-                                    mr: open ? 3 : 'auto',
+                                    mr: open ? 1.5 : 'auto',
                                     justifyContent: 'center',
                                 }}
                             >
                                 <HistoryEduIcon />
                             </ListItemIcon>
-                            <ListItemText primary={<Typography fontSize={15}>Criar partitura</Typography>} sx={{ opacity: open ? 1 : 0 }} />
+                            <ListItemText primary={<Typography fontSize={15}>Criar repertório</Typography>} sx={{ opacity: open ? 1 : 0 }} />
                         </ListItemButton>
                     </Link>
                 </ListItem>
-                <Link href={"/registered-lyrics"}>
-                    <ListItem key="registered-lyrics" style={{ textDecoration: "none", color: "inherit" }} disablePadding sx={{ display: 'block', backgroundColor: open.activeMenu == 3 ? "#e4f1ff" : "" }}>
-                        <ListItemButton
-                            sx={{
-                                minHeight: 48,
-                                justifyContent: open ? 'initial' : 'center',
-                                px: 2.5,
-                            }}
-                        >
-                            <ListItemIcon
-                                sx={{
-                                    minWidth: 0,
-                                    mr: open ? 3 : 'auto',
-                                    justifyContent: 'center',
-                                }}
-                            >
-                                <LibraryMusicIcon />
-                            </ListItemIcon>
-                            <ListItemText primary={<Typography fontSize={15}>Músicas cadastradas</Typography>} sx={{ opacity: open ? 1 : 0 }} />
-                        </ListItemButton>
-                    </ListItem>
-                </Link>
                 <Link href={"/lyric/manage-lyric"}>
                     <ListItem key="adicionar-cifras" style={{ textDecoration: "none", color: "inherit" }} disablePadding sx={{ display: 'block', backgroundColor: open.activeMenu == 4 ? "#e4f1ff" : "" }}>
                         <ListItemButton
@@ -131,7 +100,7 @@ const SideBarComponent = (open: any) => {
                             <ListItemIcon
                                 sx={{
                                     minWidth: 0,
-                                    mr: open ? 3 : 'auto',
+                                    mr: open ? 1.5 : 'auto',
                                     justifyContent: 'center',
                                 }}
                             >
@@ -141,6 +110,54 @@ const SideBarComponent = (open: any) => {
                         </ListItemButton>
                     </ListItem>
                 </Link>
+                {
+                    userInfos?.isAdmin ? <>
+                        <Link href={"/home"}>
+                            <ListItem key="adicionar-cifras" style={{ textDecoration: "none", color: "inherit" }} disablePadding sx={{ display: 'block', backgroundColor: open.activeMenu == 4 ? "#e4f1ff" : "" }}>
+                                <ListItemButton
+                                    sx={{
+                                        minHeight: 48,
+                                        justifyContent: open ? 'initial' : 'center',
+                                        px: 2.5,
+                                    }}
+                                >
+                                    <ListItemIcon
+                                        sx={{
+                                            minWidth: 0,
+                                            mr: open ? 1.5 : 'auto',
+                                            justifyContent: 'center',
+                                        }}
+                                    >
+                                        <PlaylistAddIcon />
+                                    </ListItemIcon>
+                                    <ListItemText primary={<Typography fontSize={15}>Aprovação de cifras</Typography>} sx={{ opacity: open ? 1 : 0 }} />
+                                </ListItemButton>
+                            </ListItem>
+                        </Link>
+                        <Link href={"/home"}>
+                            <ListItem key="adicionar-cifras" style={{ textDecoration: "none", color: "inherit" }} disablePadding sx={{ display: 'block', backgroundColor: open.activeMenu == 4 ? "#e4f1ff" : "" }}>
+                                <ListItemButton
+                                    sx={{
+                                        minHeight: 48,
+                                        justifyContent: open ? 'initial' : 'center',
+                                        px: 2.5,
+                                    }}
+                                >
+                                    <ListItemIcon
+                                        sx={{
+                                            minWidth: 0,
+                                            mr: open ? 1.5 : 'auto',
+                                            justifyContent: 'center',
+                                        }}
+                                    >
+                                        <PlaylistAddIcon />
+                                    </ListItemIcon>
+                                    <ListItemText primary={<Typography fontSize={15}>Gerenciamento de usuários</Typography>} sx={{ opacity: open ? 1 : 0 }} />
+                                </ListItemButton>
+                            </ListItem>
+                        </Link>
+                    </> : <></>
+                }
             </List>
         </>
     )

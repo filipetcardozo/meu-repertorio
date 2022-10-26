@@ -1,10 +1,12 @@
 import React, { useEffect } from 'react';
 import { Layout } from '../components/app-layout';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth, useProtectPage } from '../hooks/useAuth';
 import Head from 'next/head'
 
 const Custom500 = () => {
     const { isLogged } = useAuth()
+
+    // useProtectPage({redirectTo: "/login"})
 
     if (isLogged != true) {
         return <Layout activeMenu={1}>

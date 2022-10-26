@@ -8,7 +8,6 @@ import Head from 'next/head'
 const ShowSheetMusic = () => {
   const router = useRouter()
   const { id } = router.query
-
   const { isLogged } = useAuth()
 
   useProtectPage({ redirectTo: "/login" })
