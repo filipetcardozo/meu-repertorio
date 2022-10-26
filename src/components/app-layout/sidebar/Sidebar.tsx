@@ -12,8 +12,11 @@ import HistoryEduIcon from '@mui/icons-material/HistoryEdu';
 import LyricsIcon from '@mui/icons-material/Lyrics';
 import Typography from '@mui/material/Typography'
 import Link from 'next/link'
+import { useAuth } from '../../../hooks/useAuth';
 
 const SideBarComponent = (open: any) => {
+    const { userInfos } = useAuth()
+
     return (
         <>
             <List sx={{ p: 0 }}>
@@ -29,7 +32,7 @@ const SideBarComponent = (open: any) => {
                             <ListItemIcon
                                 sx={{
                                     minWidth: 0,
-                                    mr: open ? 3 : 'auto',
+                                    mr: open ? 1.5 : 'auto',
                                     justifyContent: 'center',
                                 }}
                             >
@@ -53,13 +56,13 @@ const SideBarComponent = (open: any) => {
                             <ListItemIcon
                                 sx={{
                                     minWidth: 0,
-                                    mr: open ? 3 : 'auto',
+                                    mr: open ? 1.5 : 'auto',
                                     justifyContent: 'center',
                                 }}
                             >
                                 <LyricsIcon />
                             </ListItemIcon>
-                            <ListItemText primary={<Typography fontSize={15}>Partituras cadastradas</Typography>} sx={{ opacity: open ? 1 : 0 }} />
+                            <ListItemText primary={<Typography fontSize={15}>Repertórios cadastrados</Typography>} sx={{ opacity: open ? 1 : 0 }} />
                         </ListItemButton>
                     </Link>
                 </ListItem>
@@ -75,13 +78,13 @@ const SideBarComponent = (open: any) => {
                             <ListItemIcon
                                 sx={{
                                     minWidth: 0,
-                                    mr: open ? 3 : 'auto',
+                                    mr: open ? 1.5 : 'auto',
                                     justifyContent: 'center',
                                 }}
                             >
                                 <HistoryEduIcon />
                             </ListItemIcon>
-                            <ListItemText primary={<Typography fontSize={15}>Criar partitura</Typography>} sx={{ opacity: open ? 1 : 0 }} />
+                            <ListItemText primary={<Typography fontSize={15}>Criar repertório</Typography>} sx={{ opacity: open ? 1 : 0 }} />
                         </ListItemButton>
                     </Link>
                 </ListItem>
@@ -97,7 +100,7 @@ const SideBarComponent = (open: any) => {
                             <ListItemIcon
                                 sx={{
                                     minWidth: 0,
-                                    mr: open ? 3 : 'auto',
+                                    mr: open ? 1.5 : 'auto',
                                     justifyContent: 'center',
                                 }}
                             >
@@ -119,7 +122,7 @@ const SideBarComponent = (open: any) => {
                             <ListItemIcon
                                 sx={{
                                     minWidth: 0,
-                                    mr: open ? 3 : 'auto',
+                                    mr: open ? 1.5 : 'auto',
                                     justifyContent: 'center',
                                 }}
                             >
@@ -129,6 +132,54 @@ const SideBarComponent = (open: any) => {
                         </ListItemButton>
                     </ListItem>
                 </Link>
+                {
+                    userInfos?.isAdmin ? <>
+                        <Link href={"/home"}>
+                            <ListItem key="adicionar-cifras" style={{ textDecoration: "none", color: "inherit" }} disablePadding sx={{ display: 'block', backgroundColor: open.activeMenu == 4 ? "#e4f1ff" : "" }}>
+                                <ListItemButton
+                                    sx={{
+                                        minHeight: 48,
+                                        justifyContent: open ? 'initial' : 'center',
+                                        px: 2.5,
+                                    }}
+                                >
+                                    <ListItemIcon
+                                        sx={{
+                                            minWidth: 0,
+                                            mr: open ? 1.5 : 'auto',
+                                            justifyContent: 'center',
+                                        }}
+                                    >
+                                        <PlaylistAddIcon />
+                                    </ListItemIcon>
+                                    <ListItemText primary={<Typography fontSize={15}>Aprovação de cifras</Typography>} sx={{ opacity: open ? 1 : 0 }} />
+                                </ListItemButton>
+                            </ListItem>
+                        </Link>
+                        <Link href={"/home"}>
+                            <ListItem key="adicionar-cifras" style={{ textDecoration: "none", color: "inherit" }} disablePadding sx={{ display: 'block', backgroundColor: open.activeMenu == 4 ? "#e4f1ff" : "" }}>
+                                <ListItemButton
+                                    sx={{
+                                        minHeight: 48,
+                                        justifyContent: open ? 'initial' : 'center',
+                                        px: 2.5,
+                                    }}
+                                >
+                                    <ListItemIcon
+                                        sx={{
+                                            minWidth: 0,
+                                            mr: open ? 1.5 : 'auto',
+                                            justifyContent: 'center',
+                                        }}
+                                    >
+                                        <PlaylistAddIcon />
+                                    </ListItemIcon>
+                                    <ListItemText primary={<Typography fontSize={15}>Gerenciamento de usuários</Typography>} sx={{ opacity: open ? 1 : 0 }} />
+                                </ListItemButton>
+                            </ListItem>
+                        </Link>
+                    </> : <></>
+                }
             </List>
         </>
     )

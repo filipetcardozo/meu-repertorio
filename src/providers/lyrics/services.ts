@@ -81,8 +81,6 @@ export const getRegisteredLyric: getRegisteredLyricType = async (uid, lyricId) =
     } else {
         return undefined;
     }
-
-
 }
 
 // Get all Composers
@@ -211,6 +209,26 @@ export async function updateUserSheetMusic(sheetMusicId: any, newSheetMusic: any
         })
         .catch((error) => {
             console.log('Error in update SHEET MUSIC: ' + error)
+            return false;
+        })
+}
+
+// Update specific Lyric
+export async function updateLyric(lyricId: any, newLyric: lyricType) {
+    const docRef = doc(database, "lyrics", lyricId);
+    await updateDoc(docRef, {
+        composerName: newLyric.composerName,
+        composerId: newLyric.composerId,
+        lyric: newLyric.lyric,
+        lyricName: newLyric.lyricName,
+        originalTone: newLyric.originalTone
+    })
+        .then(() => {
+            console.log('SUCCESSFULLY UPDATED LYRIC')
+            return true;
+        })
+        .catch((error) => {
+            console.log('Error in update Lyric: ' + error)
             return false;
         })
 }

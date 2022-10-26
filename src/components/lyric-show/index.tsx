@@ -16,8 +16,8 @@ import { styled } from '@mui/material/styles';
 import CircularProgress from '@mui/material/CircularProgress';
 import { useLyricShow } from "../../hooks/useLyricShow";
 import { writeTone } from "../../utils/writeTone";
-
-const scaleNotes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+import EditIcon from '@mui/icons-material/Edit';
+import { useRouter } from 'next/router'
 
 const LightTooltip = styled(({ className, ...props }: TooltipProps) => (
     <Tooltip {...props} classes={{ popper: className }} />
@@ -43,6 +43,7 @@ export const LyricShowComponent = ({
     offsetChanged
 }: any) => {
 
+    const router = useRouter()
     const {
         lengthSecondColumn,
         htmlLyric,
@@ -199,6 +200,13 @@ export const LyricShowComponent = ({
             {FirstColumn()}
             {SecondColumn()}
             {ThirdColumn()}
+            <Box>
+                <Tooltip title="Editar música">
+                    <IconButton aria-label="edit" onClick={(() => router.push(`/lyric/manage-lyric/${lyricToShow.lyricId}`))}>
+                        <EditIcon color="primary" />
+                    </IconButton>
+                </Tooltip>
+            </Box>
         </Box >
     </>
 }

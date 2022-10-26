@@ -1,72 +1,74 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import * as React from 'react';
 import Box from '@mui/material/Box';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Grid from '@mui/material/Grid'
-import FormControl from '@mui/material/FormControl'
-import FormLabel from '@mui/material/FormLabel'
-import FormHelperText from '@mui/material/FormHelperText'
 import Container from '@mui/material/Container';
-import Button from '@mui/material/Button';
 import LoadingButton from '@mui/lab/LoadingButton';
 import BottomNavigation from '@mui/material/BottomNavigation';
 import BottomNavigationAction from '@mui/material/BottomNavigationAction';
 import LyricsIcon from '@mui/icons-material/Lyrics';
 import HistoryEduIcon from '@mui/icons-material/HistoryEdu';
 import MuiAlert, { AlertProps } from '@mui/material/Alert';
-
 import Snackbar from '@mui/material/Snackbar';
-
-import { collection, getDocs, addDoc } from "firebase/firestore";
-import { getFirestore } from "firebase/firestore";
-
-
 import TextField from '@mui/material/TextField';
 import Autocomplete from '@mui/material/Autocomplete';
-import { initializeApp } from "firebase/app";
-import { getAllComposers, putComposer, putLyric } from '../../providers/lyrics/services';
-
+import { getAllComposers, getLyric, putComposer, putLyric, updateLyric } from '../../providers/lyrics/services';
+import { lyricType } from '../../types/lyricType';
 
 export const LyricManage = ({ idLyric }: { idLyric: string | undefined }) => {
     const [musicToAdd, setMusicToAdd] = useState<any>({ composerName: "", composerId: "", lyricName: "", originalTone: "", lyric: "", lyricStyle: "" })
     const [composerToAdd, setComposerToAdd] = useState<any>({ composerName: "", id: "", mainMusicStyle: "" })
     const [allComposers, setAllComposers] = useState<any>([])
+    const [composer, setComposer] = useState<any>({ composerName: "" })
     const [showStep, setShowStep] = useState<any>(0)
 
-    React.useEffect(() => {
-        console.log(showStep)
-    }, [showStep])
     const handleAddMusic = (prop: keyof any) => (event: React.ChangeEvent<HTMLInputElement>) => {
         musicToAdd[prop] = event.target.value
         setMusicToAdd({ ...musicToAdd })
     }
     const handleAddComposer = (event: any) => {
-        console.log('here')
         composerToAdd[event.target.name] = event.target.value
         setComposerToAdd({ ...composerToAdd })
     }
 
-    React.useEffect(() => {
-        console.log(musicToAdd)
-    }, [musicToAdd])
-
-    React.useEffect(() => {
+    useEffect(() => {
         getAllComposers().then((value: any) => {
-            console.log(value)
             setAllComposers(value)
         })
     }, [])
 
-    const db = getFirestore();
+    useEffect(() => {
+        if (idLyric) {
+            getLyric(idLyric)
+                .then((v: lyricType) => {
+                    if (v) {
+                        let composerInfos = { id: v.composerId, composerName: v.composerName, mainMusicStyle: v.lyricStyle }
+                        setComposer(composerInfos)
+                        setMusicToAdd(v)
+                    }
+                })
+        }
+    }, [])
 
     const [loadingAddMusic, setLoadingMusic] = useState(false)
     const addLyric = async () => {
         setLoadingMusic(true)
-        putLyric(musicToAdd).then((value: any) => {
-            if (value) {
-                setOpenAlertAddMusic(true)
-                setLoadingMusic(false)
-            }
-        })
+        if (idLyric) {
+            updateLyric(idLyric, musicToAdd)
+                .then(() => {
+                    setOpenAlertAddMusic(true)
+                    setLoadingMusic(false)
+                })
+        } else {
+            putLyric(musicToAdd).then((value: any) => {
+                if (value) {
+                    setOpenAlertAddMusic(true)
+                    setLoadingMusic(false)
+                }
+            })
+        }
+
     }
     const [loadingAddComposer, setLoadingComposer] = useState(false)
     const addComposer = async () => {
@@ -128,10 +130,10 @@ export const LyricManage = ({ idLyric }: { idLyric: string | undefined }) => {
 
                                 setMusicToAdd({ ...musicToAdd })
                             }}
+                            value={composer}
                             noOptionsText="Nenhuma opção."
                             disablePortal
                             id="demo-simple-select-filled"
-                            // variant="filled"
                             renderInput={(params) => <TextField {...params} label="Artista" variant='filled' />}
                         />
                     </Grid>
@@ -151,7 +153,11 @@ export const LyricManage = ({ idLyric }: { idLyric: string | undefined }) => {
                         />
                     </Grid>
                     <Grid item xs={12} textAlign="center">
-                        <LoadingButton variant="outlined" onClick={addLyric} loading={loadingAddMusic}>Adicionar música</LoadingButton>
+                        <LoadingButton variant="outlined" onClick={addLyric} loading={loadingAddMusic}>
+                            {
+                                idLyric ? "Atualizar música" : "Adicionar música"
+                            }
+                        </LoadingButton>
                     </Grid>
                 </Grid>
                 <Snackbar open={openAlertAddMusic} autoHideDuration={6000} onClose={handleClose}>
@@ -209,7 +215,6 @@ export const LyricManage = ({ idLyric }: { idLyric: string | undefined }) => {
                 component="form"
                 noValidate
                 autoComplete="off"
-            // p={5}
             >
                 {showStep == 0 ? addMusicComponent() : ""}
                 {showStep == 1 ? addComposerComponent() : ""}

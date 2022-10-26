@@ -18,7 +18,7 @@ import { useStorageProfileConfigs } from '../../hooks/useStorageProfileConfigs';
 
 export const Layout = ({ children, activeMenu }: any) => {
     const theme = useTheme();
-    const [open, setOpen] = React.useState(false);
+    const [open, setOpen] = React.useState(true);
 
     const {
         changeSidebar,

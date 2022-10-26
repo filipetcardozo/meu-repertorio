@@ -20,8 +20,8 @@ export const useStorageProfileConfigs = () => {
         if (pConfigs) {
             return JSON.parse(pConfigs) as profileConfigsType
         } else {
-            putProfileConfigs({ expandedSidebar: false, userId: uid! })
-            return { expandedSidebar: false, userId: uid! }
+            putProfileConfigs({ expandedSidebar: true, userId: uid! })
+            return { expandedSidebar: true, userId: uid! }
         }
     }
 
