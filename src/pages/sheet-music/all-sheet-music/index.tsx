@@ -12,7 +12,7 @@ const AllSheetMusic = () => {
     // States
     const { isLogged } = useAuth()
 
-    useProtectPage({ redirectTo: "/login" })
+    useProtectPage({ redirectTo: "/auth/login" })
 
     if (isLogged != true) {
         return <Layout activeMenu={0}>

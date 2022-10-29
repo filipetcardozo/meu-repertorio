@@ -1,6 +1,9 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 
-import { onAuthStateChanged, signInWithEmailAndPassword, User, signOut as callSignOut, getAuth, setPersistence, browserLocalPersistence } from "firebase/auth";
+import {
+    onAuthStateChanged, signInWithEmailAndPassword, User, signOut as callSignOut,
+    getAuth, createUserWithEmailAndPassword
+} from "firebase/auth";
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { firebaseApp } from "../../firebaseConfig";
 import { useRouter } from 'next/router'
@@ -13,7 +16,7 @@ interface Auth {
     uid?: string;
     user?: User;
     signIn(value: SignIn): void;
-    signUp(value: any): void;
+    signUp(email: string, password: string): Promise<any>;
     signOut(): void;
     userInfos?: userInfosType;
 }
@@ -56,15 +59,18 @@ export const AuthProvider: React.FC<Props> = ({ children }) => {
             })
     }
 
-    function signUp() {
-        console.log("Function user sign up called")
+    async function signUp(email: string, password: string) {
+        return createUserWithEmailAndPassword(auth, email, password)
+            .then(() => {
+
+            })
     }
 
     function signOut() {
         callSignOut(auth)
             .then(() => {
                 setIsLogged(false)
-                router.push("/login")
+                router.push("/auth/login")
             })
             .catch((error) => {
                 console.log(error)
@@ -125,7 +131,7 @@ export const useAuth = (): Auth => {
     return context;
 }
 
-export const useProtectPage = ({ redirectTo = "/login" }) => {
+export const useProtectPage = ({ redirectTo = "/auth/login" }) => {
     const { isLogged } = useAuth()
     const router = useRouter()
 

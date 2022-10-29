@@ -18,7 +18,7 @@ const HomePage = () => {
     const searchClient = algoliasearch('M91WDCEXS4', '0fa682d5b69e7040b462c96daecbb0fd');
     const { isLogged } = useAuth()
 
-    useProtectPage({ redirectTo: "/login" })
+    useProtectPage({ redirectTo: "/auth/login" })
 
     if (isLogged != true) {
         return <Layout activeMenu={0}>
