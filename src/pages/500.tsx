@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Layout } from '../components/app-layout';
 import { useAuth, useProtectPage } from '../hooks/useAuth';
 import Head from 'next/head'

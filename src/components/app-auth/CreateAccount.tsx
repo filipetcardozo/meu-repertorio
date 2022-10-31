@@ -89,7 +89,6 @@ export const CreateAccountComponent = () => {
                         id="demo-simple-select"
                         size="small"
                         fullWidth
-                        margin="normal"
                     // {/* value={age} */}
                     // label="Age"
                     // onChange={handleChange}

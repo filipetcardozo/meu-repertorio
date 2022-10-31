@@ -4,6 +4,7 @@ import { SheetMusicShow } from '../../../components/sheet-music-show'
 import { SkeletonComponent } from '../../../components/sheet-music-show/Skeleton'
 import { useAuth, useProtectPage } from '../../../hooks/useAuth'
 import Head from 'next/head'
+import React from 'react'
 
 const ShowSheetMusic = () => {
   const router = useRouter()

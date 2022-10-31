@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import Head from 'next/head'
-import { useEffect } from 'react'
+import React, { useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { useAuth } from '../../../hooks/useAuth';
 import { CreateAccountComponent } from '../../../components/app-auth/CreateAccount';

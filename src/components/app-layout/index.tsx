@@ -43,7 +43,6 @@ export const Layout = ({ children, activeMenu }: any) => {
 
     return <>
         <Box sx={{ display: 'flex' }}>
-            <CssBaseline />
             {/* Navbar */}
             <AppBar position="fixed" open={open}>
                 <Toolbar>
