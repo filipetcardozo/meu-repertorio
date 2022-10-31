@@ -6,7 +6,7 @@ import Head from 'next/head'
 const Custom404 = () => {
     const { isLogged } = useAuth()
 
-    useProtectPage({redirectTo: "/login"})
+    useProtectPage({redirectTo: "/auth/login"})
 
     if (isLogged != true) {
         return <Layout activeMenu={1}>

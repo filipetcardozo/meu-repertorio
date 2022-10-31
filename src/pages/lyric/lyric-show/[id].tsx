@@ -1,11 +1,13 @@
 import React from 'react';
 import { Layout } from "../../../components/app-layout";
-import { useAuth } from "../../../hooks/useAuth";
+import { useAuth, useProtectPage } from "../../../hooks/useAuth";
 import { LyricShowPage } from "../../../components/lyric-show/LyricShow";
 import Head from 'next/head'
 
 const LyricShow = () => {
     const { isLogged } = useAuth()
+
+    useProtectPage({ redirectTo: "/auth/login" })
 
     if (isLogged != true) {
         return <Layout activeMenu={2}>
