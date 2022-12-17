@@ -15,6 +15,18 @@ yarn install
 Pull requests are welcome. For major changes, please open an issue first
 to discuss what you would like to change.
 
+## Tasks that need to be done
+
+### Essentials tasks
+- [ ] Creation of the user management screen
+- [ ] Creation of the approval screen for figures
+- [ ] Fix login and account creation screen
+
+### Secondary tasks
+- [ ] Create screen for viewing the repertoire on mobile
+- [ ] Adapt home screen to show songs that the user prefers
+- [ ] Create some way to show the amount of views a certain song has
+
 ## License
 
 [MIT](https://choosealicense.com/licenses/mit/)
