@@ -4,10 +4,12 @@ import Link from "next/link"
 import React, { useState } from "react"
 import { useAuth } from "../../hooks/useAuth"
 import { Copyright } from "./Copyright"
+
 interface LoginInfosInterface {
     email: string;
     password: string;
 }
+
 export const LoginComponent = () => {
     const [loginInfos, setLoginInfos] = useState<LoginInfosInterface>({ email: "", password: "" })
     const [errorInputs, setErrorInputs] = useState({ loginError: false, passwordError: false })
@@ -77,8 +79,8 @@ export const LoginComponent = () => {
                 minWidth: 300,
                 py: 6,
                 px: 2,
-                boxShadow: 15,
-                borderRadius: 2
+                boxShadow: 2,
+                borderRadius: 1.5
             }}
         >
             <Box sx={{ textAlign: "center", displey: "flex", justifyContent: "center" }}>
@@ -142,6 +144,7 @@ export const LoginComponent = () => {
             <Box sx={{ mt: 8, mb: 4 }}>
                 <Copyright />
             </Box>
+
         </Box>
     </Box>
 }
