@@ -18,13 +18,13 @@ to discuss what you would like to change.
 ## Tasks that need to be done
 
 ### Essentials tasks
-- [ ] Creation of the user management screen
-- [ ] Creation of the approval screen for figures
-- [ ] Fix login and account creation screen
+- [ ] Creation of the user management page
+- [ ] Creation of the approval screen for lyrics
+- [ ] Fix login and account creation page
 
 ### Secondary tasks
-- [ ] Create screen for viewing the repertoire on mobile
-- [ ] Adapt home screen to show songs that the user prefers
+- [ ] Create page for viewing the repertoire on mobile
+- [ ] Adapt home page to show songs that the user prefers
 - [ ] Create some way to show the amount of views a certain song has
 
 ## License
