@@ -35,9 +35,6 @@ const HomePage = () => {
             <HomeLyrics />
         </InstantSearch>
     </ Layout>
-
-
-
 }
 
 export default HomePage;

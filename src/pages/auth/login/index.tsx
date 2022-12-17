@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import Head from 'next/head'
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import { useAuth } from '../../../hooks/useAuth';
 import { LoginComponent } from '../../../components/app-auth/Login';
@@ -20,12 +20,6 @@ const Login = () => {
             <title>Login - Meu Repertório</title>
             <meta name="viewport" content="initial-scale=1.0, width=device-width" />
         </Head>
-        {/* <Image
-            src={loginBackground}
-            alt="Background da página de login"
-            layout="fill"
-            style={{ zIndex: -10 }}
-        /> */}
         <LoginComponent />
     </>
 }

@@ -3,7 +3,7 @@ import Head from 'next/head'
 import React, { useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { useAuth } from '../../../hooks/useAuth';
-import { CreateAccountComponent } from '../../../components/app-auth/CreateAccount';
+import { CreateAccount as CreateAccountComponent } from '../../../components/app-auth/CreateAccount/index';
 
 const CreateAccount = () => {
     const router = useRouter()
@@ -17,7 +17,7 @@ const CreateAccount = () => {
 
     return <>
         <Head>
-            <title>Login - Meu Repertório</title>
+            <title>Criação de conta - Meu Repertório</title>
             <meta name="viewport" content="initial-scale=1.0, width=device-width" />
         </Head>
         {/* <Image
