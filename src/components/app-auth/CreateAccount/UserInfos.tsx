@@ -104,7 +104,7 @@ export const CreateAccountUserInfos = () => {
     })
 
     // useEffect(() => {
-    //     // axios.get("https://www.googleapis.com/youtube/v3/videos?id=poCqEpwVfhg&part=statistics&key=AIzaSyAJD8XmCzkY1qEkO15U5GlOWpanJymT5FM")
+    //     // axios.get("https://www.googleapis.com/youtube/v3/videos?id=xx&part=statistics&key=xx")
     //     // .then(v => console.log(v.data))
     //     fetch('/api/youtubeIdLyric')
     //         .then(v => v.json())
