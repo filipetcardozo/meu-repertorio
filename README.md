@@ -19,7 +19,7 @@ to discuss what you would like to change.
 
 ### Essentials tasks
 - [ ] Creation of the user management page
-- [ ] Creation of the approval screen for lyrics
+- [ ] Creation of the approval page for lyrics
 - [ ] Fix login and account creation page
 
 ### Secondary tasks
