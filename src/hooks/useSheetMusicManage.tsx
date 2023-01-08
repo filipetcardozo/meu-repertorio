@@ -4,6 +4,7 @@ import { registerSheetMusic } from "../components/sheet-music-manage/registerShe
 import { updateSheetMusic } from "../components/sheet-music-manage/updateSheetMusic"
 import { deleteSheetMusic, getAllSheetsMusics, getSheetMusic } from "../providers/lyrics/services"
 import { useSnackbar } from "notistack";
+import { useRouter } from 'next/router'
 
 export const useSheetMusicManage = ({ sheetMusicId }: { sheetMusicId: any }) => {
     const [lyrics, setLyrics] = useState<any>([])
@@ -24,6 +25,7 @@ export const useSheetMusicManage = ({ sheetMusicId }: { sheetMusicId: any }) => 
     const [lyricsToAdd, setLyricsToAdd] = useState<any[]>([])
     const [sheetsMusics, setSheetsMusics] = useState<any[]>([])
     const [loadingAddSheetMusic, setLoadingAddSheetMusic] = useState(false)
+    let router = useRouter()
 
     const { enqueueSnackbar } = useSnackbar();
 
@@ -55,7 +57,8 @@ export const useSheetMusicManage = ({ sheetMusicId }: { sheetMusicId: any }) => 
     const handleDeleteSheetMusic = () => {
         deleteSheetMusic(sheetMusicId)
             .then((value) => {
-                console.log('heree')
+                router.push('/sheet-music/all-sheet-music')
+
             })
             .catch((er) => {
                 console.log('Error in delete sheet music')
@@ -66,11 +69,11 @@ export const useSheetMusicManage = ({ sheetMusicId }: { sheetMusicId: any }) => 
         sheetMusicToAdd.lyrics = lyricsToAdd
         setSheetMusicToAdd({ ...sheetMusicToAdd })
 
-        // debugger
-        if (sheetMusicId != "") {
+        if (sheetMusicId && sheetMusicId != '') {
             updateSheetMusic(sheetMusicToAdd, setLoadingAddSheetMusic, enqueueSnackbar)
         } else {
-            registerSheetMusic(sheetMusicToAdd, setLoadingAddSheetMusic, enqueueSnackbar)
+            registerSheetMusic(sheetMusicToAdd, setLoadingAddSheetMusic)
+                .then(() => enqueueSnackbar("Repertório adicionado com sucesso!", { variant: "success" }))
         }
     }
 
@@ -88,7 +91,6 @@ export const useSheetMusicManage = ({ sheetMusicId }: { sheetMusicId: any }) => 
     }
 
     const handleDeleteMusicSheet = (index: number) => {
-        // Excluindo a musica
         lyricsToAdd.splice(index, 1)
         setLyricsToAdd([...lyricsToAdd])
     }

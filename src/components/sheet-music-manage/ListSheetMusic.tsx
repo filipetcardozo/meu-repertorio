@@ -36,7 +36,7 @@ export const ListSheetMusic = ({ lyrics, setLyrics, handleDeleteMusicSheet }: an
                                         <ListItem
                                             ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}
                                             sx={{
-                                                padding: 2, mb: 2, backgroundColor: "#eaf0f5", borderRadius: 2, boxShadow: 1,
+                                                padding: 1, mb: 1.5, backgroundColor: "#eaf0f5", borderRadius: 2, boxShadow: 1,
                                                 '&:hover': {
                                                     boxShadow: 2,
                                                     backgroundColor: "#dfefff",

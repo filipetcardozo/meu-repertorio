@@ -111,52 +111,52 @@ const SideBarComponent = (open: any) => {
                     </ListItem>
                 </Link>
                 {
-                    userInfos?.isAdmin ? <>
-                        <Link href={"/home"}>
-                            <ListItem key="adicionar-cifras" style={{ textDecoration: "none", color: "inherit" }} disablePadding sx={{ display: 'block', backgroundColor: open.activeMenu == 4 ? "#e4f1ff" : "" }}>
-                                <ListItemButton
-                                    sx={{
-                                        minHeight: 48,
-                                        justifyContent: open ? 'initial' : 'center',
-                                        px: 2.5,
-                                    }}
-                                >
-                                    <ListItemIcon
-                                        sx={{
-                                            minWidth: 0,
-                                            mr: open ? 1.5 : 'auto',
-                                            justifyContent: 'center',
-                                        }}
-                                    >
-                                        <PlaylistAddIcon />
-                                    </ListItemIcon>
-                                    <ListItemText primary={<Typography fontSize={15}>Aprovação de cifras</Typography>} sx={{ opacity: open ? 1 : 0 }} />
-                                </ListItemButton>
-                            </ListItem>
-                        </Link>
-                        <Link href={"/home"}>
-                            <ListItem key="adicionar-cifras" style={{ textDecoration: "none", color: "inherit" }} disablePadding sx={{ display: 'block', backgroundColor: open.activeMenu == 4 ? "#e4f1ff" : "" }}>
-                                <ListItemButton
-                                    sx={{
-                                        minHeight: 48,
-                                        justifyContent: open ? 'initial' : 'center',
-                                        px: 2.5,
-                                    }}
-                                >
-                                    <ListItemIcon
-                                        sx={{
-                                            minWidth: 0,
-                                            mr: open ? 1.5 : 'auto',
-                                            justifyContent: 'center',
-                                        }}
-                                    >
-                                        <PlaylistAddIcon />
-                                    </ListItemIcon>
-                                    <ListItemText primary={<Typography fontSize={15}>Gerenciamento de usuários</Typography>} sx={{ opacity: open ? 1 : 0 }} />
-                                </ListItemButton>
-                            </ListItem>
-                        </Link>
-                    </> : <></>
+                    // userInfos?.isAdmin ? <>
+                    //     <Link href={"/home"}>
+                    //         <ListItem key="adicionar-cifras" style={{ textDecoration: "none", color: "inherit" }} disablePadding sx={{ display: 'block', backgroundColor: open.activeMenu == 4 ? "#e4f1ff" : "" }}>
+                    //             <ListItemButton
+                    //                 sx={{
+                    //                     minHeight: 48,
+                    //                     justifyContent: open ? 'initial' : 'center',
+                    //                     px: 2.5,
+                    //                 }}
+                    //             >
+                    //                 <ListItemIcon
+                    //                     sx={{
+                    //                         minWidth: 0,
+                    //                         mr: open ? 1.5 : 'auto',
+                    //                         justifyContent: 'center',
+                    //                     }}
+                    //                 >
+                    //                     <PlaylistAddIcon />
+                    //                 </ListItemIcon>
+                    //                 <ListItemText primary={<Typography fontSize={15}>Aprovação de cifras</Typography>} sx={{ opacity: open ? 1 : 0 }} />
+                    //             </ListItemButton>
+                    //         </ListItem>
+                    //     </Link>
+                    //     <Link href={"/home"}>
+                    //         <ListItem key="adicionar-cifras" style={{ textDecoration: "none", color: "inherit" }} disablePadding sx={{ display: 'block', backgroundColor: open.activeMenu == 4 ? "#e4f1ff" : "" }}>
+                    //             <ListItemButton
+                    //                 sx={{
+                    //                     minHeight: 48,
+                    //                     justifyContent: open ? 'initial' : 'center',
+                    //                     px: 2.5,
+                    //                 }}
+                    //             >
+                    //                 <ListItemIcon
+                    //                     sx={{
+                    //                         minWidth: 0,
+                    //                         mr: open ? 1.5 : 'auto',
+                    //                         justifyContent: 'center',
+                    //                     }}
+                    //                 >
+                    //                     <PlaylistAddIcon />
+                    //                 </ListItemIcon>
+                    //                 <ListItemText primary={<Typography fontSize={15}>Gerenciamento de usuários</Typography>} sx={{ opacity: open ? 1 : 0 }} />
+                    //             </ListItemButton>
+                    //         </ListItem>
+                    //     </Link>
+                    // </> : <></>
                 }
             </List>
         </>
