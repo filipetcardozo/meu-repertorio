@@ -13,6 +13,13 @@ import Tooltip from '@mui/material/Tooltip';
 import { FilterLyrics } from './FilterLyrics';
 import { ListSheetMusic } from './ListSheetMusic';
 import { useSheetMusicManage } from '../../hooks/useSheetMusicManage';
+import Link from 'next/link';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogContentText from '@mui/material/DialogContentText';
+import DialogTitle from '@mui/material/DialogTitle';
+import Button from '@mui/material/Button';
 
 export const ManageSheetMusicComponent = ({ sheetMusicId }: { sheetMusicId: any }) => {
     const {
@@ -60,6 +67,8 @@ export const ManageSheetMusicComponent = ({ sheetMusicId }: { sheetMusicId: any 
         </>
     }
 
+    const [openModalDelete, setOpenModalDelete] = React.useState(false);
+
     return (
         <>
             <Box px={3} py={2} sx={{ mt: 2, backgroundColor: "#a1bbd412", borderRadius: 1.4, boxShadow: 1, position: "relative" }}>
@@ -93,20 +102,22 @@ export const ManageSheetMusicComponent = ({ sheetMusicId }: { sheetMusicId: any 
                         {/* Start sheet music */}
                         {
                             sheetMusicId ?
-                                <IconButton sx={{ position: "absolute", right: 0 }}
-                                    onClick={() => {
-                                        // redirect(`/app/sheet-music/${params.sheetMusicId}`)
-                                    }}
-                                >
-                                    <Tooltip title="Iniciar Show" placement="top">
-                                        <PlayCircleFilledIcon style={{ color: "#a7d7ff" }} />
-                                    </Tooltip>
-                                </IconButton> : <></>
+                                <Link href={`/sheet-music/show-sheet-music/${sheetMusicId}`}>
+                                    <IconButton sx={{ position: "absolute", right: 0 }}
+                                        onClick={() => {
+                                            // redirect(`/app/sheet-music/${params.sheetMusicId}`)
+                                        }}
+                                    >
+                                        <Tooltip title="Iniciar Show" placement="top">
+                                            <PlayCircleFilledIcon style={{ color: "#a7d7ff" }} />
+                                        </Tooltip>
+                                    </IconButton>
+                                </Link> : <></>
                         }
                         {
                             sheetMusicId ?
                                 <IconButton sx={{ position: "absolute", right: 35 }}
-                                    onClick={() => handleDeleteSheetMusic()}>
+                                    onClick={() => setOpenModalDelete(true)}>
                                     <Tooltip title="Excluir partitura" placement="top">
                                         <DeleteIcon style={{ color: "#ffb7b7" }} />
                                     </Tooltip>
@@ -114,6 +125,31 @@ export const ManageSheetMusicComponent = ({ sheetMusicId }: { sheetMusicId: any 
                         }
                     </Grid>
                 </Grid>
+
+                <Dialog
+                    open={openModalDelete}
+                    onClose={() => setOpenModalDelete(false)}
+                    aria-labelledby="alert-dialog-title"
+                    aria-describedby="alert-dialog-description"
+                >
+                    <DialogTitle id="alert-dialog-title">
+                        Confirmação
+                    </DialogTitle>
+                    <DialogContent>
+                        <DialogContentText id="alert-dialog-description">
+                            Tem certeza que deseja excluir este repertório?
+                        </DialogContentText>
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={() => setOpenModalDelete(false)}>Cancelar</Button>
+                        <Button onClick={() => {
+                            handleDeleteSheetMusic();
+                            setOpenModalDelete(false);
+                        }}>
+                            Excluir repertório
+                        </Button>
+                    </DialogActions>
+                </Dialog>
             </Box>
         </>
     )
