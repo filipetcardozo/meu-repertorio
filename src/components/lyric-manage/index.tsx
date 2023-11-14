@@ -147,7 +147,7 @@ export const LyricManage = ({ idLyric }: { idLyric: string | undefined }) => {
                         />
                     </Grid>
                     <Grid item xs={12}>
-                        <TextField id="filled-basic" label="Cifra" variant="filled" name="lyric" multiline fullWidth rows={15}
+                        <TextField id="filled-basic" label="Cifra" variant="filled" name="lyric" multiline fullWidth rows={40}
                             value={musicToAdd.lyric} onChange={handleAddMusic('lyric')}
                         />
                     </Grid>
