@@ -19,20 +19,6 @@ export const useLyricShow = ({
   const heightScreen = window.innerHeight - 160
   const lines = heightScreen / 15
 
-  function moveMusicalNotesToNextColumn(currentColumn: any, nextColumn: any) {
-    if (!currentColumn || currentColumn.length === 0) return [currentColumn, nextColumn];
-
-    const lastLine = currentColumn[currentColumn.length - 1];
-    if (lastLine.includes("<b")) {
-      // Remova a última linha da coluna atual e adicione-a ao início da próxima coluna
-      return [
-        currentColumn.slice(0, -1),
-        [lastLine].concat(nextColumn)
-      ];
-    }
-    return [currentColumn, nextColumn];
-  }
-
   useEffect(() => {
     if (lyricToShow) {
       let lyric = lyricToShow.lyric
@@ -244,26 +230,30 @@ export const useLyricShow = ({
       let firstColumnLinesEnd = lines * 2
       let firstColumn = arrayOfLyric.slice(0, firstColumnLinesStart)
 
-      let secondColumn;
+      let secondColumn, thirdColumn;
+
+      const moveNotesToNextColumn = (currentColumn: any, nextColumn: any) => {
+        if (currentColumn.length > 0 && currentColumn[currentColumn.length - 1].includes("<b")) {
+          // Se a última linha for uma nota, mova para a próxima coluna
+          const note = currentColumn.pop();
+          if (nextColumn) {
+            nextColumn.unshift(note);
+          }
+        }
+      };
+
       if (firstColumnLinesStart < arrayOfLyric.length) {
-        secondColumn = arrayOfLyric.slice(firstColumnLinesStart, firstColumnLinesEnd)
-        // Length of second Column
-        setLengthSecondColumn(secondColumn.join('\n').split(/\r\n|\r|\n/).length)
+        secondColumn = arrayOfLyric.slice(firstColumnLinesStart, firstColumnLinesEnd);
+        moveNotesToNextColumn(firstColumn, secondColumn);
+        setLengthSecondColumn(secondColumn.join('\n').split(/\r\n|\r|\n/).length);
       }
 
-      let thirdColumn;
       if (firstColumnLinesEnd < arrayOfLyric.length) {
-        thirdColumn = arrayOfLyric.slice(firstColumnLinesEnd)
+        thirdColumn = arrayOfLyric.slice(firstColumnLinesEnd);
+        moveNotesToNextColumn(secondColumn, thirdColumn);
       }
 
-      [firstColumn, secondColumn] = moveMusicalNotesToNextColumn(firstColumn, secondColumn);
-      [secondColumn, thirdColumn] = moveMusicalNotesToNextColumn(secondColumn, thirdColumn);    
-
-      if (firstColumn) {
-        firstColumn.unshift('<pre>');
-        firstColumn.push('</pre>');
-        setHtmlLyric(firstColumn.join('\n'));
-      }
+      firstColumn.push('</pre>')
 
       if (secondColumn) {
         secondColumn.unshift('<pre>')
@@ -273,7 +263,6 @@ export const useLyricShow = ({
 
       if (thirdColumn) {
         thirdColumn.unshift('<pre>')
-        thirdColumn.push('</pre>');
         setHtmlLyricThird(thirdColumn.join('\n'))
       }
 
@@ -286,6 +275,7 @@ export const useLyricShow = ({
         let columnNextMusic = arrayOfNextLyric.splice(0, 20)
         columnNextMusic.push('</pre>')
         setHtmlLyricNextMusic(columnNextMusic.join('\n'))
+
       }
     }
   }, [lyricToShow, habiliteSolo])
