@@ -64,21 +64,23 @@ export const SheetMusicShow = ({ sheetMusicId }: { sheetMusicId: any }) => {
   } = useShowSheetMusic({ sheetMusicId })
 
   const RenderStepper = (value: any, index: number) => {
+    let isStepperActive = activeStep === index;
     return (
-      <Step key={index} completed={completed[index]} >
+      <Step key={value.lyricId} completed={completed[index]}>
         <StepButton
           onClick={() => handleStep(index)}
           sx={{
-            fontSize: "2px", position: "relative",
+            fontSize: "2px",
+            position: "relative",
             '& .MuiStepLabel-root .Mui-completed': {
-              color: "#5999d9", // circle color (COMPLETED)
+              color: "#5999d9",
             },
             '& .MuiStepLabel-root .Mui-active': {
-              color: "#007efa", // circle color (ACTIVE)
-            }
+              color: "#0055a9",
+            },
           }}
         >
-          <Typography variant="h6" fontWeight="bold" fontSize={12}>
+          <Typography variant="h6" fontWeight="bold" fontSize={isStepperActive ? 14 : 12} color={isStepperActive ? "primary" : "inherit"}>
             {value.lyricName}
           </Typography>
           <Typography fontSize={10} sx={{ color: "#00000054" }}>{value.composerName}</Typography>
