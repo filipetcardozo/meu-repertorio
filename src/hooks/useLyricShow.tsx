@@ -19,6 +19,51 @@ export const useLyricShow = ({
   const heightScreen = window.innerHeight - 160
   const lines = heightScreen / 15
 
+  const processNotes = (notesContent: any, offset: any) => {
+    return notesContent.split('/').map((note: any) => {
+      let originalNote = note.match(/[A-G]#?b?/)[0]; // Captura a nota, ignorando detalhes adicionais
+      let additionalDetails = note.substr(originalNote.length); // Captura os detalhes adicionais após a nota
+
+      let isB = originalNote.includes("b");
+
+      // Converta bemóis para seus equivalentes sustenidos
+      if (isB) {
+        switch (originalNote.substr(0, 2)) {
+          case "Bb":
+            originalNote = "A#";
+            break;
+          case "Db":
+            originalNote = "C#";
+            break;
+          case "Eb":
+            originalNote = "D#";
+            break;
+          case "Gb":
+            originalNote = "F#";
+            break;
+          case "Ab":
+            originalNote = "G#";
+            break;
+          default:
+            break;
+        }
+      }
+
+      if (offset !== 0) {
+        // Encontre a nova nota somente se o offset for diferente de zero
+        let indexInScaleNote = scaleNotes.indexOf(originalNote);
+        let resultOffsetAndIndexNoteNow = indexInScaleNote + offset;
+
+        // Ajuste para casos onde o índice excede o tamanho da escala ou é negativo
+        resultOffsetAndIndexNoteNow = (resultOffsetAndIndexNoteNow + scaleNotes.length) % scaleNotes.length;
+
+        originalNote = scaleNotes[resultOffsetAndIndexNoteNow];
+      }
+
+      return originalNote + additionalDetails; // Junta a nova nota com os detalhes adicionais
+    }).join('/');
+  };
+
   useEffect(() => {
     if (lyricToShow) {
       let lyric = lyricToShow.lyric
@@ -31,69 +76,9 @@ export const useLyricShow = ({
       create.innerHTML = lyric
       let arrayOfNotes = create.getElementsByTagName("b")
 
-      if (!(offsetLyricToShow === undefined)) {
+      if (offsetLyricToShow !== 0) {
         for (let i = 0; i < arrayOfNotes.length; i++) {
-          let nowNote: any = arrayOfNotes[i].textContent
-          // nowNote = "B"
-
-          let isCharp = nowNote?.charAt(1) == "#"
-          let isB = nowNote?.charAt(1) == "b"
-
-          // Get just a note || get the # too
-          if (!isCharp && !isB) nowNote = nowNote?.charAt(0)
-
-          let oldNote = ""
-          if (isB) {
-            switch (nowNote.substr(0, 2)) {
-              case "Bb":
-                nowNote = "A#"
-                oldNote = "Bb"
-                break;
-              case "Db":
-                nowNote = "C#"
-                oldNote = "Db"
-                break;
-              case "Eb":
-                nowNote = "D#"
-                oldNote = "Eb"
-                break;
-              case "Gb":
-                nowNote = "F#"
-                oldNote = "Gb"
-                break;
-              case "Ab":
-                nowNote = "G#"
-                oldNote = "Ab"
-                break;
-            }
-          }
-
-
-          if (isCharp) nowNote = nowNote?.substr(0, 2)
-          // New tests
-
-          // Index in slace note
-          let indexInScaleNote = scaleNotes.indexOf(nowNote)
-
-          let resultOffsetAndIndexNoteNow = indexInScaleNote + offsetLyricToShow
-          let restOfResult = resultOffsetAndIndexNoteNow - 11
-
-          // If it is greater than 11 or less
-          if (restOfResult > 0) resultOffsetAndIndexNoteNow = restOfResult - 1
-          if (resultOffsetAndIndexNoteNow < 0) resultOffsetAndIndexNoteNow = 12 + resultOffsetAndIndexNoteNow
-
-          let newNote = scaleNotes[resultOffsetAndIndexNoteNow]
-
-          // let allNewNote = String(arrayOfNotes[i].textContent).replace(nowNote, newNote)
-          let allNewNote: string
-          if (isB) {
-            allNewNote = String(arrayOfNotes[i].textContent).replace(oldNote, newNote)
-          } else {
-            allNewNote = String(arrayOfNotes[i].textContent).replace(nowNote, newNote)
-          }
-          // = String(arrayOfNotes[i].textContent).replace(nowNote, newNote)
-
-          arrayOfNotes[i].innerHTML = allNewNote
+          arrayOfNotes[i].innerHTML = processNotes(arrayOfNotes[i].textContent, offsetLyricToShow);
         }
       }
 
@@ -104,70 +89,12 @@ export const useLyricShow = ({
       if (nextLyricToShow) {
         let createSecondary = document.createElement("div")
         createSecondary.innerHTML = nextLyric
-        let arrayOfNotes = createSecondary.getElementsByTagName("b")
+        let arrayOfNotesSecondary = createSecondary.getElementsByTagName("b")
 
-        for (let i = 0; i < arrayOfNotes.length; i++) {
-          let nowNote: any = arrayOfNotes[i].textContent
-          // nowNote = "B"
-
-          let isCharp = nowNote?.charAt(1) == "#"
-          let isB = nowNote?.charAt(1) == "b"
-
-          // Get just a note || get the # too
-          if (!isCharp && !isB) nowNote = nowNote?.charAt(0)
-
-          let oldNote = ""
-          if (isB) {
-            switch (nowNote.substr(0, 2)) {
-              case "Bb":
-                nowNote = "A#"
-                oldNote = "Bb"
-                break;
-              case "Db":
-                nowNote = "C#"
-                oldNote = "Db"
-                break;
-              case "Eb":
-                nowNote = "D#"
-                oldNote = "Eb"
-                break;
-              case "Gb":
-                nowNote = "F#"
-                oldNote = "Gb"
-                break;
-              case "Ab":
-                nowNote = "G#"
-                oldNote = "Ab"
-                break;
-            }
+        if (nextLyricToShow.offset !== 0) {
+          for (let i = 0; i < arrayOfNotesSecondary.length; i++) {
+            arrayOfNotesSecondary[i].innerHTML = processNotes(arrayOfNotesSecondary[i].textContent, nextLyricToShow.offset);
           }
-
-
-          if (isCharp) nowNote = nowNote?.substr(0, 2)
-          // New tests
-
-          // Index in slace note
-          let indexInScaleNote = scaleNotes.indexOf(nowNote)
-
-          let resultOffsetAndIndexNoteNow = indexInScaleNote + nextLyricToShow.offset
-          let restOfResult = resultOffsetAndIndexNoteNow - 11
-
-          // If it is greater than 11 or less
-          if (restOfResult > 0) resultOffsetAndIndexNoteNow = restOfResult - 1
-          if (resultOffsetAndIndexNoteNow < 0) resultOffsetAndIndexNoteNow = 12 + resultOffsetAndIndexNoteNow
-
-          let newNote = scaleNotes[resultOffsetAndIndexNoteNow]
-
-          // let allNewNote = String(arrayOfNotes[i].textContent).replace(nowNote, newNote)
-          let allNewNote: string
-          if (isB) {
-            allNewNote = String(arrayOfNotes[i].textContent).replace(oldNote, newNote)
-          } else {
-            allNewNote = String(arrayOfNotes[i].textContent).replace(nowNote, newNote)
-          }
-          // = String(arrayOfNotes[i].textContent).replace(nowNote, newNote)
-
-          arrayOfNotes[i].innerHTML = allNewNote
         }
 
         // Apply offset changes in the current lyric
