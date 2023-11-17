@@ -21,8 +21,13 @@ export const useLyricShow = ({
 
   const processNotes = (notesContent: any, offset: any) => {
     return notesContent.split('/').map((note: any) => {
-      let originalNote = note.match(/[A-G]#?b?/)[0]; // Captura a nota, ignorando detalhes adicionais
-      let additionalDetails = note.substr(originalNote.length); // Captura os detalhes adicionais após a nota
+      const matchResult = note.match(/[A-G]#?b?/);
+      if (!matchResult) {
+        return note; 
+      }
+  
+      let originalNote = note.match(/[A-G]#?b?/)[0];
+      let additionalDetails = note.substr(originalNote.length);
 
       let isB = originalNote.includes("b");
 
