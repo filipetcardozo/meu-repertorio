@@ -8,6 +8,7 @@ export type registeredLyricType = {
     offset: number;
     originalTone: string;
     stars: number;
+    userId: string;
     id?: string;
 }
 

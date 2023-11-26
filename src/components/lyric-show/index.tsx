@@ -190,6 +190,18 @@ export const LyricShowComponent = ({
     </Box>
   }
 
+  function NextMusicFloatButton() {
+    return (
+      <Box display="inline" color="#00000066" sx={{ position: "fixed", bottom: 16, right: 16 }}>
+        <Tooltip title="Próxima música">
+          <Fab color="primary" aria-label="next" onClick={() => handleNext()}>
+            <NextPlanIcon />
+          </Fab>
+        </Tooltip>
+      </Box>
+    );
+  }
+
   return <>
     <Box sx={{
       display: "flex", fontSize: "14px", lineHeight: "15px", columnGap: 1.5,fontFamily: "monospace"
@@ -205,5 +217,8 @@ export const LyricShowComponent = ({
         </Tooltip>
       </Box>
     </Box >
+    {
+      htmlLyricNextMusic && NextMusicFloatButton()
+    }
   </>
 }

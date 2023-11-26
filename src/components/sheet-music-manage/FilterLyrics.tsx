@@ -18,107 +18,107 @@ import { useSearchBox } from 'react-instantsearch-hooks-web';
 const searchClient = algoliasearch('M91WDCEXS4', '0fa682d5b69e7040b462c96daecbb0fd');
 
 export const FilterLyrics = ({
-    sheetsMusics, lyrics, handlePushMusicToSheets, lyricsToAdd
+  sheetsMusics, lyrics, handlePushMusicToSheets, lyricsToAdd
 }: any) => {
 
-    function CustomHits() {
-        const { hits } = useHits();
+  function CustomHits() {
+    const { hits } = useHits();
 
-        return <>
-            {
-                hits.length > 0 ? hits.map((value: any, index: number) => {
-                    return <Grid key={index} item xs={6}>
-                        <ListItem
-                            onClick={() => {
-                                let newValue = {
-                                    composerId: value.composerId,
-                                    composerName: value.composerName,
-                                    lyricId: value.objectID,
-                                    lyricName: value.lyricName,
-                                    lyricStyle: value.lyricStyle,
-                                    originalTone: "A"
-                                }
-                                handlePushMusicToSheets(newValue, index)
-                            }}
-                            key={index}
-                            sx={{
-                                padding: 2, backgroundColor: `${lyricsToAdd.filter((values: any) => values.lyricId == value.objectID).length > 0 ? "#dff0ff" : "#eaf0f5"}`, borderRadius: 2,
-                                '&:hover': {
-                                    // boxShadow: 1,
-                                    cursor: "pointer",
-                                    backgroundColor: "#d5ebff"
-                                },
-                            }}
-
-                            secondaryAction={
-                                lyricsToAdd.filter((values: any) => values.lyricId == value.objectID).length > 0 ? <PlaylistAddCheckIcon fontSize="small" /> : null
-                            }
-                        >
-                            <ListItemAvatar>
-                                <Avatar>
-                                    {index + 1}
-                                </Avatar>
-                            </ListItemAvatar>
-
-                            <ListItemText
-                                primary={value.lyricName}
-                                secondary={value.composerName}
-                            />
-                        </ListItem>
-                    </Grid>
-                }) : <></>
-            }
-        </>
-    }
-
-    function CustomSearchBox() {
-        const { refine, } = useSearchBox();
-
-        const [valueToSearch, setValueToSearch] = React.useState("")
-
-        const [updatingSearch, setUpdatingSearch] = React.useState(false)
-
-        useEffect(() => {
-            const timer = setTimeout(() => {
-                refine(valueToSearch)
-                setUpdatingSearch(false)
-            }, 1000);
-
-            return () => clearTimeout(timer);
-        }, [valueToSearch])
-
-        return <Grid item xs={12} mt={2} display="flex" alignItems="center" justifyContent="center">
-            <Grid container spacing={2} textAlign="center">
-                <Grid item xs={12}>
-                    <TextField
-                        size="small"
-                        variant="filled"
-                        label="Procurar música..."
-                        type="text"
-                        //   value={}
-                        onChange={(event) => {
-                            setValueToSearch(event.target.value)
-                            setUpdatingSearch(true)
-                        }}
-                    />
-                </Grid>
-                {
-                    updatingSearch ? <Grid item xs={12}>
-                        <CircularProgress size={26} />
-                    </Grid> : <></>
+    return <>
+      {
+        hits.length > 0 ? hits.map((value: any, index: number) => {
+          return <Grid key={index} item xl={3} lg={4} xs={6}>
+            <ListItem
+              onClick={() => {
+                let newValue = {
+                  composerId: value.composerId,
+                  composerName: value.composerName,
+                  lyricId: value.objectID,
+                  lyricName: value.lyricName,
+                  lyricStyle: value.lyricStyle,
+                  originalTone: "A"
                 }
+                handlePushMusicToSheets(newValue, index)
+              }}
+              key={index}
+              sx={{
+                padding: 2, backgroundColor: `${lyricsToAdd.filter((values: any) => values.lyricId == value.objectID).length > 0 ? "#dff0ff" : "#eaf0f5"}`, borderRadius: 2,
+                '&:hover': {
+                  // boxShadow: 1,
+                  cursor: "pointer",
+                  backgroundColor: "#d5ebff"
+                },
+              }}
 
-            </Grid>
+              secondaryAction={
+                lyricsToAdd.filter((values: any) => values.lyricId == value.objectID).length > 0 ? <PlaylistAddCheckIcon fontSize="small" /> : null
+              }
+            >
+              <ListItemAvatar>
+                <Avatar>
+                  {index + 1}
+                </Avatar>
+              </ListItemAvatar>
+
+              <ListItemText
+                primary={value.lyricName}
+                secondary={value.composerName}
+              />
+            </ListItem>
+          </Grid>
+        }) : <></>
+      }
+    </>
+  }
+
+  function CustomSearchBox() {
+    const { refine, } = useSearchBox();
+
+    const [valueToSearch, setValueToSearch] = React.useState("")
+
+    const [updatingSearch, setUpdatingSearch] = React.useState(false)
+
+    useEffect(() => {
+      const timer = setTimeout(() => {
+        refine(valueToSearch)
+        setUpdatingSearch(false)
+      }, 1000);
+
+      return () => clearTimeout(timer);
+    }, [valueToSearch])
+
+    return <Grid item xs={12} mt={2} display="flex" alignItems="center" justifyContent="center">
+      <Grid container spacing={2} textAlign="center">
+        <Grid item xs={12}>
+          <TextField
+            size="small"
+            variant="filled"
+            label="Procurar música..."
+            type="text"
+            //   value={}
+            onChange={(event) => {
+              setValueToSearch(event.target.value)
+              setUpdatingSearch(true)
+            }}
+          />
         </Grid>
+        {
+          updatingSearch ? <Grid item xs={12}>
+            <CircularProgress size={26} />
+          </Grid> : <></>
+        }
 
-    }
+      </Grid>
+    </Grid>
 
-    return <List dense={true}>
-        <Grid container spacing={2}>
-            <InstantSearch searchClient={searchClient} indexName="lyrics">
-                <CustomSearchBox />
-                <CustomHits />
-            </InstantSearch>
-        </Grid>
-    </List>
+  }
+
+  return <List dense={true}>
+    <Grid container spacing={2}>
+      <InstantSearch searchClient={searchClient} indexName="lyrics">
+        <CustomSearchBox />
+        <CustomHits />
+      </InstantSearch>
+    </Grid>
+  </List>
 }

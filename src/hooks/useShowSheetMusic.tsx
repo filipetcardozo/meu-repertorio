@@ -5,293 +5,309 @@ import { database } from "../../firebaseConfig";
 import { getRegisteredLyric, getSheetMusic, updateUserRegisteredLyricOffset, updateUserRegisteredLyricStars } from "../providers/lyrics/services";
 import { useAuth } from "./useAuth";
 import { useStorageSheetMusic } from "./useStorageSheetMusic";
+import { lyricInSheetMusicType, sheetMusicType } from "../types/sheetMusicType";
+import { registeredLyricType } from "../types/registeredLyricType";
 
 
 export const useShowSheetMusic = ({ sheetMusicId }: { sheetMusicId: string }) => {
-    const { uid } = useAuth()
-    const db = database
+  const { uid } = useAuth()
+  const db = database
 
-    const [lyricToShow, setLyricToShow] = useState<any>({})
+  const [lyricToShow, setLyricToShow] = useState<lyricInSheetMusicType>()
 
-    // Lyrics to show in this sheet
-    let [sheetMusicToShow, setSheetMusicToShow] = useState<any>({ lyrics: [{ offset: 0 }] })
+  console.log(lyricToShow)
 
-    // Lyrics registereds of this user
-    let [userLyricsRegistered, setUserLyricsRegistered] = useState<any>([])
+  // Lyrics to show in this sheet
+  let [sheetMusicToShow, setSheetMusicToShow] = useState<sheetMusicType>()
 
-    // Stepper
-    const [activeStep, setActiveStep] = useState(0);
-    const [completed, setCompleted] = useState<boolean[] | any>([]);
-    const [startTime, setStartTime] = useState(new Date().getTime())
-    const [readyToRender, setReadyToRender] = useState(false)
+  // Lyrics registereds of this user
+  let [userLyricsRegistered, setUserLyricsRegistered] = useState<registeredLyricType[]>()
 
-    const [offsetsUpdateds, setOffsetsUpdateds] = useState<any[]>([])
-    const [offsetIsUpdating, setOffsetIsUpdating] = useState(false)
-    const [openUpdatedSuccess, setOpenUpdatedSuccess] = useState(false);
-    const [openUpdatedStarsSuccess, setOpenUpdatedStarsSuccess] = useState(false);
+  // Stepper
+  const [activeStep, setActiveStep] = useState(0);
+  const [completed, setCompleted] = useState<boolean[] | any>([]);
+  const [startTime, setStartTime] = useState(new Date().getTime())
+  const [readyToRender, setReadyToRender] = useState(false)
 
-    const [starValueBefore, setStarValueBefore] = useState(0)
-    const [startValueInLoading, setStarValueInLoading] = useState(0)
-    const [starValueAfter, setStartValueAfter] = useState(0)
-    const [displacementStart, setDisplacementStart] = useState(false)
-    const [updatingStarsLoading, setUpdatingStarsLoading] = useState(false)
+  const [offsetsUpdateds, setOffsetsUpdateds] = useState<any[]>([])
+  const [offsetIsUpdating, setOffsetIsUpdating] = useState(false)
+  const [openUpdatedSuccess, setOpenUpdatedSuccess] = useState(false);
+  const [openUpdatedStarsSuccess, setOpenUpdatedStarsSuccess] = useState(false);
 
-    const {
-        callGetCompletedSheetMusicLocalStorage,
-        callPutCompletedSheetMusicLocalStorage
-    } = useStorageSheetMusic()
+  const [starValueBefore, setStarValueBefore] = useState(0)
+  const [startValueInLoading, setStarValueInLoading] = useState(0)
+  const [starValueAfter, setStartValueAfter] = useState(0)
+  const [displacementStart, setDisplacementStart] = useState(false)
+  const [updatingStarsLoading, setUpdatingStarsLoading] = useState(false)
 
-    // Request of the sheet music and later of each song individually
-    const getSheet = async () => {
-        let sheet: any
-        if (sheetMusicId) {
-            sheet = await getSheetMusic(sheetMusicId)
+  const {
+    callGetCompletedSheetMusicLocalStorage,
+    callPutCompletedSheetMusicLocalStorage
+  } = useStorageSheetMusic()
 
-            let allGetDocs: any = []
-            let allGetDocsRegistered: any = []
+  // Request of the sheet music and later of each song individually
+  const getSheet = async () => {
+    let sheet: any
+    if (sheetMusicId) {
+      sheet = await getSheetMusic(sheetMusicId)
 
-            // All get docs in db lyrics
-            sheet.lyrics.map((value: any, index: number) => {
-                const docRef = doc(db, "lyrics", value.lyricId)
-                allGetDocs.push(getDoc(docRef))
+      let allGetDocs: any = []
+      let allGetDocsRegistered: any = []
 
-                allGetDocsRegistered.push(getRegisteredLyric(uid!, value.lyricId!))
-            })
+      // All get docs in db lyrics
+      sheet.lyrics.map((value: any, index: number) => {
+        const docRef = doc(db, "lyrics", value.lyricId)
+        allGetDocs.push(getDoc(docRef))
 
-            await Promise.all(allGetDocs)
-                .then(values => {
-                    values.forEach((lyric: any) => {
-                        let indexOf = sheet.lyrics.map(function (e: any) { return e.lyricId; }).indexOf(lyric.id)
-                        if (indexOf >= 0) {
-                            let dataOfLyricGet = lyric.data()
-                            sheet.lyrics[indexOf].composerId = dataOfLyricGet.composerId
-                            sheet.lyrics[indexOf].composerName = dataOfLyricGet.composerName
-                            sheet.lyrics[indexOf].lyric = dataOfLyricGet.lyric
-                            sheet.lyrics[indexOf].lyricName = dataOfLyricGet.lyricName
-                            sheet.lyrics[indexOf].lyricStyle = dataOfLyricGet.lyricStyle
-                            sheet.lyrics[indexOf].originalTone = dataOfLyricGet.originalTone
-                        }
-                    })
-                })
-                .then(values => {
-                    Promise.all(allGetDocsRegistered)
-                        .then((values) => {
-                            setUserLyricsRegistered(values)
-                            values.forEach((lyricRegistered: any) => {
-                                let indexOf = sheet.lyrics.map(function (e: any) { return e.lyricId; }).indexOf(lyricRegistered.lyricId)
-                                if (indexOf >= 0) {
-                                    sheet.lyrics[indexOf].offset = lyricRegistered.offset
-                                    sheet.lyrics[indexOf].stars = lyricRegistered.stars
-                                }
-                            })
-                            setSheetMusicToShow(sheet)
-                            setLyricToShow(sheet.lyrics[0])
-                            setReadyToRender(true)
-                        })
-                })
-                .catch(errors => {
-                    console.log(errors)
-                })
-        }
-    }
+        allGetDocsRegistered.push(getRegisteredLyric(uid!, value.lyricId!))
+      })
 
-    useEffect(() => {
-        getSheet()
-            .then(() => {
-                let completedStorage = callGetCompletedSheetMusicLocalStorage(sheetMusicId)
-                if (completedStorage) {
-                    setCompleted(completedStorage)
+      await Promise.all(allGetDocs)
+        .then(values => {
+          values.forEach((lyric: any) => {
+            let indexOf = sheet.lyrics.map(function (e: any) { return e.lyricId; }).indexOf(lyric.id)
+            if (indexOf >= 0) {
+              let dataOfLyricGet = lyric.data()
+              sheet.lyrics[indexOf].composerId = dataOfLyricGet.composerId
+              sheet.lyrics[indexOf].composerName = dataOfLyricGet.composerName
+              sheet.lyrics[indexOf].lyric = dataOfLyricGet.lyric
+              sheet.lyrics[indexOf].lyricName = dataOfLyricGet.lyricName
+              sheet.lyrics[indexOf].lyricStyle = dataOfLyricGet.lyricStyle
+              sheet.lyrics[indexOf].originalTone = dataOfLyricGet.originalTone
+            }
+          })
+        })
+        .then(values => {
+          Promise.all(allGetDocsRegistered)
+            .then((values: any) => {
+              setUserLyricsRegistered(values)
+              values.forEach((lyricRegistered: any) => {
+                let indexOf = sheet.lyrics.map(function (e: any) { return e.lyricId; }).indexOf(lyricRegistered.lyricId)
+                if (indexOf >= 0) {
+                  sheet.lyrics[indexOf].offset = lyricRegistered.offset
+                  sheet.lyrics[indexOf].stars = lyricRegistered.stars
                 }
+              })
+              setSheetMusicToShow(sheet)
+              setLyricToShow(sheet.lyrics[0])
+              setReadyToRender(true)
             })
-    }, [])
+        })
+        .catch(errors => {
+          console.log(errors)
+        })
+    }
+  }
 
-
-    function handleNext() {
-        if (activeStep == sheetMusicToShow.lyrics.length - 1) return;
-
-        let diferenceOfTime = (new Date().getTime() - startTime) / 1000
-
-        if (diferenceOfTime > 60) {
-            completed[activeStep] = !completed[activeStep]
-            setCompleted([...completed])
-
-            setStartTime(new Date().getTime())
+  useEffect(() => {
+    getSheet()
+      .then(() => {
+        let completedStorage = callGetCompletedSheetMusicLocalStorage(sheetMusicId)
+        if (completedStorage) {
+          setCompleted(completedStorage)
         }
+      })
+  }, [])
 
-        setActiveStep((prevActiveStep: any) => prevActiveStep + 1);
-        setLyricToShow(sheetMusicToShow.lyrics[activeStep + 1])
+
+  function handleNext() {
+    if (sheetMusicToShow && activeStep === sheetMusicToShow.lyrics.length - 1 || !sheetMusicToShow) return;
+
+    let diferenceOfTime = (new Date().getTime() - startTime) / 1000
+
+    if (diferenceOfTime > 60) {
+      completed[activeStep] = !completed[activeStep]
+      setCompleted([...completed])
+
+      setStartTime(new Date().getTime())
     }
 
-    function handleBack() {
-        if (activeStep == 0) return;
+    setActiveStep((prevActiveStep: any) => prevActiveStep + 1);
+    setLyricToShow(sheetMusicToShow.lyrics[activeStep + 1])
+  }
 
-        let diferenceOfTime = (new Date().getTime() - startTime) / 1000
+  function handleBack() {
+    if (activeStep == 0 || !sheetMusicToShow) return;
 
-        if (diferenceOfTime > 60) {
-            completed[activeStep] = !completed[activeStep]
-            setCompleted([...completed])
+    let diferenceOfTime = (new Date().getTime() - startTime) / 1000
 
-            setStartTime(new Date().getTime())
-        }
+    if (diferenceOfTime > 60) {
+      completed[activeStep] = !completed[activeStep]
+      setCompleted([...completed])
 
-        setActiveStep((prevActiveStep: any) => prevActiveStep - 1);
-        setLyricToShow(sheetMusicToShow.lyrics[activeStep - 1])
-
+      setStartTime(new Date().getTime())
     }
 
-    function handleStep(step: number) {
-        let diferenceOfTime = (new Date().getTime() - startTime) / 1000
+    setActiveStep((prevActiveStep: any) => prevActiveStep - 1);
+    setLyricToShow(sheetMusicToShow.lyrics[activeStep - 1])
 
-        if (activeStep === step || diferenceOfTime > 60) {
-            completed[activeStep] = !completed[activeStep]
-            setCompleted([...completed])
+  }
 
-            setStartTime(new Date().getTime())
-        }
+  function handleStep(step: number) {
+    if (!sheetMusicToShow) return;
 
-        setActiveStep((prevActiveStep: any) => step);
-        setLyricToShow(sheetMusicToShow.lyrics[step])
+    let diferenceOfTime = (new Date().getTime() - startTime) / 1000
+
+    if (activeStep === step || diferenceOfTime > 60) {
+      completed[activeStep] = !completed[activeStep]
+      setCompleted([...completed])
+
+      setStartTime(new Date().getTime())
     }
 
-    useEffect(() => {
-        if (readyToRender) {
-            callPutCompletedSheetMusicLocalStorage(sheetMusicId, completed)
-        }
-    }, [completed])
+    setActiveStep((prevActiveStep: any) => step);
+    setLyricToShow(sheetMusicToShow.lyrics[step])
+  }
 
-    const downHandler = ({ key }: any) => {
-        if (key == "ArrowRight" || key == " ") handleNext()
-        if (key == "ArrowLeft") handleBack()
-        if (key == "Enter") {
-            completed[activeStep] = !completed[activeStep]
-            setCompleted([...completed])
-        }
-    };
+  useEffect(() => {
+    if (readyToRender) {
+      callPutCompletedSheetMusicLocalStorage(sheetMusicId, completed)
+    }
+  }, [completed])
 
-    async function changeOffSet(increaseOrDecrease: boolean) {
-        let value = 0
-        increaseOrDecrease ? value = 1 : value = -1
+  const downHandler = ({ key }: any) => {
+    if (key == "ArrowRight" || key == " ") handleNext()
+    if (key == "ArrowLeft") handleBack()
+    if (key == "Enter") {
+      completed[activeStep] = !completed[activeStep]
+      setCompleted([...completed])
+    }
+  };
 
-        let newOffset = sheetMusicToShow.lyrics[activeStep].offset += value
-        if (newOffset > 11 || newOffset < -11) {
-            newOffset = 0
-        }
+  async function changeOffSet(increaseOrDecrease: boolean) {
+    if (!sheetMusicToShow) return;
 
-        sheetMusicToShow.lyrics[activeStep].offset = newOffset
-        setSheetMusicToShow({ ...sheetMusicToShow })
+    let value = 0
+    increaseOrDecrease ? value = 1 : value = -1
 
-        // For the updated offset
-        offsetsUpdateds[activeStep].offsetNow = newOffset
-        if (offsetsUpdateds[activeStep].offsetBefore != newOffset) {
-            offsetsUpdateds[activeStep].offsetChanged = true
-        } else {
-            offsetsUpdateds[activeStep].offsetChanged = false
-        }
-        setOffsetsUpdateds([...offsetsUpdateds])
+    let newOffset = sheetMusicToShow.lyrics[activeStep].offset += value
+    if (newOffset > 11 || newOffset < -11) {
+      newOffset = 0
     }
 
-    async function updateOffset() {
-        setOffsetIsUpdating(true)
+    sheetMusicToShow.lyrics[activeStep].offset = newOffset
+    setSheetMusicToShow({ ...sheetMusicToShow })
 
-        // Update in registered lyrics the new offset
-        let newOffset = offsetsUpdateds[activeStep].offsetNow
-        let indexOfLyricToUpdate = userLyricsRegistered.map(function (e: any) { return e.lyricId; }).indexOf(sheetMusicToShow.lyrics[activeStep].lyricId)
-        if (indexOfLyricToUpdate >= 0) {
-            let idToRegisteredUpdateOffset = userLyricsRegistered[indexOfLyricToUpdate].id
-            await updateUserRegisteredLyricOffset(idToRegisteredUpdateOffset, newOffset)
-                .then(() => {
-                    offsetsUpdateds[activeStep].offsetBefore = newOffset
-                    offsetsUpdateds[activeStep].offsetChanged = false
-                    setOffsetsUpdateds([...offsetsUpdateds])
-                    setOffsetIsUpdating(false)
-                    setOpenUpdatedSuccess(true)
-                })
-        }
+    // For the updated offset
+    offsetsUpdateds[activeStep].offsetNow = newOffset
+    if (offsetsUpdateds[activeStep].offsetBefore != newOffset) {
+      offsetsUpdateds[activeStep].offsetChanged = true
+    } else {
+      offsetsUpdateds[activeStep].offsetChanged = false
     }
+    setOffsetsUpdateds([...offsetsUpdateds])
+  }
 
-    useEffect(() => {
-        if (displacementStart) {
-            setTimeout(() => {
-                if (startValueInLoading > starValueAfter) {
-                    setStarValueInLoading(startValueInLoading - 1)
-                } else if (startValueInLoading < starValueAfter) {
-                    setStarValueInLoading(startValueInLoading + 1)
-                } else if (startValueInLoading == starValueAfter) {
-                    setDisplacementStart(false)
-                    setOpenUpdatedStarsSuccess(true)
-                    // setUpdatingStarsLoading(false)
-                }
-            }, 50)
-        }
-    }, [startValueInLoading, displacementStart])
+  async function updateOffset() {
+    if (!userLyricsRegistered || !sheetMusicToShow) return;
 
-    async function updateStars(newStar: any) {
-        let indexOfLyricToUpdate = userLyricsRegistered.map(function (e: any) { return e.lyricId; }).indexOf(sheetMusicToShow.lyrics[activeStep].lyricId)
-        if (indexOfLyricToUpdate >= 0) {
-            if (!newStar) return;
+    setOffsetIsUpdating(true)
 
-            // Temporary for loading update stars
-            // setUpdatingStars(true)
-            setUpdatingStarsLoading(true)
-            setStarValueBefore(sheetMusicToShow.lyrics[activeStep].stars)
-            setStarValueInLoading(sheetMusicToShow.lyrics[activeStep].stars)
-            setStartValueAfter(newStar)
-
-            let idToRegisteredUpdateOffset = userLyricsRegistered[indexOfLyricToUpdate].id
-            await updateUserRegisteredLyricStars(idToRegisteredUpdateOffset, newStar)
-                .then(() => {
-                    sheetMusicToShow.lyrics[activeStep].stars = newStar
-                    setSheetMusicToShow({ ...sheetMusicToShow })
-
-                    // Displacement start in stars
-                    setDisplacementStart(true)
-                    setUpdatingStarsLoading(false)
-                })
-        }
+    // Update in registered lyrics the new offset
+    let newOffset = offsetsUpdateds[activeStep].offsetNow
+    let indexOfLyricToUpdate = userLyricsRegistered.map(function (e: any) { return e.lyricId; }).indexOf(sheetMusicToShow.lyrics[activeStep].lyricId)
+    if (indexOfLyricToUpdate >= 0) {
+      let idToRegisteredUpdateOffset = userLyricsRegistered[indexOfLyricToUpdate].id
+      await updateUserRegisteredLyricOffset(idToRegisteredUpdateOffset, newOffset)
+        .then(() => {
+          offsetsUpdateds[activeStep].offsetBefore = newOffset
+          offsetsUpdateds[activeStep].offsetChanged = false
+          setOffsetsUpdateds([...offsetsUpdateds])
+          setOffsetIsUpdating(false)
+          setOpenUpdatedSuccess(true)
+        })
     }
+  }
 
-    useEffect(() => {
-        if (readyToRender) {
-            sheetMusicToShow.lyrics.map((value: any) => {
-                offsetsUpdateds.push({ offsetBefore: value.offset, offsetChanged: false })
-            })
-            setOffsetsUpdateds([...offsetsUpdateds])
+  useEffect(() => {
+    if (displacementStart) {
+      setTimeout(() => {
+        if (startValueInLoading > starValueAfter) {
+          setStarValueInLoading(startValueInLoading - 1)
+        } else if (startValueInLoading < starValueAfter) {
+          setStarValueInLoading(startValueInLoading + 1)
+        } else if (startValueInLoading == starValueAfter) {
+          setDisplacementStart(false)
+          setOpenUpdatedStarsSuccess(true)
+          // setUpdatingStarsLoading(false)
         }
-    }, [readyToRender])
-
-    const handleCloseUpdatedSuccess = (event?: React.SyntheticEvent | Event, reason?: string) => {
-        if (reason === 'clickaway') {
-            return;
-        }
-        setOpenUpdatedSuccess(false);
-        setOpenUpdatedStarsSuccess(false);
-    };
-
-    return {
-        sheetMusicToShow,
-        userLyricsRegistered,
-        activeStep,
-        completed,
-        startTime,
-        readyToRender,
-        lyricToShow,
-        handleNext,
-        handleBack,
-        handleStep,
-        downHandler,
-        changeOffSet,
-        openUpdatedSuccess,
-        openUpdatedStarsSuccess,
-        updateOffset,
-        updateStars,
-        startValueInLoading,
-        starValueBefore,
-        starValueAfter,
-        displacementStart,
-        updatingStarsLoading,
-        offsetsUpdateds,
-        offsetIsUpdating,
-        handleCloseUpdatedSuccess,
-        setSheetMusicToShow
+      }, 50)
     }
+  }, [startValueInLoading, displacementStart])
+
+  async function updateStars(newStar: any) {
+    if (!sheetMusicToShow || !newStar || !userLyricsRegistered) return;
+
+    let activeLyric = sheetMusicToShow.lyrics[activeStep];
+    if (!activeLyric) return;
+
+    let indexOfLyricToUpdate = userLyricsRegistered.findIndex(e => e.lyricId === activeLyric.lyricId);
+    if (indexOfLyricToUpdate < 0) return;
+
+    // Se stars for undefined, atribua um valor padrão (por exemplo, 0)
+    let currentStars = activeLyric.stars ?? 0;
+
+    // Iniciar atualização
+    setUpdatingStarsLoading(true);
+    setStarValueBefore(currentStars);
+    setStarValueInLoading(currentStars);
+    setStartValueAfter(newStar);
+
+    let idToRegisteredUpdateOffset = userLyricsRegistered[indexOfLyricToUpdate].id;
+    await updateUserRegisteredLyricStars(idToRegisteredUpdateOffset, newStar)
+      .then(() => {
+        activeLyric.stars = newStar; // Atualiza as estrelas do lyric ativo
+        // setSheetMusicToShow({ ...sheetMusicToShow });
+
+        // Displacement start in stars
+        setDisplacementStart(true);
+        setUpdatingStarsLoading(false);
+      });
+  }
+
+
+  useEffect(() => {
+    if (readyToRender && sheetMusicToShow) {
+      sheetMusicToShow.lyrics.map((value: any) => {
+        offsetsUpdateds.push({ offsetBefore: value.offset, offsetChanged: false })
+      })
+      setOffsetsUpdateds([...offsetsUpdateds])
+    }
+  }, [readyToRender])
+
+  const handleCloseUpdatedSuccess = (event?: React.SyntheticEvent | Event, reason?: string) => {
+    if (reason === 'clickaway') {
+      return;
+    }
+    setOpenUpdatedSuccess(false);
+    setOpenUpdatedStarsSuccess(false);
+  };
+
+  return {
+    sheetMusicToShow,
+    userLyricsRegistered,
+    activeStep,
+    completed,
+    startTime,
+    readyToRender,
+    lyricToShow,
+    handleNext,
+    handleBack,
+    handleStep,
+    downHandler,
+    changeOffSet,
+    openUpdatedSuccess,
+    openUpdatedStarsSuccess,
+    updateOffset,
+    updateStars,
+    startValueInLoading,
+    starValueBefore,
+    starValueAfter,
+    displacementStart,
+    updatingStarsLoading,
+    offsetsUpdateds,
+    offsetIsUpdating,
+    handleCloseUpdatedSuccess,
+    setSheetMusicToShow
+  }
 }

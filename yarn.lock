@@ -111,18 +111,18 @@
     "@algolia/logger-common" "4.14.2"
     "@algolia/requester-common" "4.14.2"
 
-"@algolia/ui-components-highlight-vdom@^1.2.1":
-  "integrity" "sha512-IlYgIaCUEkz9ezNbwugwKv991oOHhveyq6nzL0F1jDzg1p3q5Yj/vO4KpNG910r2dwGCG3nEm5GtChcLnarhFA=="
-  "resolved" "https://registry.npmjs.org/@algolia/ui-components-highlight-vdom/-/ui-components-highlight-vdom-1.2.1.tgz"
-  "version" "1.2.1"
+"@algolia/ui-components-highlight-vdom@^1.2.2":
+  "integrity" "sha512-/+7jh7cd5rR2yQC7ME4SDcnAMiD1Ofn5Qq+E7afTJx9XSMOHkLR77/o6YcuJ60TfD1S+9lr7yjBLACon8gOuzQ=="
+  "resolved" "https://registry.npmjs.org/@algolia/ui-components-highlight-vdom/-/ui-components-highlight-vdom-1.2.2.tgz"
+  "version" "1.2.2"
   dependencies:
-    "@algolia/ui-components-shared" "1.2.1"
+    "@algolia/ui-components-shared" "1.2.2"
     "@babel/runtime" "^7.0.0"
 
-"@algolia/ui-components-shared@^1.2.1", "@algolia/ui-components-shared@1.2.1":
-  "integrity" "sha512-a7mYHf/GVQfhAx/HRiMveKkFvHspQv/REdG+C/FIOosiSmNZxX7QebDwJkrGSmDWdXO12D0Qv1xn3AytFcEDlQ=="
-  "resolved" "https://registry.npmjs.org/@algolia/ui-components-shared/-/ui-components-shared-1.2.1.tgz"
-  "version" "1.2.1"
+"@algolia/ui-components-shared@^1.2.2", "@algolia/ui-components-shared@1.2.2":
+  "integrity" "sha512-FYwEG5sbr8p4V8mqP0iUaKgmWfcrMXRXwp7e6iBuB65P/7QyL8pT4I6/iGb85Q5mNH+UtYYSmLZhKjEblllKEQ=="
+  "resolved" "https://registry.npmjs.org/@algolia/ui-components-shared/-/ui-components-shared-1.2.2.tgz"
+  "version" "1.2.2"
 
 "@ampproject/remapping@^2.1.0":
   "integrity" "sha512-qRmjj8nj9qmLTQXXmaR1cck3UXSRMPrbsLJAasZpF+t3riI71BXed5ebIOYwQntykeZuhjsdweEc9BxH5Jc26w=="
@@ -1276,6 +1276,11 @@
   dependencies:
     "@types/node" "*"
 
+"@types/dom-speech-recognition@^0.0.1":
+  "integrity" "sha512-udCxb8DvjcDKfk1WTBzDsxFbLgYxmQGKrE/ricoMqHRNjSlSUCcamVTA5lIQqzY10mY5qCY0QDwBfFEwhfoDPw=="
+  "resolved" "https://registry.npmjs.org/@types/dom-speech-recognition/-/dom-speech-recognition-0.0.1.tgz"
+  "version" "0.0.1"
+
 "@types/express-serve-static-core@^4.17.18":
   "integrity" "sha512-DxMhY+NAsTwMMFHBTtJFNp5qiHKJ7TeqOo23zVEM9alT1Ml27Q3xcTH0xwxn7Q0BbMcVEJOs/7aQtUWupUQN3Q=="
   "resolved" "https://registry.npmjs.org/@types/express-serve-static-core/-/express-serve-static-core-4.17.31.tgz"
@@ -1520,10 +1525,10 @@
     "json-schema-traverse" "^0.4.1"
     "uri-js" "^4.2.2"
 
-"algoliasearch-helper@^3.11.1":
-  "integrity" "sha512-mvsPN3eK4E0bZG0/WlWJjeqe/bUD2KOEVOl0GyL/TGXn6wcpZU8NOuztGHCUKXkyg5gq6YzUakVTmnmSSO5Yiw=="
-  "resolved" "https://registry.npmjs.org/algoliasearch-helper/-/algoliasearch-helper-3.11.1.tgz"
-  "version" "3.11.1"
+"algoliasearch-helper@^3.11.1", "algoliasearch-helper@3.15.0":
+  "integrity" "sha512-DGUnK3TGtDQsaUE4ayF/LjSN0DGsuYThB8WBgnnDY0Wq04K6lNVruO3LfqJOgSfDiezp+Iyt8Tj4YKHi+/ivSA=="
+  "resolved" "https://registry.npmjs.org/algoliasearch-helper/-/algoliasearch-helper-3.15.0.tgz"
+  "version" "3.15.0"
   dependencies:
     "@algolia/events" "^4.0.1"
 
@@ -2881,23 +2886,24 @@
   "resolved" "https://registry.npmjs.org/inherits/-/inherits-2.0.4.tgz"
   "version" "2.0.4"
 
-"instantsearch.js@^4.47.0", "instantsearch.js@^4.48.1":
-  "integrity" "sha512-lFo+LfouMlRb/4so1BgwsXyN+a+hBFl4933HEbfj4vSxoC6qp2oYcF8BMd0vt+OlxuyOCfNObNR4WH8p5oTMMg=="
-  "resolved" "https://registry.npmjs.org/instantsearch.js/-/instantsearch.js-4.48.1.tgz"
-  "version" "4.48.1"
+"instantsearch.js@^4.47.0", "instantsearch.js@^4.48.1", "instantsearch.js@4.60.0":
+  "integrity" "sha512-u/xeCT1DaxPioJnSm3hV4lNAojlhbjGrpX5fHO6+RJjpDFv/MgYxiIOdaIRowmt5F0v/3QCm+Un5f4jy1/+emA=="
+  "resolved" "https://registry.npmjs.org/instantsearch.js/-/instantsearch.js-4.60.0.tgz"
+  "version" "4.60.0"
   dependencies:
     "@algolia/events" "^4.0.1"
-    "@algolia/ui-components-highlight-vdom" "^1.2.1"
-    "@algolia/ui-components-shared" "^1.2.1"
+    "@algolia/ui-components-highlight-vdom" "^1.2.2"
+    "@algolia/ui-components-shared" "^1.2.2"
+    "@types/dom-speech-recognition" "^0.0.1"
     "@types/google.maps" "^3.45.3"
     "@types/hogan.js" "^3.0.0"
     "@types/qs" "^6.5.3"
-    "algoliasearch-helper" "^3.11.1"
+    "algoliasearch-helper" "3.15.0"
     "hogan.js" "^3.0.2"
     "htm" "^3.0.0"
     "preact" "^10.10.0"
     "qs" "^6.5.1 < 6.10"
-    "search-insights" "^2.1.0"
+    "search-insights" "^2.6.0"
 
 "internal-slot@^1.0.3":
   "integrity" "sha512-O0DB1JC/sPyZl7cIo78n5dR7eUSwwpYPiXRhTzNxZVAMUuB8vlnRFyLxdrVToks6XPLVnFfbzaVd5WLjhgg+vA=="
@@ -3898,6 +3904,16 @@
   "resolved" "https://registry.npmjs.org/react-icons/-/react-icons-4.6.0.tgz"
   "version" "4.6.0"
 
+"react-instantsearch-core@7.3.0":
+  "integrity" "sha512-v66mG+Io/Mmd5LQaoQXxGD/acHnLIM1Cq/uzlcC0VbFji7JXoJhChRPUcA+z5fGDaidBxdJOPRtQjJpTQ+/h8g=="
+  "resolved" "https://registry.npmjs.org/react-instantsearch-core/-/react-instantsearch-core-7.3.0.tgz"
+  "version" "7.3.0"
+  dependencies:
+    "@babel/runtime" "^7.1.2"
+    "algoliasearch-helper" "3.15.0"
+    "instantsearch.js" "4.60.0"
+    "use-sync-external-store" "^1.0.0"
+
 "react-instantsearch-hooks-web@^6.37.0":
   "integrity" "sha512-11CSrY6Tv65l8EzLYc8oxVDl//ukzNJXn2hvxYVq2q8AxywQ4h5mAOdzvHwKIqXAvbqFsFvrEcjfL60VeFczKQ=="
   "resolved" "https://registry.npmjs.org/react-instantsearch-hooks-web/-/react-instantsearch-hooks-web-6.37.0.tgz"
@@ -3916,6 +3932,15 @@
     "algoliasearch-helper" "^3.11.1"
     "instantsearch.js" "^4.47.0"
     "use-sync-external-store" "^1.0.0"
+
+"react-instantsearch@^7.3.0":
+  "integrity" "sha512-X0ZKDMP7DDKkRqnM99JbpsqASXDBVCUSpEYmPPhDx/PFGUzOu9yAFNCBkpJxfIf2A3nL/Z1QQDXuUYRdBgVCsg=="
+  "resolved" "https://registry.npmjs.org/react-instantsearch/-/react-instantsearch-7.3.0.tgz"
+  "version" "7.3.0"
+  dependencies:
+    "@babel/runtime" "^7.1.2"
+    "instantsearch.js" "4.60.0"
+    "react-instantsearch-core" "7.3.0"
 
 "react-is@^16.13.1":
   "integrity" "sha512-24e6ynE2H+OKt4kqsOvNd8kBpV65zoxbA4BVsEOB3ARVWQki/DHzaUoC5KuON/BiccDaCCTZBuOcfZs70kR8bQ=="
@@ -4152,10 +4177,10 @@
     "loose-envify" "^1.1.0"
     "object-assign" "^4.1.1"
 
-"search-insights@^2.1.0":
-  "integrity" "sha512-JDfVGZbKqTtiKVZjAVbkNw9C9f0ib80yx6Ea17M3z4RvPmuD0GYWXuFwA9++dpbreBEMH4TC3lQ29Zq7O4b5oA=="
-  "resolved" "https://registry.npmjs.org/search-insights/-/search-insights-2.2.1.tgz"
-  "version" "2.2.1"
+"search-insights@^2.6.0":
+  "integrity" "sha512-Uin2J8Bpm3xaZi9Y8QibSys6uJOFZ+REMrf42v20AA3FUDUrshKkMEP6liJbMAHCm71wO6ls4mwAf7a3gFVxLw=="
+  "resolved" "https://registry.npmjs.org/search-insights/-/search-insights-2.11.0.tgz"
+  "version" "2.11.0"
 
 "selenium-webdriver@4.1.2":
   "integrity" "sha512-e4Ap8vQvhipgBB8Ry9zBiKGkU6kHKyNnWiavGGLKkrdW81Zv7NVMtFOL/j3yX0G8QScM7XIXijKssNd4EUxSOw=="

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { createRef, useEffect, useRef } from "react";
 import React from 'react';
 import Rating from '@mui/material/Rating';
 import Box from '@mui/material/Box';
@@ -19,6 +19,7 @@ import { SkeletonComponent } from "./Skeleton";
 import { LyricShowComponent } from "../lyric-show";
 import { useRouter } from "next/dist/client/router";
 import { useLyricShow } from "../../hooks/useLyricShow";
+import { lyricInSheetMusicType } from "../../types/sheetMusicType";
 
 const Alert = React.forwardRef<HTMLDivElement, AlertProps>(function Alert(
   props,
@@ -38,7 +39,7 @@ const LightTooltip = styled(({ className, ...props }: TooltipProps) => (
   },
 }));
 
-export const SheetMusicShow = ({ sheetMusicId }: { sheetMusicId: any }) => {
+export const SheetMusicShow = ({ sheetMusicId }: { sheetMusicId: string }) => {
   const router = useRouter()
   const {
     activeStep,
@@ -63,10 +64,27 @@ export const SheetMusicShow = ({ sheetMusicId }: { sheetMusicId: any }) => {
     setSheetMusicToShow
   } = useShowSheetMusic({ sheetMusicId })
 
-  const RenderStepper = (value: any, index: number) => {
+  // Cria um array de referências, uma para cada step
+  const stepRefs = useRef<React.RefObject<HTMLDivElement>[]>(sheetMusicToShow?.lyrics.map(() => createRef()) ?? []);
+
+  const scrollToActiveStep = () => {
+    if (stepRefs.current[activeStep]) {
+      const stepElement = stepRefs.current[activeStep].current;
+      if (stepElement) {
+        stepElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  };
+
+  useEffect(() => {
+    // Chama a função de rolagem sempre que o step ativo mudar
+    scrollToActiveStep();
+  }, [activeStep]);
+
+  const RenderStepper = (value: lyricInSheetMusicType, index: number) => {
     let isStepperActive = activeStep === index;
     return (
-      <Step key={value.lyricId} completed={completed[index]}>
+      <Step key={value.lyricId} completed={completed[index]} ref={stepRefs.current[index]}>
         <StepButton
           onClick={() => handleStep(index)}
           sx={{
@@ -119,6 +137,8 @@ export const SheetMusicShow = ({ sheetMusicId }: { sheetMusicId: any }) => {
   });
 
   const RenderLyric = () => {
+    if (!lyricToShow || !sheetMusicToShow) return <></>;
+
     return <LyricShowComponent
       changeOffSet={changeOffSet}
       handleNext={handleNext}
@@ -133,12 +153,15 @@ export const SheetMusicShow = ({ sheetMusicId }: { sheetMusicId: any }) => {
 
   }
 
+  let heightScreen = window.innerHeight - 160
+
   // Temporary skeleton
   if (!readyToRender) {
     return <SkeletonComponent />
   }
 
-  let heightScreen = window.innerHeight - 160
+
+  if (!lyricToShow || !sheetMusicToShow) return <></>;
 
   return (
     <>
@@ -159,7 +182,22 @@ export const SheetMusicShow = ({ sheetMusicId }: { sheetMusicId: any }) => {
           </Box>
           <Typography variant="h6" fontSize={12} color="#00000054">{sheetMusicToShow.description}</Typography>
           <Divider sx={{ width: "90%", pt: 0.3, mb: 1, borderColor: "#bdbdbdb0" }} />
-          <Box sx={{ height: heightScreen, overflowY: "auto", overflowX: "hidden" }}>
+          <Box sx={{
+            height: heightScreen, overflowY: "auto", overflowX: "hidden",
+            '&::-webkit-scrollbar': {
+              width: '4px' // Largura da barra de rolagem
+            },
+            '&::-webkit-scrollbar-track': {
+              background: '#f1f1f1' // Cor de fundo da track da barra de rolagem
+            },
+            '&::-webkit-scrollbar-thumb': {
+              background: '#888', // Cor da barra de rolagem
+              borderRadius: '2px', // Raio da borda da barra de rolagem
+            },
+            '&::-webkit-scrollbar-thumb:hover': {
+              background: '#555', // Cor da barra de rolagem ao passar o mouse
+            },
+          }}>
             <Stepper nonLinear activeStep={activeStep} orientation="vertical" sx={{ maxHeight: heightScreen }} >
               {
                 !(sheetMusicToShow.lyrics.length > 0) ? "" :
