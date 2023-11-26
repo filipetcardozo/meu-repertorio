@@ -15,8 +15,6 @@ export const useShowSheetMusic = ({ sheetMusicId }: { sheetMusicId: string }) =>
 
   const [lyricToShow, setLyricToShow] = useState<lyricInSheetMusicType>()
 
-  console.log(lyricToShow)
-
   // Lyrics to show in this sheet
   let [sheetMusicToShow, setSheetMusicToShow] = useState<sheetMusicType>()
 

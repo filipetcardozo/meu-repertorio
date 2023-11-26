@@ -1,4 +1,4 @@
-import { createRef, useEffect, useRef } from "react";
+import { createRef, useEffect, useLayoutEffect, useRef } from "react";
 import React from 'react';
 import Rating from '@mui/material/Rating';
 import Box from '@mui/material/Box';
@@ -64,21 +64,21 @@ export const SheetMusicShow = ({ sheetMusicId }: { sheetMusicId: string }) => {
     setSheetMusicToShow
   } = useShowSheetMusic({ sheetMusicId })
 
-  // Cria um array de referências, uma para cada step
-  const stepRefs = useRef<React.RefObject<HTMLDivElement>[]>(sheetMusicToShow?.lyrics.map(() => createRef()) ?? []);
+  const stepRefs = useRef<React.RefObject<HTMLDivElement>[]>([]);
 
-  const scrollToActiveStep = () => {
-    if (stepRefs.current[activeStep]) {
+  useEffect(() => {
+    if (sheetMusicToShow && sheetMusicToShow.lyrics) {
+      stepRefs.current = sheetMusicToShow.lyrics.map((_, i) => stepRefs.current[i] || createRef());
+    }
+  }, [sheetMusicToShow?.lyrics]);
+
+  useLayoutEffect(() => {
+    if (activeStep < stepRefs.current.length && stepRefs.current[activeStep].current) {
       const stepElement = stepRefs.current[activeStep].current;
       if (stepElement) {
         stepElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
+      };
     }
-  };
-
-  useEffect(() => {
-    // Chama a função de rolagem sempre que o step ativo mudar
-    scrollToActiveStep();
   }, [activeStep]);
 
   const RenderStepper = (value: lyricInSheetMusicType, index: number) => {
