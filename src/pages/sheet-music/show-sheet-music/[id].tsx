@@ -28,7 +28,7 @@ const ShowSheetMusic = () => {
       <title>On The Show - Meu Repertório</title>
       <meta name="viewport" content="initial-scale=1.0, width=device-width" />
     </Head>
-    <SheetMusicShow sheetMusicId={id} />
+    <SheetMusicShow sheetMusicId={id as string ?? ''} />
   </ Layout>
 }
 
