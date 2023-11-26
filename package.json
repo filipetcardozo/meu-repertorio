@@ -23,6 +23,7 @@
     "formik": "^2.2.9",
     "instantsearch.js": "^4.48.1",
     "interweave": "^13.0.0",
+    "moment": "^2.29.4",
     "next": "^12.3.1",
     "next-redux-wrapper": "^8.0.0",
     "notistack": "^2.0.8",

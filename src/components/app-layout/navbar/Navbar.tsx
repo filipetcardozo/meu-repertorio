@@ -1,16 +1,12 @@
 import React from 'react';
-import { styled, alpha } from '@mui/material/styles';
-import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
-import InputBase from '@mui/material/InputBase';
 import MenuItem from '@mui/material/MenuItem';
 import Menu from '@mui/material/Menu';
 import AccountCircle from '@mui/icons-material/AccountCircle';
-
 import { useAuth } from '../../../hooks/useAuth';
 
-const NavbarComponent = () => {
-  const { signOut } = useAuth()
+export const NavbarComponent = () => {
+  const { signOut } = useAuth();
 
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
 
@@ -18,10 +14,10 @@ const NavbarComponent = () => {
     setAnchorEl(event.currentTarget);
   };
 
-  const handleClose = () => setAnchorEl(null)
+  const handleClose = () => setAnchorEl(null);
 
   const handleSignOut = () => {
-    signOut()
+    signOut();
   };
 
   return (
@@ -55,7 +51,5 @@ const NavbarComponent = () => {
         <MenuItem onClick={handleSignOut}>Sair</MenuItem>
       </Menu>
     </>
-  )
-}
-
-export default NavbarComponent;
+  );
+};

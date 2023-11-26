@@ -1,6 +1,5 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import SidebarComponent from './sidebar/Sidebar';
-import NavbarComponent from './navbar/Navbar';
 import React, { useEffect, useState } from 'react'
 import { useTheme, } from '@mui/material/styles';
 import Box from '@mui/material/Box';
@@ -17,6 +16,8 @@ import { useStorageProfileConfigs } from '../../hooks/useStorageProfileConfigs';
 import { Button } from '@mui/material';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
+import { NavbarComponent } from './navbar/Navbar';
+import { ShowTimer } from './ShowTimer';
 
 export const Layout = ({ children, activeMenu }: any) => {
   const theme = useTheme();
@@ -59,6 +60,7 @@ export const Layout = ({ children, activeMenu }: any) => {
           >
             <MenuIcon />
           </IconButton>
+          <ShowTimer />
           <Box sx={{ flexGrow: 1 }} />
           <Box sx={{ display: 'flex' }}>
             <FullScreenButton />
