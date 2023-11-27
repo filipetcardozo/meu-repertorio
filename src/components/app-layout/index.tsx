@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import SidebarComponent from './sidebar/Sidebar';
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useState } from 'react'
 import { useTheme, } from '@mui/material/styles';
 import Box from '@mui/material/Box';
 import Toolbar from '@mui/material/Toolbar';
@@ -21,7 +21,7 @@ import { ShowTimer } from './ShowTimer';
 
 export const Layout = ({ children, activeMenu }: any) => {
   const theme = useTheme();
-  const [open, setOpen] = React.useState(true);
+  const [open, setOpen] = React.useState(false);
 
   const {
     changeSidebar,
