@@ -6,28 +6,22 @@ import { useAuth } from '../../../hooks/useAuth';
 import { CreateAccount as CreateAccountComponent } from '../../../components/app-auth/CreateAccount/index';
 
 const CreateAccount = () => {
-    const router = useRouter()
-    const { isLogged } = useAuth()
+  const router = useRouter()
+  const { isLogged } = useAuth()
 
-    useEffect(() => {
-        if (isLogged === true) {
-            router.push("/home")
-        }
-    }, [isLogged])
+  useEffect(() => {
+    if (isLogged === true) {
+      router.push("/")
+    }
+  }, [isLogged])
 
-    return <>
-        <Head>
-            <title>Criação de conta - Meu Repertório</title>
-            <meta name="viewport" content="initial-scale=1.0, width=device-width" />
-        </Head>
-        {/* <Image
-            src={loginBackground}
-            alt="Background da página de login"
-            layout="fill"
-            style={{ zIndex: -10 }}
-        /> */}
-        <CreateAccountComponent />
-    </>
+  return <>
+    <Head>
+      <title>Criação de conta - Meu Repertório</title>
+      <meta name="viewport" content="initial-scale=1.0, width=device-width" />
+    </Head>
+    <CreateAccountComponent />
+  </>
 }
 
 export default CreateAccount;

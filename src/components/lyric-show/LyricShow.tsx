@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-import { Box } from "@mui/material";
+import { Box, CircularProgress } from "@mui/material";
 import { useRouter } from "next/router";
 import React from 'react';
 import { LyricShowComponent } from ".";
@@ -19,6 +19,14 @@ export const LyricShowPage = () => {
     changeOffSet,
     updateOffset
   } = useOneLyricShow(lyricId)
+
+  if (!lyric || !lyric.lyric) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   return <Box display="flex" justifyContent="center" >
     <Box px={3} py={2} sx={{ backgroundColor: "#1976d212", borderRadius: 1.4, boxShadow: 2 }}>

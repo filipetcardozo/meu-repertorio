@@ -145,13 +145,6 @@ export const LyricShowComponent = ({
           }
         </Badge>
       </Stack>
-
-
-      {/* <Typography variant="h6" fontSize={16} mt={0.3} color="primary">C</Typography>
-                    <IconButton size="small" color="primary">
-                        <MdExpandLess />
-                    </IconButton> */}
-
       <Markup content={htmlLyric} />
     </Box >
   }

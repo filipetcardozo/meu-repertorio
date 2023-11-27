@@ -17,7 +17,7 @@ const SideBarComponent = ({ open, activeMenu }: { open: boolean, activeMenu: num
     <>
       <List sx={{ p: 0 }}>
         <ListItem key="inicio" style={{ textDecoration: "none", color: "inherit" }} disablePadding sx={{ display: 'block', backgroundColor: activeMenu == 0 ? "#e4f1ff" : "" }}>
-          <Link href="/home">
+          <Link href="/">
             <ListItemButton
               sx={{
                 minHeight: 48,
