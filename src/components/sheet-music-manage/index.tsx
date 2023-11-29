@@ -80,7 +80,7 @@ export const ManageSheetMusicComponent = ({ sheetMusicId }: { sheetMusicId: any 
 
   return (
     <>
-      <Box px={3} py={2} sx={{ mt: 2, backgroundColor: "#a1bbd412", borderRadius: 1.4, boxShadow: 1, position: "relative" }}>
+      <Box px={3} py={2} sx={{ mt: 2, mb: 10, backgroundColor: "#a1bbd412", borderRadius: 1.4, boxShadow: 1, position: "relative" }}>
         <Grid container spacing={5}>
           <Grid item xs={4}>
             <TextField label="Nome da partitura" size="small" id="filled-basic" variant="filled" name="sheetMusicName" fullWidth
