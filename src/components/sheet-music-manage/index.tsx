@@ -130,11 +130,13 @@ export const ManageSheetMusicComponent = ({ sheetMusicId }: { sheetMusicId: any 
           {
             sheetMusicId ?
               <>
-                <IconButton sx={{ ml: 3 }} href={`/sheet-music/show-sheet-music/${sheetMusicId}`}>
-                  <Tooltip title="Iniciar Show" placement="top">
-                    <PlayCircleFilledIcon color='success' />
-                  </Tooltip>
-                </IconButton>
+                <Link href={`/sheet-music/show-sheet-music/${sheetMusicId}`}>
+                  <IconButton sx={{ ml: 3 }}>
+                    <Tooltip title="Iniciar Show" placement="top">
+                      <PlayCircleFilledIcon color='success' />
+                    </Tooltip>
+                  </IconButton>
+                </Link>
                 <IconButton onClick={() => setOpenModalDelete(true)}>
                   <Tooltip title="Excluir repertório" placement="top">
                     <DeleteIcon color='error' />
