@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import TextField from '@mui/material/TextField';
 import Grid from '@mui/material/Grid'
 import List from '@mui/material/List';
@@ -20,14 +20,17 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogContentText from '@mui/material/DialogContentText';
 import DialogTitle from '@mui/material/DialogTitle';
 import Button from '@mui/material/Button';
+import { CircularProgress, Fab } from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
+import UpdateIcon from '@mui/icons-material/Update';
 
 export const ManageSheetMusicComponent = ({ sheetMusicId }: { sheetMusicId: any }) => {
   const {
-    lyrics,
     sheetMusicToAdd,
     lyricsToAdd,
-    sheetsMusics,
     loadingAddSheetMusic,
+    loading,
+    someUpdate,
     setSheetMusicToAdd,
     setLyricsToAdd,
     handleDeleteSheetMusic,
@@ -69,6 +72,12 @@ export const ManageSheetMusicComponent = ({ sheetMusicId }: { sheetMusicId: any 
 
   const [openModalDelete, setOpenModalDelete] = React.useState(false);
 
+  if (loading) {
+    return <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
+      <CircularProgress />
+    </Box>
+  }
+
   return (
     <>
       <Box px={3} py={2} sx={{ mt: 2, backgroundColor: "#a1bbd412", borderRadius: 1.4, boxShadow: 1, position: "relative" }}>
@@ -91,40 +100,50 @@ export const ManageSheetMusicComponent = ({ sheetMusicId }: { sheetMusicId: any 
           </Grid>
           {/* {<FilterLyrics />} */}
           <Grid item xs={8} minHeight={400}>
-            {<FilterLyrics sheetsMusics={sheetsMusics}
-              lyrics={lyrics} handlePushMusicToSheets={handlePushMusicToSheets}
+            {<FilterLyrics
+              handlePushMusicToSheets={handlePushMusicToSheets}
               lyricsToAdd={lyricsToAdd} />}
           </Grid>
-          <Grid item xs={12} textAlign="center" position="relative">
-            <LoadingButton variant="outlined" onClick={handleAddSheetMusic} loading={loadingAddSheetMusic}>
-              {sheetMusicId ? "Atualizar repertório" : "Adicionar repertório"}
-            </LoadingButton>
-            {/* Start sheet music */}
-            {
-              sheetMusicId ?
-                <Link href={`/sheet-music/show-sheet-music/${sheetMusicId}`}>
-                  <IconButton sx={{ position: "absolute", right: 0 }}
-                    onClick={() => {
-                      // redirect(`/app/sheet-music/${params.sheetMusicId}`)
-                    }}
-                  >
-                    <Tooltip title="Iniciar Show" placement="top">
-                      <PlayCircleFilledIcon style={{ color: "#a7d7ff" }} />
-                    </Tooltip>
-                  </IconButton>
-                </Link> : <></>
-            }
-            {
-              sheetMusicId ?
-                <IconButton sx={{ position: "absolute", right: 35 }}
-                  onClick={() => setOpenModalDelete(true)}>
-                  <Tooltip title="Excluir partitura" placement="top">
-                    <DeleteIcon style={{ color: "#ffb7b7" }} />
-                  </Tooltip>
-                </IconButton> : <></>
-            }
-          </Grid>
         </Grid>
+
+        <Box
+          style={{
+            position: 'fixed',
+            bottom: 20,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 1000,
+          }}
+        >
+          <Fab
+            color="primary"
+            aria-label={sheetMusicId ? "Atualizar repertório" : "Adicionar repertório"}
+            variant='extended'
+            size='small'
+
+            onClick={handleAddSheetMusic}
+            disabled={loadingAddSheetMusic || !someUpdate}
+          >
+            <Box sx={{ mr: 1, position: 'relative', top: 4 }}>{sheetMusicId ? <UpdateIcon /> : <AddIcon />}</Box>
+            {sheetMusicId ? "Atualizar repertório" : "Adicionar repertório"}
+          </Fab>
+          {
+            sheetMusicId ?
+              <>
+                <IconButton sx={{ ml: 3 }} href={`/sheet-music/show-sheet-music/${sheetMusicId}`}>
+                  <Tooltip title="Iniciar Show" placement="top">
+                    <PlayCircleFilledIcon color='success' />
+                  </Tooltip>
+                </IconButton>
+                <IconButton onClick={() => setOpenModalDelete(true)}>
+                  <Tooltip title="Excluir repertório" placement="top">
+                    <DeleteIcon color='error' />
+                  </Tooltip>
+                </IconButton>
+              </>
+              : <></>
+          }
+        </Box>
 
         <Dialog
           open={openModalDelete}
@@ -150,7 +169,7 @@ export const ManageSheetMusicComponent = ({ sheetMusicId }: { sheetMusicId: any 
             </Button>
           </DialogActions>
         </Dialog>
-      </Box>
+      </Box >
     </>
   )
 }

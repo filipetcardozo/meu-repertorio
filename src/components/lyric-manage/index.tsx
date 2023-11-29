@@ -169,7 +169,7 @@ export const LyricManage = ({ idLyric }: { idLyric: string | undefined }) => {
           disabled={loadingAddMusic}
         >
           <Box sx={{ mr: 1, position: 'relative', top: 4 }}>{idLyric ? <UpdateIcon /> : <AddIcon />}</Box>
-          Atualizar música
+          {idLyric ? 'Atualizar música' : 'Adicionar música'}
         </Fab>
 
         <Snackbar open={openAlertAddMusic} autoHideDuration={6000} onClose={handleClose}>

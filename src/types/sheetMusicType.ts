@@ -1,9 +1,12 @@
+import { Timestamp } from "firebase/firestore";
+
 export type sheetMusicType = {
     description: string;
     lyrics: lyricInSheetMusicType[];
     sheetMusicName: string;
     userId: string;
     id?: string;
+    lastUpdated?: Timestamp;
     completed?: number;
 }
 

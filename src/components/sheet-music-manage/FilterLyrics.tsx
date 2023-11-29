@@ -14,12 +14,13 @@ import TextField from '@mui/material/TextField'
 import algoliasearch from 'algoliasearch/lite';
 import { InstantSearch, useHits } from 'react-instantsearch-hooks-web';
 import { useSearchBox } from 'react-instantsearch-hooks-web';
+import { lyricInSheetMusicType } from '../../types/sheetMusicType';
 
 const searchClient = algoliasearch('M91WDCEXS4', '0fa682d5b69e7040b462c96daecbb0fd');
 
 export const FilterLyrics = ({
-  sheetsMusics, lyrics, handlePushMusicToSheets, lyricsToAdd
-}: any) => {
+  handlePushMusicToSheets, lyricsToAdd
+}: { handlePushMusicToSheets: any, lyricsToAdd: lyricInSheetMusicType[] }) => {
 
   function CustomHits() {
     const { hits } = useHits();
@@ -42,9 +43,8 @@ export const FilterLyrics = ({
               }}
               key={index}
               sx={{
-                padding: 2, backgroundColor: `${lyricsToAdd.filter((values: any) => values.lyricId == value.objectID).length > 0 ? "#dff0ff" : "#eaf0f5"}`, borderRadius: 2,
+                padding: 2, backgroundColor: `${lyricsToAdd.filter((values: lyricInSheetMusicType) => values.lyricId == value.objectID).length > 0 ? "#dff0ff" : "#eaf0f5"}`, borderRadius: 2,
                 '&:hover': {
-                  // boxShadow: 1,
                   cursor: "pointer",
                   backgroundColor: "#d5ebff"
                 },

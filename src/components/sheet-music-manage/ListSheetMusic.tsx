@@ -40,7 +40,6 @@ export const ListSheetMusic = ({ lyrics, setLyrics, handleDeleteMusicSheet }: an
                         '&:hover': {
                           boxShadow: 2,
                           backgroundColor: "#dfefff",
-                          cursor: "pointer"
                         },
                         '&:active': {
                           backgroundColor: "#dfefff"

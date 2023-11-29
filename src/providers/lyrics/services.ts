@@ -1,4 +1,4 @@
-import { collection, getDocs, getDoc, addDoc, doc, limit, startAfter, orderBy, DocumentSnapshot, updateDoc, deleteDoc } from "firebase/firestore";
+import { collection, getDocs, getDoc, addDoc, doc, limit, startAfter, orderBy, updateDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
 import { query, where } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { firebaseApp, database } from "../../../firebaseConfig";
@@ -201,7 +201,8 @@ export async function updateUserSheetMusic(sheetMusicId: any, newSheetMusic: any
     await updateDoc(docRef, {
         description: newSheetMusic.description,
         sheetMusicName: newSheetMusic.sheetMusicName,
-        lyrics: newSheetMusic.lyrics
+        lyrics: newSheetMusic.lyrics,
+        lastUpdated: serverTimestamp()
     })
         .then(() => {
             console.log('SUCCESSFULLY UPDATED SHEET MUSIC')
