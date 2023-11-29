@@ -49,6 +49,8 @@ export const useSheetMusicManage = ({ sheetMusicId }: { sheetMusicId: any }) => 
         .catch((error) => {
           console.log("Error in get sheet music of id: " + error);
         })
+    } else {
+      setLoading(false);
     }
   }, [])
 
