@@ -22,7 +22,7 @@ const LyricShow = () => {
     </ Layout>
   }
 
-  return <Layout activeMenu={4}>
+  return <Layout>
     <Head>
       <title>Meu Repertório</title>
       <meta name="viewport" content="initial-scale=1.0, width=device-width" />

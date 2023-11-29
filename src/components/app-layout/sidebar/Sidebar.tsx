@@ -12,7 +12,7 @@ import Typography from '@mui/material/Typography'
 import Link from 'next/link'
 import { useAuth } from '../../../hooks/useAuth';
 
-const SideBarComponent = ({ open, activeMenu }: { open: boolean, activeMenu: number }) => {
+const SideBarComponent = ({ open, activeMenu }: { open: boolean, activeMenu: number | undefined }) => {
   return (
     <>
       <List sx={{ p: 0 }}>
@@ -38,8 +38,6 @@ const SideBarComponent = ({ open, activeMenu }: { open: boolean, activeMenu: num
             </ListItemButton>
           </Link>
         </ListItem>
-        {/* If we need to refresh the page */}
-        {/* <ListItem component="a" href="/sheets-musics" style={{ textDecoration: "none", color: "inherit" }} disablePadding sx={{ display: 'block', backgroundColor: activeMenu == 2 ? "#e4f1ff" : "" }}> */}
         <ListItem key="show-sheets-musics" style={{ textDecoration: "none", color: "inherit" }} disablePadding sx={{ display: 'block', backgroundColor: activeMenu == 1 ? "#e4f1ff" : "" }}>
           <Link href={"/sheet-music/all-sheet-music"}>
             <ListItemButton

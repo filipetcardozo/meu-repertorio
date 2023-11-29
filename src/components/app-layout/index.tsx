@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import SidebarComponent from './sidebar/Sidebar';
-import React, { useEffect, useLayoutEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useTheme, } from '@mui/material/styles';
 import Box from '@mui/material/Box';
 import Toolbar from '@mui/material/Toolbar';
