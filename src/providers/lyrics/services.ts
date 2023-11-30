@@ -190,7 +190,7 @@ export async function putUserLyricRegistered(lyricToRegister: registeredLyricTyp
         return docRef.id;
     } catch (e) {
         console.error("Error adding USER REGISTERED LYRIC: ", e);
-        return false;
+        throw new Error('Error adding USER REGISTERED LYRIC')
     }
 }
 

@@ -12,7 +12,7 @@ export const LyricShowPage = () => {
   let lyricId = Array.isArray(id) ? "" : id as string;
 
   const {
-    lyric,
+    registeredLyric,
     oldOffset,
     offsetChanged,
     offsetIsUpdating,
@@ -20,7 +20,7 @@ export const LyricShowPage = () => {
     updateOffset
   } = useOneLyricShow(lyricId)
 
-  if (!lyric || !lyric.lyric) {
+  if (!registeredLyric || !registeredLyric.lyric) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
         <CircularProgress />
@@ -30,7 +30,7 @@ export const LyricShowPage = () => {
 
   return <Box display="flex" justifyContent="center" >
     <Box px={3} py={2} sx={{ backgroundColor: "#1976d212", borderRadius: 1.4, boxShadow: 2 }}>
-      <LyricShowComponent lyricToShow={lyric} offsetLyricToShow={lyric.offset}
+      <LyricShowComponent lyricToShow={registeredLyric} offsetLyricToShow={registeredLyric.offset}
         newOffset={oldOffset} isOneLyric={true} changeOffSet={changeOffSet}
         offsetChanged={offsetChanged} offsetIsUpdating={offsetIsUpdating}
         updateOffset={updateOffset}
