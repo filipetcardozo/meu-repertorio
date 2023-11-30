@@ -17,12 +17,14 @@ import { lyricType } from '../../types/lyricType';
 import { Fab } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import UpdateIcon from '@mui/icons-material/Update';
+import { useRouter } from 'next/router';
 
 export const LyricManage = ({ idLyric }: { idLyric: string | undefined }) => {
   const [musicToAdd, setMusicToAdd] = useState<any>({ composerName: "", composerId: "", lyricName: "", originalTone: "", lyric: "", lyricStyle: "" })
   const [composerToAdd, setComposerToAdd] = useState<any>({ composerName: "", id: "", mainMusicStyle: "" })
   const [allComposers, setAllComposers] = useState<any>([])
   const [showStep, setShowStep] = useState<any>(0)
+  const router = useRouter();
 
   const handleAddMusic = (prop: keyof any) => (event: React.ChangeEvent<HTMLInputElement>) => {
     musicToAdd[prop] = event.target.value
@@ -56,14 +58,15 @@ export const LyricManage = ({ idLyric }: { idLyric: string | undefined }) => {
     if (idLyric) {
       updateLyric(idLyric, musicToAdd)
         .then(() => {
-          setOpenAlertAddMusic(true)
-          setLoadingMusic(false)
+          setOpenAlertAddMusic(true);
+          setLoadingMusic(false);
         })
     } else {
       putLyric(musicToAdd).then((value: any) => {
         if (value) {
           setOpenAlertAddMusic(true)
           setLoadingMusic(false)
+          router.push(`/lyric/lyric-show/${value}`)
         }
       })
     }
