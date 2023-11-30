@@ -18,8 +18,12 @@ import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
 import { NavbarComponent } from './navbar/Navbar';
 import { ShowTimer } from './ShowTimer';
+import { SearchBarWithPopper } from './NavbarSearch';
+import algoliasearch from 'algoliasearch';
+import { InstantSearch } from 'react-instantsearch-hooks-web';
 
 export const Layout = ({ children, activeMenu }: any) => {
+  const searchClient = algoliasearch('M91WDCEXS4', '0fa682d5b69e7040b462c96daecbb0fd');
   const theme = useTheme();
   const [open, setOpen] = React.useState(false);
 
@@ -60,6 +64,9 @@ export const Layout = ({ children, activeMenu }: any) => {
           >
             <MenuIcon />
           </IconButton>
+          <InstantSearch searchClient={searchClient} indexName="lyrics">
+            <SearchBarWithPopper />
+          </InstantSearch>
           <ShowTimer />
           <Box sx={{ flexGrow: 1 }} />
           <Box sx={{ display: 'flex' }}>
@@ -79,7 +86,6 @@ export const Layout = ({ children, activeMenu }: any) => {
           </IconButton>
         </DrawerHeader>
         <Divider />
-        {/* Navbar Component */}
         <SidebarComponent open={open} activeMenu={activeMenu} />
       </Drawer>
       <Box component="main" sx={{ flexGrow: 1 }} >

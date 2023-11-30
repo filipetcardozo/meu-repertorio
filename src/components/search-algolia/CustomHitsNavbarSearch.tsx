@@ -5,25 +5,22 @@ import ListItemAvatar from '@mui/material/ListItemAvatar';
 import Avatar from '@mui/material/Avatar';
 import { useRouter } from 'next/router'
 
-export const CustomHits = ({ hits }: any) => {
+export const CustomHitsNavbarSearch = ({ hits, closePopper }: any) => {
   const router = useRouter()
 
   return <>
     {
       hits.length > 0 ? hits.map((value: any, index: number) => {
-        return <Grid item key={index} sx={{ p: 1 }}
-          xs={12}
-          sm={6}
-          lg={4}
-          xl={3}
+        return <Grid item key={index} sx={{ p: 0.5 }} xs={6}
         >
           <ListItem
             onClick={() => {
-              router.push(`/lyric/lyric-show/${value.objectID}`)
+              closePopper();
+              router.push(`/lyric/lyric-show/${value.objectID}`, undefined, { shallow: true })
             }}
             key={index}
             sx={{
-              padding: 2, backgroundColor: "#dff0ff", borderRadius: 2,
+              padding: 0.5, backgroundColor: "#dff0ff", borderRadius: 2,
               '&:hover': {
                 cursor: "pointer",
                 backgroundColor: "#d5ebff"

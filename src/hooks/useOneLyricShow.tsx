@@ -10,49 +10,58 @@ export const useOneLyricShow = (idLyric: string) => {
   const router = useRouter()
   const { id } = router.query
 
-  const [registeredLyric, setRegisteredLyric] = useState({} as registeredLyricType)
+  const [registeredLyric, setRegisteredLyric] = useState<registeredLyricType>()
   const [oldOffset, setOldOffset] = useState<number>()
   const [offsetChanged, setOffsetChanged] = useState(false)
   const [offsetIsUpdating, setOffsetIsUpdating] = useState(false)
 
   useEffect(() => {
-    Promise.all([
-      getRegisteredLyric(uid!, id!)
-        .then((value) => {
-          return value;
-        })
-        .catch(err => {
-          console.error('Error: ', err)
-        }),
-      getLyric(idLyric!)
-        .then((lyric) => {
-          return lyric
-        })
-        .catch(() => {
-        })
-    ])
-      .then((values: any) => {
-        let newObj: registeredLyricType
+    if (id) {
+      setRegisteredLyric(undefined);
+      setOldOffset(undefined);
+      setOffsetChanged(false);
+      setOffsetIsUpdating(false);
 
-        if (values[0]) {
-          newObj = values[0];
-          newObj.lyric = values[1].lyric;
-          setOldOffset(newObj.offset);
-        } else {
-          newObj = values[1];
-          newObj.lyricId = newObj.id!;
-          newObj.offset = 0;
-          newObj.stars = 1;
-          setOldOffset(0);
+      Promise.all([
+        getRegisteredLyric(uid!, id!)
+          .then((value) => {
+            return value;
+          })
+          .catch(err => {
+            console.error('Error: ', err)
+          }),
+        getLyric(idLyric!)
+          .then((lyric) => {
+            return lyric
+          })
+          .catch(() => {
+          })
+      ])
+        .then((values: any) => {
+          let newObj: registeredLyricType
 
-          delete newObj.id;
-        }
+          if (values[0]) {
+            newObj = values[0];
+            newObj.lyric = values[1].lyric;
+            setOldOffset(newObj.offset);
+          } else {
+            newObj = values[1];
+            newObj.lyricId = newObj.id!;
+            newObj.offset = 0;
+            newObj.stars = 1;
+            setOldOffset(0);
 
-        setRegisteredLyric(newObj);
-      })
-  }, [])
+            delete newObj.id;
+          }
+
+          setRegisteredLyric(newObj);
+        })
+    }
+  }, [id])
 
   async function changeOffSet(increaseOrDecrease: boolean) {
+    if (!registeredLyric) return;
+
     let value = 0
     increaseOrDecrease ? value = 1 : value = -1
 
@@ -72,6 +81,8 @@ export const useOneLyricShow = (idLyric: string) => {
   }
 
   async function updateOffset() {
+    if (!registeredLyric) return;
+
     setOffsetIsUpdating(true)
 
     if (registeredLyric && registeredLyric.userId) {
