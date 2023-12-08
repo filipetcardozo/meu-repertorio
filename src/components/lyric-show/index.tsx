@@ -168,16 +168,12 @@ export const LyricShowComponent = ({
   }
 
   function NextMusic() {
-    if (htmlLyricNextMusic) return <Box display="inline" color="#00000066">
-      <Box justifyContent="center" >
-        <Box textAlign="center">
-          <Fab size="small" onClick={() => handleNext()} variant="extended">
-            <NextPlanIcon sx={{ mr: 1 }} />
-            Próxima música
-          </Fab>
-        </Box>
-      </Box>
-
+    if (htmlLyricNextMusic) return <Box
+      onClick={() => handleNext()}
+      display="inline"
+      color="#00000066"
+      sx={{ cursor: 'pointer' }}
+    >
       <Typography variant="h6">{nextLyricToShow.lyricName} <Box component="span" fontSize={14}> ({nextLyricToShow.composerName})</Box></Typography>
       <Markup content={htmlLyricNextMusic} />
     </Box>
@@ -197,7 +193,7 @@ export const LyricShowComponent = ({
 
   return <>
     <Box sx={{
-      display: "flex", fontSize: "14px", lineHeight: "15px", columnGap: 1.5,fontFamily: "monospace"
+      display: "flex", fontSize: "14px", lineHeight: "15px", columnGap: 1.5, fontFamily: "monospace"
     }}>
       {FirstColumn()}
       {SecondColumn()}
