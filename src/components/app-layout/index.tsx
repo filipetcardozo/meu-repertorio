@@ -132,7 +132,7 @@ const FullScreenButton = () => {
       color="primary"
       startIcon={isFullScreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
       onClick={toggleFullScreen}
-      sx={{ margin: 1 }}
+      sx={{ margin: 1, whiteSpace: 'nowrap' }}
     >
       {isFullScreen ? 'Sair da Tela Cheia' : 'Tela Cheia'}
     </Button>

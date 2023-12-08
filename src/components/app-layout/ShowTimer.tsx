@@ -48,13 +48,14 @@ export const ShowTimer = () => {
     }
     {
       (timer > 0 || isActive) && <>
-        <Box sx={{ ml: 1, display: 'inline', fontWeight: 'bold' }}>
+        <Box sx={{ ml: 1, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
           {formatTime(timer)}
         </Box>
         <Button
           size='small'
           variant='contained'
           color='info'
+          sx={{ minWidth: isActive ? 80 : 100 }}
           onClick={isActive ? pause : start}
           startIcon={isActive ? <PauseIcon /> : <PlayArrowIcon />}
         >
@@ -66,6 +67,7 @@ export const ShowTimer = () => {
           size='small'
           variant='contained'
           color='secondary'
+          sx={{ minWidth: 85 }}
           onClick={stop}
           startIcon={<AlarmOffIcon />}
         >

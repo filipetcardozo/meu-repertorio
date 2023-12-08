@@ -101,10 +101,8 @@ export const LyricShowComponent = ({
                     }}
                   />
                   :
-                  <IconButton size="small" className="blob"
-                    sx={{
-                      color: "#1976d2", position: "absolute", right: 27, bottom: 28,
-                    }}
+                  <IconButton size="small"
+                    sx={{ color: "#1976d2", position: "absolute", right: 27, bottom: 28 }}
                     onClick={() => updateOffset()}
                   >
                     <LightTooltip title="Salvar novo tom" placement="top">
@@ -129,10 +127,8 @@ export const LyricShowComponent = ({
                     }}
                   />
                   :
-                  <IconButton size="small" className="blob"
-                    sx={{
-                      color: "#1976d2", position: "absolute", right: 27, bottom: 28,
-                    }}
+                  <IconButton size="small"
+                    sx={{ color: "#1976d2", position: "absolute", right: 27, bottom: 20 }}
                     onClick={() => updateOffset()}
                   >
                     <LightTooltip title="Salvar novo tom" placement="top">
