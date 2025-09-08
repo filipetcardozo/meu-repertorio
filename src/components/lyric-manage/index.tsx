@@ -20,8 +20,8 @@ import UpdateIcon from '@mui/icons-material/Update';
 import { useRouter } from 'next/router';
 
 export const LyricManage = ({ idLyric }: { idLyric: string | undefined }) => {
-  const [musicToAdd, setMusicToAdd] = useState<any>({ composerName: "", composerId: "", lyricName: "", originalTone: "", lyric: "", lyricStyle: "" })
-  const [composerToAdd, setComposerToAdd] = useState<any>({ composerName: "", id: "", mainMusicStyle: "" })
+  const [musicToAdd, setMusicToAdd] = useState<any>({ composerName: '', composerId: '', lyricName: '', originalTone: '', lyric: '', lyricStyle: '' })
+  const [composerToAdd, setComposerToAdd] = useState<any>({ composerName: '', id: '', mainMusicStyle: '' })
   const [allComposers, setAllComposers] = useState<any>([])
   const [showStep, setShowStep] = useState<any>(0)
   const router = useRouter();
@@ -99,7 +99,7 @@ export const LyricManage = ({ idLyric }: { idLyric: string | undefined }) => {
     props,
     ref,
   ) {
-    return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
+    return <MuiAlert elevation={6} ref={ref} variant='filled' {...props} />;
   });
 
   const handleClose = (event?: React.SyntheticEvent | Event, reason?: string) => {
@@ -121,9 +121,9 @@ export const LyricManage = ({ idLyric }: { idLyric: string | undefined }) => {
               {...defaultProps}
               onChange={(event, newValue) => {
                 if (!newValue) {
-                  musicToAdd.composerId = ""
-                  musicToAdd.composerName = ""
-                  musicToAdd.lyricStyle = ""
+                  musicToAdd.composerId = ''
+                  musicToAdd.composerName = ''
+                  musicToAdd.lyricStyle = ''
                 } else {
                   musicToAdd.composerId = newValue.id
                   musicToAdd.composerName = newValue.composerName
@@ -133,31 +133,31 @@ export const LyricManage = ({ idLyric }: { idLyric: string | undefined }) => {
                 setMusicToAdd({ ...musicToAdd })
               }}
               value={musicToAdd}
-              noOptionsText="Nenhuma opção."
+              noOptionsText='Nenhuma opção.'
               disablePortal
-              id="demo-simple-select-filled"
-              renderInput={(params) => <TextField {...params} label="Artista" variant='filled' />}
+              id='demo-simple-select-filled'
+              renderInput={(params) => <TextField {...params} label='Artista' variant='filled' />}
             />
           </Grid>
           <Grid item xs={4}>
-            <TextField id="filled-basic" label="Nome da música" variant="filled" name="lyricName" fullWidth
+            <TextField id='filled-basic' label='Nome da música' variant='filled' name='lyricName' fullWidth
               value={musicToAdd.lyricName} onChange={handleAddMusic('lyricName')}
             />
           </Grid>
           <Grid item xs={4}>
-            <TextField id="filled-basic" label="Tom" variant="filled" name="originalTone" fullWidth
+            <TextField id='filled-basic' label='Tom' variant='filled' name='originalTone' fullWidth
               value={musicToAdd.originalTone} onChange={handleAddMusic('originalTone')}
             />
           </Grid>
           <Grid item xs={12}>
-            <TextField id="filled-basic" label="Cifra" variant="filled" name="lyric" multiline fullWidth rows={40}
+            <TextField id='filled-basic' label='Cifra' variant='filled' name='lyric' multiline fullWidth minRows={12}
               value={musicToAdd.lyric} onChange={handleAddMusic('lyric')}
             />
           </Grid>
         </Grid>
 
         <Fab
-          color="primary"
+          color='primary'
           aria-label={idLyric ? 'Atualizar música' : 'Adicionar música'}
           variant='extended'
           size='small'
@@ -176,7 +176,7 @@ export const LyricManage = ({ idLyric }: { idLyric: string | undefined }) => {
         </Fab>
 
         <Snackbar open={openAlertAddMusic} autoHideDuration={6000} onClose={handleClose}>
-          <Alert onClose={handleClose} severity="success" sx={{ width: '100%' }}>
+          <Alert onClose={handleClose} severity='success' sx={{ width: '100%' }}>
             Música adicionada com sucesso!
           </Alert>
         </Snackbar>
@@ -189,21 +189,21 @@ export const LyricManage = ({ idLyric }: { idLyric: string | undefined }) => {
       <>
         <Grid container spacing={4}>
           <Grid item xs={6}>
-            <TextField id="filled-basic" label="Nome do Artista" variant="filled" name="composerName" fullWidth
+            <TextField id='filled-basic' label='Nome do Artista' variant='filled' name='composerName' fullWidth
               value={composerToAdd.composerName} onChange={handleAddComposer}
             />
           </Grid>
           <Grid item xs={6}>
-            <TextField id="filled-basic" label="Estilo musical" variant="filled" name="mainMusicStyle" fullWidth
+            <TextField id='filled-basic' label='Estilo musical' variant='filled' name='mainMusicStyle' fullWidth
               value={composerToAdd.mainMusicStyle} onChange={handleAddComposer}
             />
           </Grid>
-          <Grid item xs={12} textAlign="center">
-            <LoadingButton variant="outlined" onClick={addComposer} loading={loadingAddComposer}>Adicionar artista</LoadingButton>
+          <Grid item xs={12} textAlign='center'>
+            <LoadingButton variant='outlined' onClick={addComposer} loading={loadingAddComposer}>Adicionar artista</LoadingButton>
           </Grid>
         </Grid>
         <Snackbar open={openAlertAddComposer} autoHideDuration={6000} onClose={handleClose}>
-          <Alert onClose={handleClose} severity="success" sx={{ width: '100%' }}>
+          <Alert onClose={handleClose} severity='success' sx={{ width: '100%' }}>
             Artista adicionado com sucesso!
           </Alert>
         </Snackbar>
@@ -212,7 +212,7 @@ export const LyricManage = ({ idLyric }: { idLyric: string | undefined }) => {
   }
 
   return (
-    <Container maxWidth={"lg"}>
+    <Container maxWidth={'lg'}>
       <Box sx={{ my: 2 }}>
         <BottomNavigation
           showLabels
@@ -221,18 +221,18 @@ export const LyricManage = ({ idLyric }: { idLyric: string | undefined }) => {
             setShowStep(newValue);
           }}
         >
-          <BottomNavigationAction label="Adicionar Música" icon={<LyricsIcon />} />
-          <BottomNavigationAction label="Adicionar Artista" icon={<HistoryEduIcon />} />
+          <BottomNavigationAction label='Adicionar Música' icon={<LyricsIcon />} />
+          <BottomNavigationAction label='Adicionar Artista' icon={<HistoryEduIcon />} />
         </BottomNavigation>
 
       </Box>
       <Box
-        component="form"
+        component='form'
         noValidate
-        autoComplete="off"
+        autoComplete='off'
       >
-        {showStep == 0 ? addMusicComponent() : ""}
-        {showStep == 1 ? addComposerComponent() : ""}
+        {showStep == 0 ? addMusicComponent() : ''}
+        {showStep == 1 ? addComposerComponent() : ''}
       </Box>
     </Container>
   )

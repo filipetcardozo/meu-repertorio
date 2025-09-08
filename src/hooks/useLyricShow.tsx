@@ -1,7 +1,56 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useState } from 'react'
 
-const scaleNotes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+const SCALE = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"] as const;
+
+const SCALE_ARR = SCALE as readonly string[];
+
+const FLAT_TO_SHARP: Record<string, string> = {
+  Bb: "A#", Db: "C#", Eb: "D#", Gb: "F#", Ab: "G#",
+  Cb: "B", Fb: "E",
+};
+
+const SHARP_EDGE: Record<string, string> = {
+  "B#": "C", "E#": "F",
+};
+
+function normalizeNote(n: string): string {
+  if (FLAT_TO_SHARP[n]) return FLAT_TO_SHARP[n];
+  if (SHARP_EDGE[n]) return SHARP_EDGE[n];
+  return n;
+}
+
+function transposeNote(n: string, offset: number): string {
+  const idx = SCALE_ARR.indexOf(n);
+  if (idx === -1) return n;
+  const k = ((idx + (offset % SCALE_ARR.length)) + SCALE_ARR.length) % SCALE_ARR.length;
+  return SCALE_ARR[k];
+}
+
+// Transpõe um "token" de acorde, ex.: "C#m7/G#", "Am", "G/B", "F7", "Bbmaj7"
+function transposeChordToken(token: string, offset: number): string {
+  // raiz, sufixo (qualificadores), opcional baixo após '/'
+  const m = token.match(/^([A-G](?:#|b)?)([^/]*)(?:\/([A-G](?:#|b)?))?$/);
+  if (!m) return token;
+
+  const [, root, suffix, bass] = m;
+  const rootN = transposeNote(normalizeNote(root), offset);
+  if (bass) {
+    const bassN = transposeNote(normalizeNote(bass), offset);
+    return `${rootN}${suffix}/${bassN}`;
+  }
+  return `${rootN}${suffix}`;
+}
+
+function processNotes(notesContent: string, offset: number): string {
+  if (!offset) return notesContent;
+
+  // preserva espaçamentos; processa somente os tokens
+  return notesContent
+    .split(/(\s+)/)           // mantém separadores (grupos pares = espaços)
+    .map(part => /\s+/.test(part) ? part : transposeChordToken(part, offset))
+    .join('');
+}
 
 export const useLyricShow = ({
   lyricToShow,
@@ -18,56 +67,6 @@ export const useLyricShow = ({
 
   const heightScreen = window.innerHeight - 160
   const lines = heightScreen / 15
-
-  const processNotes = (notesContent: any, offset: any) => {
-    return notesContent.split('/').map((note: any) => {
-      const matchResult = note.match(/[A-G]#?b?/);
-      if (!matchResult) {
-        return note; 
-      }
-  
-      let originalNote = note.match(/[A-G]#?b?/)[0];
-      let additionalDetails = note.substr(originalNote.length);
-
-      let isB = originalNote.includes("b");
-
-      // Converta bemóis para seus equivalentes sustenidos
-      if (isB) {
-        switch (originalNote.substr(0, 2)) {
-          case "Bb":
-            originalNote = "A#";
-            break;
-          case "Db":
-            originalNote = "C#";
-            break;
-          case "Eb":
-            originalNote = "D#";
-            break;
-          case "Gb":
-            originalNote = "F#";
-            break;
-          case "Ab":
-            originalNote = "G#";
-            break;
-          default:
-            break;
-        }
-      }
-
-      if (offset !== 0) {
-        // Encontre a nova nota somente se o offset for diferente de zero
-        let indexInScaleNote = scaleNotes.indexOf(originalNote);
-        let resultOffsetAndIndexNoteNow = indexInScaleNote + offset;
-
-        // Ajuste para casos onde o índice excede o tamanho da escala ou é negativo
-        resultOffsetAndIndexNoteNow = (resultOffsetAndIndexNoteNow + scaleNotes.length) % scaleNotes.length;
-
-        originalNote = scaleNotes[resultOffsetAndIndexNoteNow];
-      }
-
-      return originalNote + additionalDetails; // Junta a nova nota com os detalhes adicionais
-    }).join('/');
-  };
 
   useEffect(() => {
     if (lyricToShow) {

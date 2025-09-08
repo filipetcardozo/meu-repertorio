@@ -18,6 +18,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import { useRouter } from 'next/router';
 import { useLyricShow } from '../../hooks/useLyricShow';
 import { writeTone } from '../../utils/writeTone';
+import { Divider } from '@mui/material';
 
 const ThemedTooltip = styled(({ className, ...props }: TooltipProps) => (
   <Tooltip {...props} classes={{ popper: className }} />
@@ -202,12 +203,11 @@ export const LyricShowComponent = ({
           '&:hover': { color: theme.palette.text.primary },
         })}
       >
-        <Typography variant='h6' color='inherit'>
-          {nextLyricToShow.lyricName}{' '}
-          <Box component='span' fontSize={14} color='inherit'>
-            ({nextLyricToShow.composerName})
-          </Box>
-        </Typography>
+        <Divider>
+          <Typography variant='h6' color='inherit' fontSize={16}>
+            {nextLyricToShow.lyricName}
+          </Typography>
+        </Divider>
         <Markup content={htmlLyricNextMusic} />
       </Box>
     );
