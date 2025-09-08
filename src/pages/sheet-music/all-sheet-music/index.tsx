@@ -1,16 +1,11 @@
 import React from "react";
 import Head from 'next/head'
-
-// Components
 import { Layout } from "../../../components/app-layout";
-
-// Hooks
 import { useAuth, useProtectPage } from "../../../hooks/useAuth";
-import { SheetsMusicsCards } from "../../../components/sheet-music-card/SheetsMusicsCards";
+import { SheetsMusicsCards } from "../../../components/sheet-music-cards";
 import { Box, CircularProgress } from "@mui/material";
 
 const AllSheetMusic = () => {
-  // States
   const { isLogged } = useAuth()
 
   useProtectPage({ redirectTo: "/auth/login" })

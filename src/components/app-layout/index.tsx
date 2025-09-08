@@ -1,5 +1,4 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-import SidebarComponent from './sidebar/Sidebar';
 import React, { useEffect, useState } from 'react'
 import { useTheme, } from '@mui/material/styles';
 import Box from '@mui/material/Box';
@@ -21,6 +20,7 @@ import { ShowTimer } from './ShowTimer';
 import { SearchBarWithPopper } from './NavbarSearch';
 import algoliasearch from 'algoliasearch';
 import { InstantSearch } from 'react-instantsearch-hooks-web';
+import { SideBarComponent } from './sidebar/Sidebar';
 
 export const Layout = ({ children, activeMenu }: any) => {
   const searchClient = algoliasearch('M91WDCEXS4', '0fa682d5b69e7040b462c96daecbb0fd');
@@ -80,13 +80,14 @@ export const Layout = ({ children, activeMenu }: any) => {
           <Image
             src={logo}
             alt="Logo Easy Show"
+            height={40}
           />
           <IconButton onClick={handleDrawerClose}>
             {theme.direction === 'rtl' ? <ChevronRightIcon /> : <ChevronLeftIcon />}
           </IconButton>
         </DrawerHeader>
         <Divider />
-        <SidebarComponent open={open} activeMenu={activeMenu} />
+        <SideBarComponent open={open} activeMenu={activeMenu} />
       </Drawer>
       <Box component="main" sx={{ flexGrow: 1 }} >
         <DrawerHeader />

@@ -1,7 +1,7 @@
 import React from 'react';
 import Grid from '@mui/material/Grid'
 import { useSheetsMusics } from '../../hooks/useSheetsMusics';
-import { SheetsMusicsCard } from '.';
+import { SheetsMusicsCard } from './SheetsMusicsCard';
 
 export const SheetsMusicsCards = () => {
   const { sheetsMusics, setSheetsMusics } = useSheetsMusics()

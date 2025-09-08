@@ -10,14 +10,13 @@ import HistoryEduIcon from '@mui/icons-material/HistoryEdu';
 import LyricsIcon from '@mui/icons-material/Lyrics';
 import Typography from '@mui/material/Typography'
 import Link from 'next/link'
-import { useAuth } from '../../../hooks/useAuth';
 
-const SideBarComponent = ({ open, activeMenu }: { open: boolean, activeMenu: number | undefined }) => {
+export const SideBarComponent = ({ open, activeMenu }: { open: boolean, activeMenu: number | undefined }) => {
   return (
     <>
       <List sx={{ p: 0 }}>
         <ListItem key="inicio" style={{ textDecoration: "none", color: "inherit" }} disablePadding sx={{ display: 'block', backgroundColor: activeMenu == 0 ? "#e4f1ff" : "" }}>
-          <Link href="/">
+          <Link href="/" passHref legacyBehavior>
             <ListItemButton
               sx={{
                 minHeight: 48,
@@ -39,7 +38,7 @@ const SideBarComponent = ({ open, activeMenu }: { open: boolean, activeMenu: num
           </Link>
         </ListItem>
         <ListItem key="show-sheets-musics" style={{ textDecoration: "none", color: "inherit" }} disablePadding sx={{ display: 'block', backgroundColor: activeMenu == 1 ? "#e4f1ff" : "" }}>
-          <Link href={"/sheet-music/all-sheet-music"}>
+          <Link href={"/sheet-music/all-sheet-music"} passHref legacyBehavior>
             <ListItemButton
               sx={{
                 minHeight: 48,
@@ -61,7 +60,7 @@ const SideBarComponent = ({ open, activeMenu }: { open: boolean, activeMenu: num
           </Link>
         </ListItem>
         <ListItem key="create-sheet-music" style={{ textDecoration: "none", color: "inherit" }} disablePadding sx={{ display: 'block', backgroundColor: activeMenu == 2 ? "#e4f1ff" : "" }}>
-          <Link href={"/sheet-music/manage-sheet-music"}>
+          <Link href={"/sheet-music/manage-sheet-music"} passHref legacyBehavior>
             <ListItemButton
               sx={{
                 minHeight: 48,
@@ -82,7 +81,7 @@ const SideBarComponent = ({ open, activeMenu }: { open: boolean, activeMenu: num
             </ListItemButton>
           </Link>
         </ListItem>
-        <Link href={"/lyric/manage-lyric"}>
+        <Link href={"/lyric/manage-lyric"} passHref legacyBehavior>
           <ListItem key="adicionar-cifras" style={{ textDecoration: "none", color: "inherit" }} disablePadding sx={{ display: 'block', backgroundColor: activeMenu == 4 ? "#e4f1ff" : "" }}>
             <ListItemButton
               sx={{
@@ -108,5 +107,3 @@ const SideBarComponent = ({ open, activeMenu }: { open: boolean, activeMenu: num
     </>
   )
 }
-
-export default SideBarComponent;
