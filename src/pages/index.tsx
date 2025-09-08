@@ -6,7 +6,7 @@ import { useProtectPage } from '../hooks/useAuth'
 import { HomeLyrics } from '../components/home/HomeComponent'
 import algoliasearch from 'algoliasearch/lite';
 import { InstantSearch } from 'react-instantsearch-hooks-web';
-import { Box, CircularProgress } from '@mui/material'
+import { Box, CircularProgress, Container } from '@mui/material'
 
 const HomePage = () => {
   const searchClient = algoliasearch('M91WDCEXS4', '0fa682d5b69e7040b462c96daecbb0fd');
@@ -28,7 +28,9 @@ const HomePage = () => {
       <meta name="viewport" content="initial-scale=1.0, width=device-width" />
     </Head>
     <InstantSearch searchClient={searchClient} indexName="lyrics">
-      <HomeLyrics />
+      <Container sx={{ pt: 1}}>
+        <HomeLyrics />
+      </Container>
     </InstantSearch>
   </ Layout>
 }

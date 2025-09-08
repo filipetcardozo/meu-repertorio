@@ -35,12 +35,12 @@ export const HomeLyrics = () => {
           sm={6}
           lg={4}
           xl={3}
+          mb={2}
         >
           <TextField
             fullWidth
             label="Qual música você quer tocar?"
             type="text"
-            helperText={<>Você pode digitar qualquer parte, nome ou gênero da música.<br /><b>Divirta-se!</b></>}
             autoComplete="off"
             value={valueToSearch}
             onChange={(event) => {

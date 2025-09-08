@@ -3,7 +3,7 @@ import Head from 'next/head'
 import { Layout } from "../../../components/app-layout";
 import { useAuth, useProtectPage } from "../../../hooks/useAuth";
 import { SheetsMusicsCards } from "../../../components/sheet-music-cards";
-import { Box, CircularProgress } from "@mui/material";
+import { Box, CircularProgress, Container } from "@mui/material";
 
 const AllSheetMusic = () => {
   const { isLogged } = useAuth()
@@ -27,7 +27,9 @@ const AllSheetMusic = () => {
       <title>Repertórios cadastrados - Meu Repertório</title>
       <meta name="viewport" content="initial-scale=1.0, width=device-width" />
     </Head>
-    <SheetsMusicsCards />
+    <Container sx={{ pt: 3}}>
+      <SheetsMusicsCards />
+    </Container>
   </Layout>
 }
 

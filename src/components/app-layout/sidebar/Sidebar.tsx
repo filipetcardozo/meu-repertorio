@@ -28,7 +28,6 @@ export const SideBarComponent: React.FC<SideBarProps> = ({ open, activeMenu }) =
         const selected = activeMenu === idx;
         return (
           <ListItem key={item.key} disablePadding sx={{ display: 'block' }}>
-            {/* Use o ListItemButton como link direto (sem <Link> externo) */}
             <ListItemButton
               component={Link}
               href={item.href}
@@ -37,10 +36,6 @@ export const SideBarComponent: React.FC<SideBarProps> = ({ open, activeMenu }) =
                 minHeight: 48,
                 justifyContent: open ? 'initial' : 'center',
                 px: 2.5,
-
-                // Cores 100% baseadas no tema:
-                // Deixe o default (theme.palette.action.selected) ou
-                // use um tinte da cor primária:
                 '&.Mui-selected': {
                   backgroundColor: alpha(theme.palette.primary.main, theme.palette.action.selectedOpacity),
                 },
@@ -57,7 +52,7 @@ export const SideBarComponent: React.FC<SideBarProps> = ({ open, activeMenu }) =
                   minWidth: 0,
                   mr: open ? 1.5 : 'auto',
                   justifyContent: 'center',
-                  color: 'inherit', // herda do tema
+                  color: 'inherit',
                 }}
               >
                 {item.icon}
