@@ -1,42 +1,19 @@
-import type { AppProps } from 'next/app'
-import React from 'react'
+import type { AppProps } from 'next/app';
+import React from 'react';
 import { SnackbarProvider } from 'notistack';
 import { AuthProvider } from '../hooks/useAuth';
-import { createTheme, ThemeProvider } from '@mui/material';
-
-const theme = createTheme({
-  typography: {
-    button: {
-      textTransform: 'none'
-    }
-  },
-  components: {
-    MuiTextField: {
-      defaultProps: {
-        variant: 'filled'
-      },
-    },
-    MuiButton: {
-      defaultProps: {
-        disableElevation: true
-      },
-    },
-    MuiFormControl: {
-      defaultProps: {
-        variant: 'filled'
-      },
-    },
-  },
-});
+import { ThemeModeProvider } from '../theme/ThemeModeProvider';
 
 function MyApp({ Component, pageProps }: AppProps) {
-  return <AuthProvider>
-    <ThemeProvider theme={theme}>
-      <SnackbarProvider maxSnack={3}>
-        <Component {...pageProps} />
-      </SnackbarProvider>
-    </ThemeProvider>
-  </AuthProvider>
+  return (
+    <AuthProvider>
+      <ThemeModeProvider>
+        <SnackbarProvider maxSnack={3}>
+          <Component {...pageProps} />
+        </SnackbarProvider>
+      </ThemeModeProvider>
+    </AuthProvider>
+  );
 }
 
-export default MyApp
+export default MyApp;

@@ -1,109 +1,76 @@
 import * as React from 'react';
+import Link from 'next/link';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
 import ListItemButton from '@mui/material/ListItemButton';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
-import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
+import Typography from '@mui/material/Typography';
 import HomeIcon from '@mui/icons-material/Home';
 import HistoryEduIcon from '@mui/icons-material/HistoryEdu';
 import LyricsIcon from '@mui/icons-material/Lyrics';
-import Typography from '@mui/material/Typography'
-import Link from 'next/link'
+import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
+import { alpha } from '@mui/material/styles';
 
-export const SideBarComponent = ({ open, activeMenu }: { open: boolean, activeMenu: number | undefined }) => {
+type SideBarProps = { open: boolean; activeMenu?: number };
+
+const NAV_ITEMS = [
+  { key: 'inicio', label: 'Início', href: '/', icon: <HomeIcon /> },
+  { key: 'show-sheets-musics', label: 'Repertórios cadastrados', href: '/sheet-music/all-sheet-music', icon: <LyricsIcon /> },
+  { key: 'create-sheet-music', label: 'Criar repertório', href: '/sheet-music/manage-sheet-music', icon: <HistoryEduIcon /> },
+  { key: 'adicionar-cifras', label: 'Adicionar Cifras', href: '/lyric/manage-lyric', icon: <PlaylistAddIcon /> },
+];
+
+export const SideBarComponent: React.FC<SideBarProps> = ({ open, activeMenu }) => {
   return (
-    <>
-      <List sx={{ p: 0 }}>
-        <ListItem key="inicio" style={{ textDecoration: "none", color: "inherit" }} disablePadding sx={{ display: 'block', backgroundColor: activeMenu == 0 ? "#e4f1ff" : "" }}>
-          <Link href="/" passHref legacyBehavior>
+    <List sx={{ p: 0 }}>
+      {NAV_ITEMS.map((item, idx) => {
+        const selected = activeMenu === idx;
+        return (
+          <ListItem key={item.key} disablePadding sx={{ display: 'block' }}>
+            {/* Use o ListItemButton como link direto (sem <Link> externo) */}
             <ListItemButton
-              sx={{
+              component={Link}
+              href={item.href}
+              selected={selected}
+              sx={(theme) => ({
                 minHeight: 48,
                 justifyContent: open ? 'initial' : 'center',
                 px: 2.5,
-              }}
+
+                // Cores 100% baseadas no tema:
+                // Deixe o default (theme.palette.action.selected) ou
+                // use um tinte da cor primária:
+                '&.Mui-selected': {
+                  backgroundColor: alpha(theme.palette.primary.main, theme.palette.action.selectedOpacity),
+                },
+                '&.Mui-selected:hover': {
+                  backgroundColor: alpha(
+                    theme.palette.primary.main,
+                    theme.palette.action.selectedOpacity + theme.palette.action.hoverOpacity
+                  ),
+                },
+              })}
             >
               <ListItemIcon
                 sx={{
                   minWidth: 0,
                   mr: open ? 1.5 : 'auto',
                   justifyContent: 'center',
+                  color: 'inherit', // herda do tema
                 }}
               >
-                <HomeIcon />
+                {item.icon}
               </ListItemIcon>
-              <ListItemText primary={<Typography fontSize={15}>Início</Typography>} sx={{ textDecoration: "none", opacity: open ? 1 : 0 }} />
-            </ListItemButton>
-          </Link>
-        </ListItem>
-        <ListItem key="show-sheets-musics" style={{ textDecoration: "none", color: "inherit" }} disablePadding sx={{ display: 'block', backgroundColor: activeMenu == 1 ? "#e4f1ff" : "" }}>
-          <Link href={"/sheet-music/all-sheet-music"} passHref legacyBehavior>
-            <ListItemButton
-              sx={{
-                minHeight: 48,
-                justifyContent: open ? 'initial' : 'center',
-                px: 2.5,
-              }}
-            >
-              <ListItemIcon
-                sx={{
-                  minWidth: 0,
-                  mr: open ? 1.5 : 'auto',
-                  justifyContent: 'center',
-                }}
-              >
-                <LyricsIcon />
-              </ListItemIcon>
-              <ListItemText primary={<Typography fontSize={15}>Repertórios cadastrados</Typography>} sx={{ opacity: open ? 1 : 0 }} />
-            </ListItemButton>
-          </Link>
-        </ListItem>
-        <ListItem key="create-sheet-music" style={{ textDecoration: "none", color: "inherit" }} disablePadding sx={{ display: 'block', backgroundColor: activeMenu == 2 ? "#e4f1ff" : "" }}>
-          <Link href={"/sheet-music/manage-sheet-music"} passHref legacyBehavior>
-            <ListItemButton
-              sx={{
-                minHeight: 48,
-                justifyContent: open ? 'initial' : 'center',
-                px: 2.5,
-              }}
-            >
-              <ListItemIcon
-                sx={{
-                  minWidth: 0,
-                  mr: open ? 1.5 : 'auto',
-                  justifyContent: 'center',
-                }}
-              >
-                <HistoryEduIcon />
-              </ListItemIcon>
-              <ListItemText primary={<Typography fontSize={15}>Criar repertório</Typography>} sx={{ opacity: open ? 1 : 0 }} />
-            </ListItemButton>
-          </Link>
-        </ListItem>
-        <Link href={"/lyric/manage-lyric"} passHref legacyBehavior>
-          <ListItem key="adicionar-cifras" style={{ textDecoration: "none", color: "inherit" }} disablePadding sx={{ display: 'block', backgroundColor: activeMenu == 4 ? "#e4f1ff" : "" }}>
-            <ListItemButton
-              sx={{
-                minHeight: 48,
-                justifyContent: open ? 'initial' : 'center',
-                px: 2.5,
-              }}
-            >
-              <ListItemIcon
-                sx={{
-                  minWidth: 0,
-                  mr: open ? 1.5 : 'auto',
-                  justifyContent: 'center',
-                }}
-              >
-                <PlaylistAddIcon />
-              </ListItemIcon>
-              <ListItemText primary={<Typography fontSize={15}>Adicionar Cifras</Typography>} sx={{ opacity: open ? 1 : 0 }} />
+
+              <ListItemText
+                primary={<Typography fontSize={15} color="inherit">{item.label}</Typography>}
+                sx={{ opacity: open ? 1 : 0 }}
+              />
             </ListItemButton>
           </ListItem>
-        </Link>
-      </List>
-    </>
-  )
-}
+        );
+      })}
+    </List>
+  );
+};
