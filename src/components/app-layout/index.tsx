@@ -21,6 +21,7 @@ import { SearchBarWithPopper } from './NavbarSearch';
 import algoliasearch from 'algoliasearch';
 import { InstantSearch } from 'react-instantsearch-hooks-web';
 import { SideBarComponent } from './sidebar/Sidebar';
+import { BrandWordmark } from './BrandWorkmark';
 
 export const Layout = ({ children, activeMenu }: any) => {
   const searchClient = algoliasearch('M91WDCEXS4', '0fa682d5b69e7040b462c96daecbb0fd');
@@ -77,11 +78,7 @@ export const Layout = ({ children, activeMenu }: any) => {
       </AppBar>
       <Drawer variant="permanent" open={open}>
         <DrawerHeader>
-          <Image
-            src={logo}
-            alt="Logo Easy Show"
-            height={40}
-          />
+          <BrandWordmark compact={!open} />
           <IconButton onClick={handleDrawerClose}>
             {theme.direction === 'rtl' ? <ChevronRightIcon /> : <ChevronLeftIcon />}
           </IconButton>

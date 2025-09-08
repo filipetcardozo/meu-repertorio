@@ -10,7 +10,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Snackbar from '@mui/material/Snackbar';
 import MuiAlert, { AlertProps } from '@mui/material/Alert';
 import Tooltip, { TooltipProps, tooltipClasses } from '@mui/material/Tooltip';
-import { styled } from '@mui/material/styles';
+import { styled, alpha } from '@mui/material/styles';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import Divider from '@mui/material/Divider'
 import IconButton from '@mui/material/IconButton';
@@ -18,7 +18,6 @@ import { useShowSheetMusic } from "../../hooks/useShowSheetMusic";
 import { SkeletonComponent } from "./Skeleton";
 import { LyricShowComponent } from "../lyric-show";
 import { useRouter } from "next/dist/client/router";
-import { useLyricShow } from "../../hooks/useLyricShow";
 import { lyricInSheetMusicType } from "../../types/sheetMusicType";
 
 const Alert = React.forwardRef<HTMLDivElement, AlertProps>(function Alert(
@@ -28,19 +27,20 @@ const Alert = React.forwardRef<HTMLDivElement, AlertProps>(function Alert(
   return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
 });
 
+// Tooltip que respeita o tema
 const LightTooltip = styled(({ className, ...props }: TooltipProps) => (
   <Tooltip {...props} classes={{ popper: className }} />
 ))(({ theme }) => ({
   [`& .${tooltipClasses.tooltip}`]: {
-    backgroundColor: theme.palette.common.white,
-    color: 'rgba(0, 0, 0, 0.87)',
+    backgroundColor: theme.palette.background.paper,
+    color: theme.palette.text.primary,
     boxShadow: theme.shadows[1],
     fontSize: 11,
   },
 }));
 
 export const SheetMusicShow = ({ sheetMusicId }: { sheetMusicId: string }) => {
-  const router = useRouter()
+  const router = useRouter();
   const {
     activeStep,
     completed,
@@ -61,8 +61,7 @@ export const SheetMusicShow = ({ sheetMusicId }: { sheetMusicId: string }) => {
     offsetsUpdateds,
     offsetIsUpdating,
     handleCloseUpdatedSuccess,
-    setSheetMusicToShow
-  } = useShowSheetMusic({ sheetMusicId })
+  } = useShowSheetMusic({ sheetMusicId });
 
   const stepRefs = useRef<React.RefObject<HTMLDivElement>[]>([]);
 
@@ -75,59 +74,64 @@ export const SheetMusicShow = ({ sheetMusicId }: { sheetMusicId: string }) => {
   useLayoutEffect(() => {
     if (activeStep < stepRefs.current.length && stepRefs.current[activeStep].current) {
       const stepElement = stepRefs.current[activeStep].current;
-      if (stepElement) {
-        stepElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      };
+      stepElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   }, [activeStep]);
 
   const RenderStepper = (value: lyricInSheetMusicType, index: number) => {
-    let isStepperActive = activeStep === index;
+    const isStepperActive = activeStep === index;
     return (
       <Step key={value.lyricId} completed={completed[index]} ref={stepRefs.current[index]}>
         <StepButton
           onClick={() => handleStep(index)}
-          sx={{
+          sx={(theme) => ({
             fontSize: "2px",
             position: "relative",
+            // cores de estado do StepLabel
             '& .MuiStepLabel-root .Mui-completed': {
-              color: "#5999d9",
+              color: theme.palette.primary.light,
             },
             '& .MuiStepLabel-root .Mui-active': {
-              color: "#0055a9",
+              color: theme.palette.primary.main,
             },
-          }}
+          })}
         >
-          <Typography variant="h6" fontWeight="bold" fontSize={isStepperActive ? 14 : 12} color={isStepperActive ? "primary" : "inherit"}>
+          <Typography
+            variant="h6"
+            fontWeight="bold"
+            fontSize={isStepperActive ? 14 : 12}
+            color={isStepperActive ? 'primary' : 'text.primary'}
+          >
             {value.lyricName}
           </Typography>
-          <Typography fontSize={10} sx={{ color: "#00000054" }}>{value.composerName}</Typography>
+
+          <Typography fontSize={10} sx={(theme) => ({ color: theme.palette.text.secondary })}>
+            {value.composerName}
+          </Typography>
+
           <Box position="absolute" display="flex">
-            <Rating sx={{ fontSize: 12 }} name="size-small" size="small"
-              value={
-                displacementStart && activeStep == index ? startValueInLoading : value.stars
-              }
-              onChange={(event, newValue) => {
-                updateStars(newValue)
-              }}
+            <Rating
+              sx={{ fontSize: 12 }}
+              name="size-small"
+              size="small"
+              value={displacementStart && activeStep === index ? startValueInLoading : value.stars}
+              onChange={(_, newValue) => { updateStars(newValue); }}
               readOnly={updatingStarsLoading || displacementStart}
             />
-            {
-              updatingStarsLoading && activeStep == index ? <Box position="relative">
+            {updatingStarsLoading && activeStep === index ? (
+              <Box position="relative">
                 <CircularProgress
                   size={9}
-                  sx={{
-                    color: "primary",
-                    position: "absolute", left: 5, top: 1.5
-                  }}
+                  color="primary" // use a prop, não sx.color
+                  sx={{ position: "absolute", left: 5, top: 1.5 }}
                 />
-              </Box> : ""
-            }
+              </Box>
+            ) : null}
           </Box>
         </StepButton>
       </Step>
-    )
-  }
+    );
+  };
 
   useEffect(() => {
     window.addEventListener('keydown', downHandler);
@@ -137,87 +141,111 @@ export const SheetMusicShow = ({ sheetMusicId }: { sheetMusicId: string }) => {
   });
 
   const RenderLyric = () => {
-    if (!lyricToShow || !sheetMusicToShow) return <></>;
+    if (!lyricToShow || !sheetMusicToShow) return null;
 
-    return <LyricShowComponent
-      changeOffSet={changeOffSet}
-      handleNext={handleNext}
-      lyricToShow={lyricToShow}
-      nextLyricToShow={sheetMusicToShow.lyrics[activeStep + 1]}
-      offsetsUpdateds={offsetsUpdateds[activeStep]}
-      updateOffset={updateOffset}
-      offsetIsUpdating={offsetIsUpdating}
-      offsetLyricToShow={lyricToShow.offset!}
-      isOneLyric={false}
-    />
+    return (
+      <LyricShowComponent
+        changeOffSet={changeOffSet}
+        handleNext={handleNext}
+        lyricToShow={lyricToShow}
+        nextLyricToShow={sheetMusicToShow.lyrics[activeStep + 1]}
+        offsetsUpdateds={offsetsUpdateds[activeStep]}
+        updateOffset={updateOffset}
+        offsetIsUpdating={offsetIsUpdating}
+        offsetLyricToShow={lyricToShow.offset!}
+        isOneLyric={false}
+      />
+    );
+  };
 
-  }
+  const heightScreen = typeof window !== 'undefined' ? window.innerHeight - 160 : 600;
 
-  let heightScreen = window.innerHeight - 160
-
-  // Temporary skeleton
-  if (!readyToRender) {
-    return <SkeletonComponent />
-  }
-
-
-  if (!lyricToShow || !sheetMusicToShow) return <></>;
+  if (!readyToRender) return <SkeletonComponent />;
+  if (!lyricToShow || !sheetMusicToShow) return null;
 
   return (
     <>
       <Box display="flex">
+        {/* Coluna esquerda (lista/stepper) */}
         <Box sx={{ minWidth: 200, maxWidth: 250, ml: 2, mt: 1, mr: 2 }}>
-          <Box display="flex" alignItems="center" >
-            <Typography variant="h5" fontSize={15} color="#252849" fontWeight="bold">{sheetMusicToShow.sheetMusicName}</Typography>
+          <Box display="flex" alignItems="center">
+            <Typography
+              variant="h5"
+              fontSize={15}
+              fontWeight="bold"
+              color="text.primary"
+            >
+              {sheetMusicToShow.sheetMusicName}
+            </Typography>
+
             <IconButton
-              onClick={() => {
-                router.push(`/sheet-music/manage-sheet-music/${sheetMusicId}`)
-              }}
+              onClick={() => { router.push(`/sheet-music/manage-sheet-music/${sheetMusicId}`); }}
               size="small"
+              color="inherit"
             >
               <LightTooltip title="Alterar repertório" placement="top">
-                <OpenInNewIcon style={{ fontSize: 13, color: "#252849" }} />
+                <OpenInNewIcon sx={{ fontSize: 13 }} />
               </LightTooltip>
             </IconButton>
           </Box>
-          <Typography variant="h6" fontSize={12} color="#00000054">{sheetMusicToShow.description}</Typography>
-          <Divider sx={{ width: "90%", pt: 0.3, mb: 1, borderColor: "#bdbdbdb0" }} />
-          <Box sx={{
-            height: heightScreen, overflowY: "auto", overflowX: "hidden",
-            '&::-webkit-scrollbar': {
-              width: '4px' // Largura da barra de rolagem
-            },
-            '&::-webkit-scrollbar-track': {
-              background: '#f1f1f1' // Cor de fundo da track da barra de rolagem
-            },
-            '&::-webkit-scrollbar-thumb': {
-              background: '#888', // Cor da barra de rolagem
-              borderRadius: '2px', // Raio da borda da barra de rolagem
-            },
-            '&::-webkit-scrollbar-thumb:hover': {
-              background: '#555', // Cor da barra de rolagem ao passar o mouse
-            },
-          }}>
-            <Stepper nonLinear activeStep={activeStep} orientation="vertical" sx={{ maxHeight: heightScreen }} >
-              {
-                !(sheetMusicToShow.lyrics.length > 0) ? "" :
-                  sheetMusicToShow.lyrics.map((value: any, index: number) => (
-                    RenderStepper(value, index)
-                  ))
-              }
+
+          <Typography variant="h6" fontSize={12} color="text.secondary">
+            {sheetMusicToShow.description}
+          </Typography>
+
+          <Divider sx={{ width: "90%", pt: 0.3, mb: 1 }} />
+
+          <Box
+            sx={(theme) => ({
+              height: heightScreen,
+              overflowY: "auto",
+              overflowX: "hidden",
+              // Scrollbar theme-aware
+              '&::-webkit-scrollbar': { width: 4 },
+              '&::-webkit-scrollbar-track': {
+                background: theme.palette.mode === 'dark'
+                  ? alpha(theme.palette.common.white, 0.06)
+                  : alpha(theme.palette.common.black, 0.06),
+              },
+              '&::-webkit-scrollbar-thumb': {
+                background: theme.palette.mode === 'dark'
+                  ? alpha(theme.palette.common.white, 0.28)
+                  : alpha(theme.palette.common.black, 0.28),
+                borderRadius: 2,
+              },
+              '&::-webkit-scrollbar-thumb:hover': {
+                background: theme.palette.mode === 'dark'
+                  ? alpha(theme.palette.common.white, 0.4)
+                  : alpha(theme.palette.common.black, 0.4),
+              },
+            })}
+          >
+            <Stepper nonLinear activeStep={activeStep} orientation="vertical" sx={{ maxHeight: heightScreen }}>
+              {sheetMusicToShow.lyrics.length > 0 &&
+                sheetMusicToShow.lyrics.map((value: any, index: number) => RenderStepper(value, index))}
             </Stepper>
           </Box>
         </Box>
 
+        {/* Coluna direita (conteúdo) */}
         <Box
-          sx={{
-            backgroundColor: "#1976d212", borderRadius: 1.4, boxShadow: 2, px: 2, pt: 2, pb: 0,
-            maxHeight: heightScreen + 60, overflowY: "auto", overflowX: "hidden"
-          }}
+          sx={(theme) => ({
+            backgroundColor: alpha(theme.palette.primary.main, 0.08), // era #1976d212
+            borderRadius: 1.4,
+            boxShadow: 2,
+            px: 2,
+            pt: 2,
+            pb: 0,
+            maxHeight: heightScreen + 60,
+            overflowY: "auto",
+            overflowX: "hidden",
+          })}
         >
           <RenderLyric />
         </Box>
       </Box>
+
+      {/* Snackbars usam a paleta do tema automaticamente via severity */}
       <Snackbar open={openUpdatedSuccess} autoHideDuration={6000} onClose={handleCloseUpdatedSuccess}>
         <Alert onClose={handleCloseUpdatedSuccess} severity="success" sx={{ width: '100%' }}>
           Tom atualizado!
@@ -230,5 +258,5 @@ export const SheetMusicShow = ({ sheetMusicId }: { sheetMusicId: string }) => {
         </Alert>
       </Snackbar>
     </>
-  )
-}
+  );
+};
