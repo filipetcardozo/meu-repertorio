@@ -27,13 +27,40 @@ function transposeNote(n: string, offset: number): string {
   return SCALE_ARR[k];
 }
 
-// Transpõe um "token" de acorde, ex.: "C#m7/G#", "Am", "G/B", "F7", "Bbmaj7"
 function transposeChordToken(token: string, offset: number): string {
-  // raiz, sufixo (qualificadores), opcional baixo após '/'
-  const m = token.match(/^([A-G](?:#|b)?)([^/]*)(?:\/([A-G](?:#|b)?))?$/);
-  if (!m) return token;
+  // 1) Captura a raiz (B, C#, Eb, etc.)
+  const mRoot = token.match(/^([A-G](?:#|b)?)/);
+  if (!mRoot) return token;
 
-  const [, root, suffix, bass] = m;
+  const root = mRoot[1];
+  const rest = token.slice(root.length);
+
+  // 2) Procura um "/" fora de parênteses
+  let depth = 0;
+  let slashIdx = -1;
+  for (let i = 0; i < rest.length; i++) {
+    const ch = rest[i];
+    if (ch === '(') depth++;
+    else if (ch === ')') depth = Math.max(0, depth - 1);
+    else if (ch === '/' && depth === 0) { slashIdx = i; break; }
+  }
+
+  let suffix = rest;
+  let bass: string | undefined;
+
+  if (slashIdx >= 0) {
+    const after = rest.slice(slashIdx + 1);           // o que vem depois do "/"
+    const bassMatch = after.match(/^([A-G](?:#|b)?)(.*)?$/);
+    if (bassMatch) {
+      bass = bassMatch[1];                             // baixo válido (ex.: G#)
+      suffix = rest.slice(0, slashIdx) + (bassMatch[2] ?? '');
+    } else {
+      // "/" não seguido de nota (ex.: 7(4/9)): trata como parte do sufixo
+      bass = undefined;
+      suffix = rest;
+    }
+  }
+
   const rootN = transposeNote(normalizeNote(root), offset);
   if (bass) {
     const bassN = transposeNote(normalizeNote(bass), offset);
