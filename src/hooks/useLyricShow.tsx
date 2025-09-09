@@ -82,7 +82,8 @@ export const useLyricShow = ({
 
       if (offsetLyricToShow !== 0) {
         for (let i = 0; i < arrayOfNotes.length; i++) {
-          arrayOfNotes[i].innerHTML = processNotes(arrayOfNotes[i].textContent, offsetLyricToShow);
+          arrayOfNotes[i].innerHTML =
+            processNotes(arrayOfNotes[i].textContent ?? '', offsetLyricToShow);
         }
       }
 
@@ -97,7 +98,8 @@ export const useLyricShow = ({
 
         if (nextLyricToShow.offset !== 0) {
           for (let i = 0; i < arrayOfNotesSecondary.length; i++) {
-            arrayOfNotesSecondary[i].innerHTML = processNotes(arrayOfNotesSecondary[i].textContent, nextLyricToShow.offset);
+            arrayOfNotesSecondary[i].innerHTML =
+              processNotes(arrayOfNotesSecondary[i].textContent ?? '', nextLyricToShow.offset);
           }
         }
 
