@@ -175,26 +175,34 @@ export const useShowSheetMusic = ({ sheetMusicId }: { sheetMusicId: string }) =>
   async function changeOffSet(increaseOrDecrease: boolean) {
     if (!sheetMusicToShow) return;
 
-    let value = 0
-    increaseOrDecrease ? value = 1 : value = -1
+    // garante que a posição existe
+    const currentLyric = sheetMusicToShow.lyrics?.[activeStep];
+    if (!currentLyric) return;
 
-    let newOffset = sheetMusicToShow.lyrics[activeStep].offset += value
-    if (newOffset > 11 || newOffset < -11) {
-      newOffset = 0
-    }
+    const value = increaseOrDecrease ? 1 : -1;
 
-    sheetMusicToShow.lyrics[activeStep].offset = newOffset
-    setSheetMusicToShow({ ...sheetMusicToShow })
+    // calcula sem usar "+=" no encadeado
+    let newOffset = (currentLyric.offset ?? 0) + value;
+    if (newOffset > 11 || newOffset < -11) newOffset = 0;
 
-    // For the updated offset
-    offsetsUpdateds[activeStep].offsetNow = newOffset
-    if (offsetsUpdateds[activeStep].offsetBefore != newOffset) {
-      offsetsUpdateds[activeStep].offsetChanged = true
-    } else {
-      offsetsUpdateds[activeStep].offsetChanged = false
-    }
-    setOffsetsUpdateds([...offsetsUpdateds])
+    // atualiza o estado (pode manter mutação, mas prefiro imutável)
+    const newLyrics = [...sheetMusicToShow.lyrics];
+    newLyrics[activeStep] = { ...currentLyric, offset: newOffset };
+    setSheetMusicToShow({ ...sheetMusicToShow, lyrics: newLyrics });
+
+    // offsetsUpdateds também pode não ter esse índice ainda
+    const currFlags = offsetsUpdateds?.[activeStep];
+    if (!currFlags) return;
+
+    const updatedFlags = [...offsetsUpdateds];
+    updatedFlags[activeStep] = {
+      ...currFlags,
+      offsetNow: newOffset,
+      offsetChanged: currFlags.offsetBefore !== newOffset,
+    };
+    setOffsetsUpdateds(updatedFlags);
   }
+
 
   async function updateOffset() {
     if (!userLyricsRegistered || !sheetMusicToShow) return;
