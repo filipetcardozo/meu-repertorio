@@ -17,7 +17,7 @@ export type lyricInSheetMusicType = {
     lyricName: string;
     lyricStyle: string;
     originalTone: string;
-    offset: number;
+    offset?: number;
     stars?: number;
     id?: string;
 }

@@ -1,44 +1,99 @@
+import * as React from 'react';
 import Grid from '@mui/material/Grid';
-import ListItem from '@mui/material/ListItem';
+import ListItemButton from '@mui/material/ListItemButton';
 import ListItemText from '@mui/material/ListItemText';
 import ListItemAvatar from '@mui/material/ListItemAvatar';
 import Avatar from '@mui/material/Avatar';
-import { useRouter } from 'next/router'
+import { alpha } from '@mui/material/styles';
+import { useRouter } from 'next/router';
 
-export const CustomHitsNavbarSearch = ({ hits, closePopper }: any) => {
-  const router = useRouter()
+type Hit = {
+  objectID: string;
+  lyricName: string;
+  composerName: string;
+};
 
-  return <>
-    {
-      hits.length > 0 ? hits.map((value: any, index: number) => {
-        return <Grid item key={index} sx={{ p: 0.5 }} xs={6}
-        >
-          <ListItem
+type Props = {
+  hits?: Hit[];
+  closePopper?: () => void;
+};
+
+export const CustomHitsNavbarSearch: React.FC<Props> = ({ hits = [], closePopper }) => {
+  const router = useRouter();
+  if (!hits.length) return null;
+
+  return (
+    <>
+      {hits.map((value, index) => (
+        <Grid item key={value.objectID ?? index} sx={{ p: 0.5 }} xs={12} sm={6}>
+          <ListItemButton
             onClick={() => {
-              closePopper();
-              router.push(`/lyric/lyric-show/${value.objectID}`, undefined, { shallow: true })
+              closePopper?.();
+              router.push(`/lyric/lyric-show/${value.objectID}`, undefined, { shallow: true });
             }}
-            key={index}
-            sx={{
-              padding: 0.5, backgroundColor: "#dff0ff", borderRadius: 2,
+            sx={(theme) => ({
+              p: 1.5,
+              borderRadius: 2,
+              alignItems: 'flex-start',
+              backgroundColor: alpha(
+                theme.palette.primary.main,
+                theme.palette.mode === 'dark' ? 0.12 : 0.08
+              ),
+              border: `1px solid ${alpha(
+                theme.palette.primary.main,
+                theme.palette.mode === 'dark' ? 0.24 : 0.16
+              )}`,
+              transition: theme.transitions.create(
+                ['background-color', 'box-shadow', 'transform'],
+                { duration: theme.transitions.duration.shortest }
+              ),
               '&:hover': {
-                cursor: "pointer",
-                backgroundColor: "#d5ebff"
+                backgroundColor: alpha(
+                  theme.palette.primary.main,
+                  theme.palette.mode === 'dark' ? 0.2 : 0.14
+                ),
+                boxShadow: theme.shadows[2],
               },
-            }}
+            })}
           >
             <ListItemAvatar>
-              <Avatar>
+              <Avatar
+                sx={(theme) => ({
+                  bgcolor: alpha(
+                    theme.palette.primary.main,
+                    theme.palette.mode === 'dark' ? 0.3 : 0.18
+                  ),
+                  color: theme.palette.primary.contrastText,
+                  fontWeight: 600,
+                  width: 28,
+                  height: 28,
+                  fontSize: 13,
+                  mt: 0.25,
+                })}
+              >
                 {index + 1}
               </Avatar>
             </ListItemAvatar>
+
             <ListItemText
               primary={value.lyricName}
               secondary={value.composerName}
+              primaryTypographyProps={{
+                variant: 'subtitle2',
+                color: 'text.primary',
+                fontWeight: 600,
+                lineHeight: 1.2,
+              }}
+              secondaryTypographyProps={{
+                variant: 'body2',
+                color: 'text.secondary',
+                noWrap: true,
+              }}
+              sx={{ my: 0 }}
             />
-          </ListItem>
+          </ListItemButton>
         </Grid>
-      }) : <></>
-    }
-  </>
-}
+      ))}
+    </>
+  );
+};
