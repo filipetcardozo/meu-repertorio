@@ -14,7 +14,7 @@ type Hit = {
 };
 
 type Props = {
-  hits?: Hit[];
+  hits?: any[];
   closePopper?: () => void;
 };
 
