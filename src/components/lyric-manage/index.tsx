@@ -150,8 +150,28 @@ export const LyricManage = ({ idLyric }: { idLyric: string | undefined }) => {
             />
           </Grid>
           <Grid item xs={12}>
-            <TextField id='filled-basic' label='Cifra' variant='filled' name='lyric' multiline fullWidth minRows={12}
-              value={musicToAdd.lyric} onChange={handleAddMusic('lyric')}
+            <TextField
+              id='filled-basic'
+              label='Cifra'
+              variant='filled'
+              name='lyric'
+              multiline
+              fullWidth
+              minRows={12}
+              value={musicToAdd.lyric}
+              onChange={handleAddMusic('lyric')}
+              spellCheck={false}
+              sx={{
+                '& .MuiInputBase-input, & .MuiInputBase-inputMultiline': {
+                  fontFamily:
+                    'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                  fontVariantLigatures: 'none',
+                  whiteSpace: 'pre',
+                  letterSpacing: 0,
+                  tabSize: 2,
+                  lineHeight: 1.2,
+                },
+              }}
             />
           </Grid>
         </Grid>
