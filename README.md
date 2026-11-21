@@ -11,6 +11,22 @@ Use the package manager [yarn](https://classic.yarnpkg.com/lang/en/docs/) to ins
 yarn install
 ```
 
+## Running locally
+
+1. Copy the example env file and fill in your Firebase web app config (Firebase Console > Project settings > General > Your apps):
+
+```bash
+cp .env.example .env.local
+```
+
+2. Start the dev server:
+
+```bash
+yarn dev
+```
+
+The app runs at [http://localhost:3000](http://localhost:3000).
+
 ## Contributing
 
 Pull requests are welcome. For major changes, please open an issue first

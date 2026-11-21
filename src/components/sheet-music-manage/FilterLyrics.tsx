@@ -5,7 +5,6 @@ import List from '@mui/material/List';
 import ListItemAvatar from '@mui/material/ListItemAvatar';
 import ListItemText from '@mui/material/ListItemText';
 import ListItemButton from '@mui/material/ListItemButton';
-import Avatar from '@mui/material/Avatar';
 import PlaylistAddCheckIcon from '@mui/icons-material/PlaylistAddCheck';
 import CircularProgress from '@mui/material/CircularProgress';
 import TextField from '@mui/material/TextField';
@@ -13,11 +12,11 @@ import Box from '@mui/material/Box';
 import { alpha } from '@mui/material/styles';
 
 // Algolia
-import algoliasearch from 'algoliasearch/lite';
-import { InstantSearch, useHits, useSearchBox } from 'react-instantsearch-hooks-web';
+import { InstantSearch, useHits, useSearchBox } from 'react-instantsearch';
+import { searchClient, ALGOLIA_LYRICS_INDEX } from '../../lib/algolia';
 import type { lyricInSheetMusicType } from '../../types/sheetMusicType';
 
-const searchClient = algoliasearch('M91WDCEXS4', '0fa682d5b69e7040b462c96daecbb0fd');
+import { ArtistAvatar } from '../ArtistAvatar';
 
 type Props = {
   handlePushMusicToSheets: (v: lyricInSheetMusicType, index: number) => void;
@@ -36,12 +35,13 @@ export const FilterLyrics: React.FC<Props> = ({ handlePushMusicToSheets, lyricsT
           const isSelected = lyricsToAdd.some((v) => v.lyricId === value.objectID);
 
           return (
-            <Grid key={value.objectID ?? index} item xl={3} lg={4} xs={12} sm={6} sx={{ p: 0.5 }}>
+            <Grid size={{ xl: 3, lg: 4, xs: 12, sm: 6 }} key={value.objectID ?? index} sx={{ p: 0.5 }}>
               <ListItemButton
                 onClick={() => {
                   const newValue: lyricInSheetMusicType = {
                     composerId: value.composerId,
                     composerName: value.composerName,
+                    composerImage: value.composerImage,
                     lyricId: value.objectID,
                     lyricName: value.lyricName,
                     lyricStyle: value.lyricStyle,
@@ -79,37 +79,26 @@ export const FilterLyrics: React.FC<Props> = ({ handlePushMusicToSheets, lyricsT
                 })}
               >
                 <ListItemAvatar>
-                  <Avatar
-                    sx={(theme) => ({
-                      bgcolor: alpha(
-                        theme.palette.primary.main,
-                        theme.palette.mode === 'dark' ? 0.30 : 0.18
-                      ),
-                      color: theme.palette.primary.contrastText,
-                      fontWeight: 600,
-                      width: 32,
-                      height: 32,
-                      fontSize: 14,
-                    })}
-                  >
-                    {index + 1}
-                  </Avatar>
+                  <ArtistAvatar
+                    composerId={value.composerId}
+                    image={value.composerImage}
+                    name={value.composerName}
+                    size={32}
+                  />
                 </ListItemAvatar>
 
                 <ListItemText
                   primary={value.lyricName}
                   secondary={value.composerName}
-                  primaryTypographyProps={{
+                  slotProps={{ primary: {
                     variant: 'subtitle1',
                     color: 'text.primary',
-                    fontWeight: 600,
-                    lineHeight: 1.2,
-                  }}
-                  secondaryTypographyProps={{
+                    sx: { fontWeight: 600, lineHeight: 1.2 },
+                  }, secondary: {
                     variant: 'body2',
                     color: 'text.secondary',
                     noWrap: true,
-                  }}
+                  } }}
                   sx={{ mr: 5 }}
                 />
 
@@ -141,7 +130,7 @@ export const FilterLyrics: React.FC<Props> = ({ handlePushMusicToSheets, lyricsT
     }, [valueToSearch]);
 
     return (
-      <Grid item xs={12} mt={2}>
+      <Grid sx={{ mt: 2 }} size={12}>
         <TextField
           fullWidth
           size="small"
@@ -152,9 +141,9 @@ export const FilterLyrics: React.FC<Props> = ({ handlePushMusicToSheets, lyricsT
             setValueToSearch(e.target.value);
             setUpdatingSearch(true);
           }}
-          InputProps={{
+          slotProps={{ input: {
             endAdornment: updatingSearch ? <CircularProgress size={18} sx={{ mr: 0.5 }} /> : null,
-          }}
+          } }}
         />
       </Grid>
     );
@@ -163,7 +152,7 @@ export const FilterLyrics: React.FC<Props> = ({ handlePushMusicToSheets, lyricsT
   return (
     <List dense sx={{ p: 0 }}>
       <Grid container spacing={1}>
-        <InstantSearch searchClient={searchClient} indexName="lyrics">
+        <InstantSearch searchClient={searchClient} indexName={ALGOLIA_LYRICS_INDEX}>
           <CustomSearchBox />
           <CustomHits />
         </InstantSearch>

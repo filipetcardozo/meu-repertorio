@@ -69,7 +69,7 @@ export const CreateAccount = () => {
         >
             <Box
                 sx={{
-                    backgroundColor: "#f5faffde",
+                    backgroundColor: "background.paper",
                     width: "90%",
                     maxWidth: 600,
                     py: 6,
@@ -79,7 +79,7 @@ export const CreateAccount = () => {
                 }}
             >
                 <Box sx={{ textAlign: "center", displey: "flex", justifyContent: "center" }}>
-                    <Typography component="h1" variant="h5" color="#127be3">
+                    <Typography sx={{ color: 'primary.main' }} component="h1" variant="h5">
                         Meu Repertório
                     </Typography>
                 </Box>

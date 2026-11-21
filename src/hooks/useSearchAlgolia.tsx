@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
-import { useHits } from 'react-instantsearch-hooks-web';
-import { useSearchBox } from 'react-instantsearch-hooks-web';
+import { useHits } from 'react-instantsearch';
+import { useSearchBox } from 'react-instantsearch';
 
 export const useSearchAlgolia = () => {
   const [valueToSearch, setValueToSearch] = useState("")

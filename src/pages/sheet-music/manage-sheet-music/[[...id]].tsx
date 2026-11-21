@@ -19,7 +19,7 @@ const ManageSheetMusic = () => {
         <title>Alterar repertório - Meu Repertório</title>
         <meta name="viewport" content="initial-scale=1.0, width=device-width" />
       </Head>
-      <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
         <CircularProgress />
       </Box>
     </ Layout>

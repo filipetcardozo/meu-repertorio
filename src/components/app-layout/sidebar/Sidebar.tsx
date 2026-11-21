@@ -59,7 +59,7 @@ export const SideBarComponent: React.FC<SideBarProps> = ({ open, activeMenu }) =
               </ListItemIcon>
 
               <ListItemText
-                primary={<Typography fontSize={15} color="inherit">{item.label}</Typography>}
+                primary={<Typography sx={{ fontSize: 15, color: 'inherit' }}>{item.label}</Typography>}
                 sx={{ opacity: open ? 1 : 0 }}
               />
             </ListItemButton>

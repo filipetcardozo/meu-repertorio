@@ -16,7 +16,7 @@ const AllSheetMusic = () => {
         <title>Repertórios cadastrados - Meu Repertório</title>
         <meta name="viewport" content="initial-scale=1.0, width=device-width" />
       </Head>
-      <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
         <CircularProgress />
       </Box>
     </ Layout>
@@ -27,7 +27,7 @@ const AllSheetMusic = () => {
       <title>Repertórios cadastrados - Meu Repertório</title>
       <meta name="viewport" content="initial-scale=1.0, width=device-width" />
     </Head>
-    <Container sx={{ pt: 3}}>
+    <Container sx={{ pt: { xs: 2, sm: 3 }, pb: 3, px: { xs: 1.5, sm: 3 } }}>
       <SheetsMusicsCards />
     </Container>
   </Layout>

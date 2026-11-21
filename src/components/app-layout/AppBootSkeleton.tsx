@@ -26,7 +26,7 @@ export const AppBootSkeleton: React.FC<Props> = ({
           width: drawerWidth,
           flexShrink: 0,
           borderRight: `1px solid ${theme.palette.divider}`,
-          display: 'flex',
+          display: { xs: 'none', md: 'flex' },
           flexDirection: 'column',
           gap: 1.5,
         }}
@@ -68,7 +68,7 @@ export const AppBootSkeleton: React.FC<Props> = ({
         </Box>
       </Box>
 
-      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+      <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
         <Box
           sx={{
             height: appBarHeight,
@@ -81,13 +81,13 @@ export const AppBootSkeleton: React.FC<Props> = ({
         >
           <Skeleton variant="circular" width={36} height={36} />
 
-          <Skeleton variant="rounded" width={320} height={36} />
+          <Skeleton variant="rounded" height={36} sx={{ width: { xs: 'auto', md: 320 }, flex: { xs: 1, md: 'none' } }} />
 
-          <Skeleton variant="rounded" width={90} height={28} />
+          <Skeleton variant="rounded" width={90} height={28} sx={{ display: { xs: 'none', md: 'block' } }} />
 
-          <Box sx={{ flex: 1 }} />
+          <Box sx={{ flex: 1, display: { xs: 'none', md: 'block' } }} />
 
-          <Skeleton variant="rounded" width={130} height={36} />
+          <Skeleton variant="rounded" width={130} height={36} sx={{ display: { xs: 'none', md: 'block' } }} />
           <Skeleton variant="circular" width={36} height={36} />
         </Box>
 

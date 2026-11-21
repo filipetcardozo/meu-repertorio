@@ -118,8 +118,8 @@ export const CreateAccountUserInfos = () => {
 
     return <>
         <form onSubmit={form.handleSubmit}>
-            <Grid rowGap={4} container columnSpacing={2} sx={{ mt: 1 }}>
-                <Grid item xs={12}>
+            <Grid container columnSpacing={2} sx={{ rowGap: 4, mt: 1 }}>
+                <Grid size={12}>
                     <Autocomplete
                         multiple
                         id="musicStyles"
@@ -135,7 +135,7 @@ export const CreateAccountUserInfos = () => {
                         )}
                     />
                 </Grid>
-                <Grid item xs={12}>
+                <Grid size={12}>
                     <FormControl fullWidth size="small">
                         <InputLabel id="hobbyOrProfessionally">
                             Você toca Profissionalmente ou por Hobby?
@@ -154,7 +154,7 @@ export const CreateAccountUserInfos = () => {
                         </Select>
                     </FormControl>
                 </Grid>
-                <Grid item xs={12}>
+                <Grid size={12}>
                     <FormControl fullWidth size="small">
                         <InputLabel id="needVisualizeLyrics">
                             Qual a sua necessidade de visualizar as cifras de uma música para tocar?

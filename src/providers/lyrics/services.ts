@@ -1,4 +1,4 @@
-import { collection, getDocs, getDoc, addDoc, doc, limit, startAfter, orderBy, updateDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
+import { collection, getDocs, getDoc, addDoc, doc, limit, startAfter, orderBy, updateDoc, deleteDoc, deleteField, serverTimestamp, writeBatch } from "firebase/firestore";
 import { query, where } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { firebaseApp, database } from "../../../firebaseConfig";
@@ -8,6 +8,16 @@ import { getAllRegisteredLyricsType, getRegisteredLyricType, registeredLyricType
 import { composerType, getAllComposersType, getComposerType } from "../../types/composerType";
 
 // Types
+
+/** O Firestore recusa campos `undefined`: remove antes de gravar. */
+function withoutUndefined<T extends Record<string, any>>(obj: T): Partial<T> {
+    return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined)) as Partial<T>
+}
+
+const LYRIC_META_FIELDS = [
+    'composerImage', 'coverImage', 'songwriters', 'capo', 'tuning', 'bpm',
+    'beatsPerBar', 'strummings', 'youtubeId', 'sourceUrl',
+] as const
 
 // Get specific lyric
 export const getLyric: getLyricType = async (idLyric) => {
@@ -150,13 +160,10 @@ export const getAllSheetsMusics: getAllSheetsMusicsType = async (uid) => {
 
 export async function updateUserRegisteredLyricOffset(registeredId: any, newOffset: any) {
     const docRef = doc(database, "userLyricsRegistered", registeredId);
+    // Sem catch aqui: quem chama precisa saber se falhou (para não mostrar "salvo")
     await updateDoc(docRef, {
         offset: newOffset
     })
-        .then(() => {
-            console.log('REGISTERED LYRIC OFFSET UPDATED')
-        })
-        .catch((error) => console.log('Error in update registereds lyrics: ' + error))
 }
 
 export async function updateUserRegisteredLyricStars(registeredId: any, newStars: any) {
@@ -217,13 +224,17 @@ export async function updateUserSheetMusic(sheetMusicId: any, newSheetMusic: any
 // Update specific Lyric
 export async function updateLyric(lyricId: any, newLyric: lyricType) {
     const docRef = doc(database, "lyrics", lyricId);
-    await updateDoc(docRef, {
+    // Metadado apagado no formulário (undefined) é removido do documento
+    const meta = Object.fromEntries(LYRIC_META_FIELDS.map((k) => [k, newLyric[k] === undefined ? deleteField() : newLyric[k]]))
+    await updateDoc(docRef, withoutUndefined({
         composerName: newLyric.composerName,
         composerId: newLyric.composerId,
         lyric: newLyric.lyric,
         lyricName: newLyric.lyricName,
-        originalTone: newLyric.originalTone
-    })
+        originalTone: newLyric.originalTone,
+        lyricStyle: newLyric.lyricStyle,
+        ...meta,
+    }))
         .then(() => {
             console.log('SUCCESSFULLY UPDATED LYRIC')
             return true;
@@ -255,7 +266,8 @@ export async function deleteSheetMusic(sheetMusicId: string) {
 // Put a lyric
 export async function putLyric(lyricToAdd: lyricType) {
     try {
-        const docRef = await addDoc(collection(database, "lyrics"), lyricToAdd);
+        const { id: _id, ...data } = lyricToAdd
+        const docRef = await addDoc(collection(database, "lyrics"), withoutUndefined(data));
         console.log("LYRIC written with ID: ", docRef.id);
         return docRef.id;
     } catch (e) {
@@ -267,11 +279,74 @@ export async function putLyric(lyricToAdd: lyricType) {
 // Put a Composer
 export async function putComposer(composerToAdd: composerType) {
     try {
-        const docRef = await addDoc(collection(database, "composers"), composerToAdd);
+        const { id: _id, ...data } = composerToAdd
+        const docRef = await addDoc(collection(database, "composers"), withoutUndefined(data));
         console.log("COMPOSER written with ID: ", docRef.id);
         return docRef.id;
     } catch (e) {
         console.error("Error adding COMPOSER: ", e);
         return false;
+    }
+}
+
+// Update a Composer (ex.: completar foto/slug vindos do Cifra Club)
+export async function updateComposer(composerId: string, data: Partial<composerType>) {
+    try {
+        const { id: _id, ...rest } = data
+        await updateDoc(doc(database, "composers", composerId), withoutUndefined(rest))
+        return true
+    } catch (e) {
+        console.error("Error updating COMPOSER: ", e)
+        return false
+    }
+}
+
+/**
+ * Atualiza o artista e replica nome/foto em todas as músicas dele
+ * (as músicas guardam uma cópia desses campos para as listas e a busca).
+ */
+export async function updateComposerEverywhere(composerId: string, data: Partial<composerType>) {
+    const ok = await updateComposer(composerId, data)
+    if (!ok) return false
+
+    const lyricPatch = withoutUndefined({ composerName: data.composerName, composerImage: data.image })
+    if (!Object.keys(lyricPatch).length) return true
+
+    try {
+        // As regras só permitem listar músicas de 20 em 20: vai página por página
+        const PAGE = 20
+        let last: any = null
+        for (;;) {
+            const base = query(collection(database, "lyrics"), where("composerId", "==", composerId), limit(PAGE))
+            const snap = await getDocs(last ? query(base, startAfter(last)) : base)
+            if (snap.empty) break
+            const batch = writeBatch(database)
+            snap.docs.forEach((d) => batch.update(d.ref, lyricPatch))
+            await batch.commit()
+            if (snap.docs.length < PAGE) break
+            last = snap.docs[snap.docs.length - 1]
+        }
+    } catch (e) {
+        console.error("Error updating composer's LYRICS: ", e)
+    }
+    return true
+}
+
+// Músicas já cadastradas com o mesmo nome (para avisar duplicidade antes de importar)
+export async function findLyricsByName(lyricName: string): Promise<lyricType[]> {
+    const name = lyricName.trim()
+    if (!name) return []
+    const snap = await getDocs(query(collection(database, "lyrics"), where("lyricName", "==", name), limit(20)))
+    return snap.docs.map((d) => ({ ...(d.data() as lyricType), id: d.id }))
+}
+
+// Liga/desliga o modo compacto (resumo das repetições) de uma música
+export async function setLyricCompactView(lyricId: string, compactView: boolean) {
+    try {
+        await updateDoc(doc(database, "lyrics", lyricId), { compactView })
+        return true
+    } catch (e) {
+        console.error("Error updating LYRIC compactView: ", e)
+        return false
     }
 }

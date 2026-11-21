@@ -11,6 +11,8 @@ export const useSheetsMusics = () => {
   const getLyrics = getLyricsServices()
 
   const [sheetsMusics, setSheetsMusics] = useState<sheetMusicType[]>([])
+  // Evita mostrar o estado vazio enquanto a lista ainda está carregando.
+  const [loaded, setLoaded] = useState(false)
 
   const { isLogged, uid } = useAuth()
 
@@ -36,11 +38,13 @@ export const useSheetsMusics = () => {
 
           setSheetsMusics(sheets)
         })
+        .finally(() => setLoaded(true))
     }
   }, [])
 
   return {
     sheetsMusics,
+    loaded,
     setSheetsMusics
   }
 

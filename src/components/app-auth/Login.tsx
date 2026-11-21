@@ -1,4 +1,4 @@
-import LoadingButton from "@mui/lab/LoadingButton"
+import Button from '@mui/material/Button';
 import { Box, Grid, TextField, Typography } from "@mui/material"
 import Link from "next/link"
 import React, { useState } from "react"
@@ -75,8 +75,11 @@ export const LoginComponent = () => {
     >
         <Box
             sx={{
-                backgroundColor: "#f5faffde",
-                minWidth: 300,
+                backgroundColor: "background.paper",
+                minWidth: { xs: 0, sm: 300 },
+                width: { xs: 'calc(100% - 32px)', sm: 'auto' },
+                maxWidth: 420,
+                boxSizing: 'border-box',
                 py: 6,
                 px: 2,
                 boxShadow: 2,
@@ -84,7 +87,7 @@ export const LoginComponent = () => {
             }}
         >
             <Box sx={{ textAlign: "center", displey: "flex", justifyContent: "center" }}>
-                <Typography component="h1" variant="h5" color="#127be3">
+                <Typography sx={{ color: 'primary.main' }} component="h1" variant="h5">
                     Meu Repertório
                 </Typography>
             </Box>
@@ -119,7 +122,7 @@ export const LoginComponent = () => {
                         control={<Checkbox value="remember" color="primary" />}
                         label="Manter logado"
                     /> */}
-                <LoadingButton
+                <Button
                     fullWidth
                     variant="contained"
                     sx={{ mt: 3, mb: 2 }}
@@ -127,14 +130,14 @@ export const LoginComponent = () => {
                     loading={loading}
                 >
                     Entrar
-                </LoadingButton>
-                <Grid container>
-                    <Grid item xs>
+                </Button>
+                <Grid container sx={{ '& a': { color: 'primary.main' } }}>
+                    <Grid size={'grow'}>
                         <Link href="/auth/forget-password">
                             Esqueceu a senha?
                         </Link>
                     </Grid>
-                    <Grid item>
+                    <Grid>
                         <Link href="/auth/create-account">
                             {"Criar uma conta"}
                         </Link>

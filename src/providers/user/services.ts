@@ -1,6 +1,7 @@
 import { getUserInfosType, userInfosType } from "../../types/userInfos";
 import { database } from "../../../firebaseConfig";
-import { collection, getDocs, getDoc, addDoc, doc, limit, startAfter, orderBy, DocumentSnapshot, updateDoc, deleteDoc } from "firebase/firestore";
+import { getDoc, doc, setDoc } from "firebase/firestore";
+import type { LyricDisplayPrefs } from "../../utils/lyricDisplayPrefs";
 
 export const getUserInfos: getUserInfosType = async (uid) => {
     let user: any = {}
@@ -14,4 +15,9 @@ export const getUserInfos: getUserInfosType = async (uid) => {
     } else {
         return undefined;
     }
+}
+
+/** Grava as preferências de exibição da cifra no perfil (cria o documento do usuário se ainda não existir). */
+export async function saveLyricDisplayPrefs(uid: string, prefs: LyricDisplayPrefs) {
+    await setDoc(doc(database, "users", uid), { lyricDisplay: prefs }, { merge: true });
 }

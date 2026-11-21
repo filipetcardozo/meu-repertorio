@@ -1,7 +1,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { Box, Typography, IconButton } from '@mui/material';
-import { useTheme, lighten, darken } from '@mui/material/styles';
+import { useTheme } from '@mui/material/styles';
 
 type Props = {
   compact?: boolean;
@@ -11,12 +11,6 @@ type Props = {
 
 export const BrandWordmark: React.FC<Props> = ({ compact = false, href = '/', onClickIcon }) => {
   const theme = useTheme();
-
-  const start = theme.palette.primary.main;
-  const end =
-    theme.palette.mode === 'dark'
-      ? lighten(theme.palette.primary.light, 0.2)
-      : darken(theme.palette.primary.main, 0.2);
 
   return (
     <Box
@@ -35,10 +29,10 @@ export const BrandWordmark: React.FC<Props> = ({ compact = false, href = '/', on
       <Typography
         variant='h6'
         sx={{
-          fontWeight: 800,
-          letterSpacing: 0,
+          fontWeight: 700,
+          letterSpacing: '-0.01em',
           lineHeight: 1,
-          backgroundImage: `linear-gradient(90deg, ${start}, ${end})`,
+          backgroundImage: theme.brand.gradient,
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
           color: 'primary.main',

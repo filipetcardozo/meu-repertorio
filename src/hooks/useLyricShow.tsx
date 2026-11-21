@@ -1,90 +1,45 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { transposeChordSheetElement } from '../utils/chords/transpose'
 
-const SCALE = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"] as const;
-
-const SCALE_ARR = SCALE as readonly string[];
-
-const FLAT_TO_SHARP: Record<string, string> = {
-  Bb: "A#", Db: "C#", Eb: "D#", Gb: "F#", Ab: "G#",
-  Cb: "B", Fb: "E",
-};
-
-const SHARP_EDGE: Record<string, string> = {
-  "B#": "C", "E#": "F",
-};
-
-function normalizeNote(n: string): string {
-  if (FLAT_TO_SHARP[n]) return FLAT_TO_SHARP[n];
-  if (SHARP_EDGE[n]) return SHARP_EDGE[n];
-  return n;
-}
-
-function transposeNote(n: string, offset: number): string {
-  const idx = SCALE_ARR.indexOf(n);
-  if (idx === -1) return n;
-  const k = ((idx + (offset % SCALE_ARR.length)) + SCALE_ARR.length) % SCALE_ARR.length;
-  return SCALE_ARR[k];
-}
-
-function transposeChordToken(token: string, offset: number): string {
-  // 1) Captura a raiz (B, C#, Eb, etc.)
-  const mRoot = token.match(/^([A-G](?:#|b)?)/);
-  if (!mRoot) return token;
-
-  const root = mRoot[1];
-  const rest = token.slice(root.length);
-
-  // 2) Procura um "/" fora de parênteses
-  let depth = 0;
-  let slashIdx = -1;
-  for (let i = 0; i < rest.length; i++) {
-    const ch = rest[i];
-    if (ch === '(') depth++;
-    else if (ch === ')') depth = Math.max(0, depth - 1);
-    else if (ch === '/' && depth === 0) { slashIdx = i; break; }
+/**
+ * Prepara o HTML da cifra: muda o tom dos acordes e mostra ou esconde as tablaturas
+ * (`<span class="tablatura">`). Devolve o HTML embrulhado num <div>, como o resto do hook espera.
+ */
+function prepareLyricHtml(html: string | undefined, offset: number, originalTone: string | undefined, showTabs: boolean) {
+  if (html == null) return undefined;
+  const container = document.createElement('div');
+  container.innerHTML = html;
+  transposeChordSheetElement(container, offset, originalTone);
+  const spans = container.querySelectorAll('span');
+  if (!showTabs) {
+    spans.forEach((el) => el.remove());
+    // As linhas da tablatura viram linhas vazias: junta para não sobrar buracos na cifra.
+    return container.outerHTML.replace(/\n[ \t]*(?:\n[ \t]*){2,}/g, '\n\n');
   }
-
-  let suffix = rest;
-  let bass: string | undefined;
-
-  if (slashIdx >= 0) {
-    const after = rest.slice(slashIdx + 1);           // o que vem depois do "/"
-    const bassMatch = after.match(/^([A-G](?:#|b)?)(.*)?$/);
-    if (bassMatch) {
-      bass = bassMatch[1];                             // baixo válido (ex.: G#)
-      suffix = rest.slice(0, slashIdx) + (bassMatch[2] ?? '');
-    } else {
-      // "/" não seguido de nota (ex.: 7(4/9)): trata como parte do sufixo
-      bass = undefined;
-      suffix = rest;
-    }
-  }
-
-  const rootN = transposeNote(normalizeNote(root), offset);
-  if (bass) {
-    const bassN = transposeNote(normalizeNote(bass), offset);
-    return `${rootN}${suffix}/${bassN}`;
-  }
-  return `${rootN}${suffix}`;
+  // A cifra é dividida em colunas linha a linha: um <span> que atravessa várias linhas
+  // perderia a classe ao ser cortado. Cada linha ganha o seu próprio <span>.
+  spans.forEach((el) => {
+    const parts = el.innerHTML.split('\n');
+    if (parts.length < 2) return;
+    const cls = el.getAttribute('class') ?? '';
+    const tmp = document.createElement('div');
+    tmp.innerHTML = parts.map((line) => (line ? `<span class="${cls}">${line}</span>` : '')).join('\n');
+    el.replaceWith(...Array.from(tmp.childNodes));
+  });
+  return container.outerHTML;
 }
 
-function processNotes(notesContent: string, offset: number): string {
-  if (!offset) return notesContent;
-
-  // preserva espaçamentos; processa somente os tokens
-  return notesContent
-    .split(/(\s+)/)           // mantém separadores (grupos pares = espaços)
-    .map(part => /\s+/.test(part) ? part : transposeChordToken(part, offset))
-    .join('');
-}
+/** Se a cifra tem tablatura (para mostrar o botão de ligar/desligar). */
+export const lyricHasTabs = (html: string | undefined) => !!html && /<span[\s>]/i.test(html);
 
 export const useLyricShow = ({
   lyricToShow,
   offsetLyricToShow,
-  nextLyricToShow
+  nextLyricToShow,
+  singleColumn = false,
+  showTabs = true,
 }: any) => {
-  const [habiliteSolo, setHabiliteSolo] = useState(true)
   const [lengthSecondColumn, setLengthSecondColumn] = useState(0)
 
   const [htmlLyric, setHtmlLyric] = useState<any>()
@@ -93,97 +48,31 @@ export const useLyricShow = ({
   const [htmlLyricNextMusic, setHtmlLyricNextMusic] = useState<any>()
 
   const heightScreen = window.innerHeight - 160
-  const lines = heightScreen / 15
+  // No mobile a cifra fica numa coluna só, com rolagem vertical natural.
+  const lines = singleColumn ? Infinity : heightScreen / 15
+
+  // Tom e solos: refeito só quando a cifra, o tom ou o offset mudam.
+  const preparedLyric = useMemo(
+    () => prepareLyricHtml(lyricToShow?.lyric, offsetLyricToShow ?? 0, lyricToShow?.originalTone, showTabs),
+    [lyricToShow?.lyric, lyricToShow?.originalTone, offsetLyricToShow, showTabs],
+  )
+  const preparedNextLyric = useMemo(
+    () => prepareLyricHtml(nextLyricToShow?.lyric, nextLyricToShow?.offset ?? 0, nextLyricToShow?.originalTone, showTabs),
+    [nextLyricToShow?.lyric, nextLyricToShow?.originalTone, nextLyricToShow?.offset, showTabs],
+  )
 
   useEffect(() => {
-    if (lyricToShow) {
-      let lyric = lyricToShow.lyric
+    if (lyricToShow && preparedLyric !== undefined) {
+      // Limpa as colunas da música anterior antes de recalcular
+      setHtmlLyricSecond(undefined)
+      setHtmlLyricThird(undefined)
+      setHtmlLyricNextMusic(undefined)
+      setLengthSecondColumn(0)
 
-      let nextLyric;
-      if (nextLyricToShow) nextLyric = nextLyricToShow.lyric;
-
-      // Change Scale of Primary Lyric
-      let create = document.createElement("div")
-      create.innerHTML = lyric
-      let arrayOfNotes = create.getElementsByTagName("b")
-
-      if (offsetLyricToShow !== 0) {
-        for (let i = 0; i < arrayOfNotes.length; i++) {
-          arrayOfNotes[i].innerHTML =
-            processNotes(arrayOfNotes[i].textContent ?? '', offsetLyricToShow);
-        }
-      }
-
-      // Apply offset changes in the current lyric
-      lyric = create.outerHTML
-
-      // Change Scale of Secondary Lyric
-      if (nextLyricToShow) {
-        let createSecondary = document.createElement("div")
-        createSecondary.innerHTML = nextLyric
-        let arrayOfNotesSecondary = createSecondary.getElementsByTagName("b")
-
-        if (nextLyricToShow.offset !== 0) {
-          for (let i = 0; i < arrayOfNotesSecondary.length; i++) {
-            arrayOfNotesSecondary[i].innerHTML =
-              processNotes(arrayOfNotesSecondary[i].textContent ?? '', nextLyricToShow.offset);
-          }
-        }
-
-        // Apply offset changes in the current lyric
-        nextLyric = createSecondary.outerHTML
-      }
-
-      // Habilite or no the solo
-      if (habiliteSolo) {
-        let create = document.createElement("div")
-        create.innerHTML = lyric
-
-        for (var i = 0; i < create.getElementsByTagName("span").length; i++) {
-          var sidebarAd = create.getElementsByTagName("span")[i];
-          sidebarAd.parentNode?.removeChild(sidebarAd);
-        }
-        for (var i = 0; i < create.getElementsByTagName("span").length; i++) {
-          var sidebarAd = create.getElementsByTagName("span")[i];
-          sidebarAd.parentNode?.removeChild(sidebarAd);
-        }
-
-        lyric = create.outerHTML
-      }
-
-      /**
-       * Next lyric
-       */
-
-      // Remove solo of lyric
-      if (habiliteSolo && nextLyric) {
-        let create = document.createElement("div")
-        create.innerHTML = nextLyric
-
-        for (var i = 0; i < create.getElementsByTagName("span").length; i++) {
-          var sidebarAd = create.getElementsByTagName("span")[i];
-          sidebarAd.parentNode?.removeChild(sidebarAd);
-        }
-        for (var i = 0; i < create.getElementsByTagName("span").length; i++) {
-          var sidebarAd = create.getElementsByTagName("span")[i];
-          sidebarAd.parentNode?.removeChild(sidebarAd);
-        }
-
-        nextLyric = create.outerHTML
-      }
-
-
-      /**
-       * End
-       */
+      const lyric = preparedLyric ?? ''
+      const nextLyric = nextLyricToShow ? preparedNextLyric : undefined
 
       let arrayOfLyric = lyric.split('\n')
-      arrayOfLyric.map((value: string, index: number) => {
-        if (value.includes("<b")) {
-
-        }
-      })
-      let lengthTotalLines = lyric.split(/\r\n|\r|\n/).length
 
       // Setting the lines for the columns
       let firstColumnLinesStart = lines
@@ -238,7 +127,7 @@ export const useLyricShow = ({
 
       }
     }
-  }, [lyricToShow, habiliteSolo])
+  }, [preparedLyric, preparedNextLyric, showTabs, singleColumn])
 
   return {
     htmlLyric,

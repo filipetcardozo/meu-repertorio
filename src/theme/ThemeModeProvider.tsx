@@ -15,16 +15,18 @@ export const ThemeModeContext = createContext<ThemeModeContextValue | null>(null
 
 const STORAGE_KEY = 'theme-mode';
 
+// O app é usado no palco, então o escuro é o padrão. A escolha salva do usuário sempre vence.
+const DEFAULT_MODE: ThemeMode = 'dark';
+
 function getInitialMode(): ThemeMode {
-  if (typeof window === 'undefined') return 'light';
+  if (typeof window === 'undefined') return DEFAULT_MODE;
   const saved = window.localStorage.getItem(STORAGE_KEY) as ThemeMode | null;
   if (saved === 'light' || saved === 'dark') return saved;
-  const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches;
-  return prefersDark ? 'dark' : 'light';
+  return DEFAULT_MODE;
 }
 
 export const ThemeModeProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
-  const [mode, setModeState] = useState<ThemeMode>('light');
+  const [mode, setModeState] = useState<ThemeMode>(DEFAULT_MODE);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {

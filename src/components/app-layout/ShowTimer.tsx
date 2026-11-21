@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useShowTimer } from '../../hooks/useShowTimer';
-import { Alert, Box, Button, Grow, Typography } from '@mui/material';
+import { Box, Button, Grow, IconButton, Snackbar, Typography } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrowOutlined';
 import PauseIcon from '@mui/icons-material/Pause';
 import AlarmOffIcon from '@mui/icons-material/AlarmOff';
 import AccessAlarmIcon from '@mui/icons-material/AccessAlarm';
 import moment from 'moment'
 import { styled, keyframes } from '@mui/system';
+import { displayFontFamily } from '../../theme/createAppTheme';
 
-export const ShowTimer = () => {
+export const ShowTimer = ({ compact = false }: { compact?: boolean }) => {
   const { timer, start, pause, stop, isActive } = useShowTimer();
   const [showAlert, setShowAlert] = useState(false);
   const [alertSet, setAlertSet] = useState(false);
@@ -36,10 +37,41 @@ export const ShowTimer = () => {
     }
   };
 
-  return <Box sx={{ ml: 5 }} display='flex' gap={2} alignItems='center'>
+  if (compact) {
+    const running = timer > 0 || isActive;
+    return (
+      <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+        {isActive && <LiveDot />}
+        {running && (
+          <Box component='span' sx={{ fontFamily: displayFontFamily, fontWeight: 600, fontSize: 14, fontVariantNumeric: 'tabular-nums', mr: 0.5 }}>
+            {moment.utc(timer * 1000).format(timer >= 3600 ? 'H:mm:ss' : 'mm:ss')}
+          </Box>
+        )}
+        <IconButton
+          color='inherit'
+          aria-label={!running ? 'Iniciar show' : isActive ? 'Pausar' : 'Continuar'}
+          onClick={isActive ? pause : start}
+        >
+          {!running ? <AccessAlarmIcon /> : isActive ? <PauseIcon /> : <PlayArrowIcon />}
+        </IconButton>
+        {running && (
+          <IconButton color='inherit' aria-label='Zerar' onClick={stop}>
+            <AlarmOffIcon />
+          </IconButton>
+        )}
+        <Snackbar
+          open={showAlert}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+          message='🌊 Onda de Hidratação! Dê um intervalo para a voz e hidrate-se! 💦'
+        />
+      </Box>
+    );
+  }
+
+  return <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', ml: 5 }}>
     {
       (timer <= 0 && !isActive) && <Button
-        variant='contained' color='info'
+        variant='outlined' color='inherit'
         startIcon={<AccessAlarmIcon />}
         onClick={isActive ? pause : start}
       >
@@ -48,13 +80,23 @@ export const ShowTimer = () => {
     }
     {
       (timer > 0 || isActive) && <>
-        <Box sx={{ ml: 1, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-          {formatTime(timer)}
+        <Box sx={{ ml: 1, display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
+          {isActive ? (
+            <>
+              <LiveDot />
+              <Box component='span' sx={{ color: 'primary.main', fontSize: 12, fontWeight: 600, mr: 1 }}>Ao vivo</Box>
+            </>
+          ) : (
+            <Box component='span' sx={{ color: 'text.secondary', fontSize: 12, fontWeight: 600, mr: 1 }}>Pausado</Box>
+          )}
+          <Box component='span' sx={{ fontFamily: displayFontFamily, fontWeight: 600, fontSize: 18, fontVariantNumeric: 'tabular-nums' }}>
+            {formatTime(timer)}
+          </Box>
         </Box>
         <Button
           size='small'
-          variant='contained'
-          color='info'
+          variant='outlined'
+          color='inherit'
           sx={{ minWidth: isActive ? 80 : 100 }}
           onClick={isActive ? pause : start}
           startIcon={isActive ? <PauseIcon /> : <PlayArrowIcon />}
@@ -65,8 +107,8 @@ export const ShowTimer = () => {
         </Button>
         <Button
           size='small'
-          variant='contained'
-          color='secondary'
+          variant='text'
+          color='inherit'
           sx={{ minWidth: 85 }}
           onClick={stop}
           startIcon={<AlarmOffIcon />}
@@ -74,7 +116,7 @@ export const ShowTimer = () => {
           Zerar
         </Button>
         <Grow in={showAlert}>
-          <PulsatingTypography variant='h6' fontSize={16} color='white' ml={2}>
+          <PulsatingTypography variant='h6' sx={{ fontSize: 16, color: 'inherit', ml: 2 }}>
             🌊 Onda de Hidratação! 🎤 Dê um intervalo para a voz e hidrate-se! 💦
           </PulsatingTypography>
         </Grow>
@@ -88,6 +130,30 @@ const pulse = keyframes`
   50% { transform: scale(1.1); }
   100% { transform: scale(1); }
 `;
+
+const livePulse = keyframes`
+  0% { box-shadow: 0 0 0 0 rgba(232, 121, 249, 0.55); }
+  70% { box-shadow: 0 0 0 7px rgba(232, 121, 249, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(232, 121, 249, 0); }
+`;
+
+/** Pontinho pulsando de "ao vivo" enquanto o timer do show corre. */
+const LiveDot = () => (
+  <Box
+    component='span'
+    aria-hidden
+    sx={{
+      width: 8,
+      height: 8,
+      borderRadius: '50%',
+      bgcolor: 'primary.main',
+      mr: 0.75,
+      flexShrink: 0,
+      animation: `${livePulse} 1.8s infinite`,
+      '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
+    }}
+  />
+);
 
 const PulsatingTypography = styled(Typography)({
   animation: `${pulse} 2s infinite`,

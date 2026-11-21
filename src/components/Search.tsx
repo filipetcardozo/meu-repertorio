@@ -7,10 +7,15 @@ import IconButton from '@mui/material/IconButton';
 
 const Search = styled('div')(({ theme }) => ({
   position: 'relative',
-  borderRadius: theme.shape.borderRadius,
-  backgroundColor: alpha(theme.palette.common.white, 0.15),
+  borderRadius: 999,
+  // A barra superior é neutra (clara ou escura), então o campo usa a cor do texto como base.
+  backgroundColor: alpha(theme.palette.text.primary, 0.06),
+  transition: theme.transitions.create(['background-color', 'box-shadow']),
   '&:hover': {
-    backgroundColor: alpha(theme.palette.common.white, 0.25),
+    backgroundColor: alpha(theme.palette.text.primary, 0.1),
+  },
+  '&:focus-within': {
+    boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.5)}`,
   },
   marginRight: theme.spacing(2),
   marginLeft: 0,

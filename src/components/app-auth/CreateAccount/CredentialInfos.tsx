@@ -7,7 +7,7 @@ export const CreateAccountCredentialInfos = () => {
 
     return <>
         <Grid container columnSpacing={2} sx={{ mt: 1 }}>
-        <Grid item xs={6}>
+        <Grid size={6}>
                     <TextField
                         onChange={(e) => {
 
@@ -20,7 +20,7 @@ export const CreateAccountCredentialInfos = () => {
                         autoComplete="off"
                     />
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={6}>
                     <TextField
                         onChange={(e) => {
 
@@ -32,7 +32,7 @@ export const CreateAccountCredentialInfos = () => {
                         fullWidth
                     />
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={6}>
                     <TextField
                         onChange={(e) => {
 
@@ -45,7 +45,7 @@ export const CreateAccountCredentialInfos = () => {
                         autoFocus
                     />
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={6}>
                     <TextField
                         onChange={(e) => {
 
@@ -59,7 +59,7 @@ export const CreateAccountCredentialInfos = () => {
                         autoComplete="off"
                     />
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={6}>
                     <TextField
                         onChange={(e) => {
 

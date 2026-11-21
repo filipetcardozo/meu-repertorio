@@ -3,9 +3,9 @@ import Grid from '@mui/material/Grid';
 import ListItemButton from '@mui/material/ListItemButton';
 import ListItemText from '@mui/material/ListItemText';
 import ListItemAvatar from '@mui/material/ListItemAvatar';
-import Avatar from '@mui/material/Avatar';
 import { alpha } from '@mui/material/styles';
 import { useRouter } from 'next/router';
+import { ArtistAvatar } from '../ArtistAvatar';
 
 export const CustomHits = ({ hits = [] }: { hits: any[] }) => {
   const router = useRouter();
@@ -14,14 +14,9 @@ export const CustomHits = ({ hits = [] }: { hits: any[] }) => {
   return (
     <>
       {hits.map((value: any, index: number) => (
-        <Grid
-          item
+        <Grid size={{ xs: 12, sm: 6, lg: 4, xl: 3 }}
           key={value.objectID ?? index}
           sx={{ p: 1 }}
-          xs={12}
-          sm={6}
-          lg={4}
-          xl={3}
         >
           <ListItemButton
             onClick={() => router.push(`/lyric/lyric-show/${value.objectID}`)}
@@ -51,37 +46,26 @@ export const CustomHits = ({ hits = [] }: { hits: any[] }) => {
             })}
           >
             <ListItemAvatar>
-              <Avatar
-                sx={(theme) => ({
-                  bgcolor: alpha(
-                    theme.palette.primary.main,
-                    theme.palette.mode === 'dark' ? 0.3 : 0.18
-                  ),
-                  color: theme.palette.primary.contrastText,
-                  fontWeight: 600,
-                  width: 32,
-                  height: 32,
-                  fontSize: 14,
-                })}
-              >
-                {index + 1}
-              </Avatar>
+              <ArtistAvatar
+                composerId={value.composerId}
+                image={value.composerImage}
+                name={value.composerName}
+                size={32}
+              />
             </ListItemAvatar>
 
             <ListItemText
               primary={value.lyricName}
               secondary={value.composerName}
-              primaryTypographyProps={{
+              slotProps={{ primary: {
                 variant: 'subtitle1',
                 color: 'text.primary',
-                fontWeight: 600,
-                lineHeight: 1.2,
-              }}
-              secondaryTypographyProps={{
+                sx: { fontWeight: 600, lineHeight: 1.2 },
+              }, secondary: {
                 variant: 'body2',
                 color: 'text.secondary',
                 noWrap: true,
-              }}
+              } }}
             />
           </ListItemButton>
         </Grid>

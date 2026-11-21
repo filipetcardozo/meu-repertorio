@@ -44,15 +44,16 @@ export const SearchBarWithPopper = () => {
         disableEnforceFocus
         disableRestoreFocus
         keepMounted
-        PaperProps={{
+        slotProps={{ paper: {
           sx: {
-            width: 600,
-            maxHeight: 500,
+            width: { xs: 'calc(100vw - 16px)', sm: 600 },
+            maxWidth: 'calc(100vw - 16px)',
+            maxHeight: { xs: '70dvh', sm: 500 },
             overflowY: 'auto',
             position: 'relative',
             zIndex: 2000,
           },
-        }}
+        } }}
       >
         <IconButton
           sx={{ position: 'absolute', right: 0, top: 0, zIndex: 1 }}
@@ -62,7 +63,7 @@ export const SearchBarWithPopper = () => {
         </IconButton>
 
         <Paper sx={{ width: 1, boxShadow: 'none' }}>
-          <Grid container justifyContent="start" padding={1}>
+          <Grid sx={{ justifyContent: 'start', padding: 1 }} container>
             <CustomHitsNavbarSearch
               hits={hits}
               closePopper={() => {

@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
+import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
 import ListItemText from '@mui/material/ListItemText';
@@ -7,9 +7,9 @@ import IconButton from '@mui/material/IconButton';
 import DeleteIcon from '@mui/icons-material/Delete';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import Avatar from '@mui/material/Avatar';
 import { alpha } from '@mui/material/styles';
 import { lyricInSheetMusicType } from '../../types/sheetMusicType';
+import { ArtistAvatar } from '../ArtistAvatar';
 
 type Props = {
   lyrics: lyricInSheetMusicType[];
@@ -18,7 +18,7 @@ type Props = {
 };
 
 export const ListSheetMusic: React.FC<Props> = ({ lyrics, setLyrics, handleDeleteMusicSheet }) => {
-  function handleOnDragEnd(result: any) {
+  function handleOnDragEnd(result: DropResult) {
     if (!result.destination) return;
 
     const items = Array.from(lyrics);
@@ -84,36 +84,26 @@ export const ListSheetMusic: React.FC<Props> = ({ lyrics, setLyrics, handleDelet
                   >
                     {/* Índice */}
                     <Box sx={{ width: 40, mr: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Avatar
-                        sx={(theme) => ({
-                          width: 28,
-                          height: 28,
-                          fontSize: 13,
-                          fontWeight: 600,
-                          bgcolor: alpha(
-                            theme.palette.primary.main,
-                            theme.palette.mode === 'dark' ? 0.30 : 0.18
-                          ),
-                          color: theme.palette.primary.contrastText,
-                        })}
-                      >
-                        {index + 1}
-                      </Avatar>
+                      <ArtistAvatar
+                        composerId={lyric.composerId}
+                        image={lyric.composerImage}
+                        name={lyric.composerName}
+                        size={30}
+                        badge={index + 1}
+                      />
                     </Box>
 
                     <ListItemText
                       primary={lyric.lyricName}
                       secondary={`${lyric.composerName}${lyric.originalTone ? ` (${lyric.originalTone})` : ''}`}
-                      primaryTypographyProps={{
+                      slotProps={{ primary: {
                         variant: 'subtitle1',
                         color: 'text.primary',
-                        fontWeight: 600,
-                        lineHeight: 1.2,
-                      }}
-                      secondaryTypographyProps={{
+                        sx: { fontWeight: 600, lineHeight: 1.2 },
+                      }, secondary: {
                         variant: 'body2',
                         color: 'text.secondary',
-                      }}
+                      } }}
                       sx={{ mr: 5 }} // espaço para o secondaryAction
                     />
                   </ListItem>

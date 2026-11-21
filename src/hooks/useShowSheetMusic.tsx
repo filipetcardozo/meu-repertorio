@@ -1,8 +1,9 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import { doc, getDoc } from "firebase/firestore";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { database } from "../../firebaseConfig";
-import { getRegisteredLyric, getSheetMusic, updateUserRegisteredLyricOffset, updateUserRegisteredLyricStars } from "../providers/lyrics/services";
+import { getRegisteredLyric, getSheetMusic, putUserLyricRegistered, updateUserRegisteredLyricOffset, updateUserRegisteredLyricStars } from "../providers/lyrics/services";
+import { normalizeOffset } from "../utils/chords/transpose";
 import { useAuth } from "./useAuth";
 import { useStorageSheetMusic } from "./useStorageSheetMusic";
 import { lyricInSheetMusicType, sheetMusicType } from "../types/sheetMusicType";
@@ -12,8 +13,6 @@ import { registeredLyricType } from "../types/registeredLyricType";
 export const useShowSheetMusic = ({ sheetMusicId }: { sheetMusicId: string }) => {
   const { uid } = useAuth()
   const db = database
-
-  const [lyricToShow, setLyricToShow] = useState<lyricInSheetMusicType>()
 
   // Lyrics to show in this sheet
   let [sheetMusicToShow, setSheetMusicToShow] = useState<sheetMusicType>()
@@ -27,7 +26,8 @@ export const useShowSheetMusic = ({ sheetMusicId }: { sheetMusicId: string }) =>
   const [startTime, setStartTime] = useState(new Date().getTime())
   const [readyToRender, setReadyToRender] = useState(false)
 
-  const [offsetsUpdateds, setOffsetsUpdateds] = useState<any[]>([])
+  // Offset salvo no banco de cada música (por lyricId), para saber se há mudança de tom a salvar
+  const [savedOffsets, setSavedOffsets] = useState<Record<string, number>>({})
   const [offsetIsUpdating, setOffsetIsUpdating] = useState(false)
   const [openUpdatedSuccess, setOpenUpdatedSuccess] = useState(false);
   const [openUpdatedStarsSuccess, setOpenUpdatedStarsSuccess] = useState(false);
@@ -40,7 +40,9 @@ export const useShowSheetMusic = ({ sheetMusicId }: { sheetMusicId: string }) =>
 
   const {
     callGetCompletedSheetMusicLocalStorage,
-    callPutCompletedSheetMusicLocalStorage
+    callPutCompletedSheetMusicLocalStorage,
+    callGetActiveLyricSheetMusicLocalStorage,
+    callPutActiveLyricSheetMusicLocalStorage
   } = useStorageSheetMusic()
 
   // Request of the sheet music and later of each song individually
@@ -68,26 +70,48 @@ export const useShowSheetMusic = ({ sheetMusicId }: { sheetMusicId: string }) =>
               let dataOfLyricGet = lyric.data()
               sheet.lyrics[indexOf].composerId = dataOfLyricGet.composerId
               sheet.lyrics[indexOf].composerName = dataOfLyricGet.composerName
+              sheet.lyrics[indexOf].composerImage = dataOfLyricGet.composerImage
               sheet.lyrics[indexOf].lyric = dataOfLyricGet.lyric
               sheet.lyrics[indexOf].lyricName = dataOfLyricGet.lyricName
               sheet.lyrics[indexOf].lyricStyle = dataOfLyricGet.lyricStyle
               sheet.lyrics[indexOf].originalTone = dataOfLyricGet.originalTone
+              sheet.lyrics[indexOf].compactView = dataOfLyricGet.compactView
             }
           })
         })
         .then(values => {
           Promise.all(allGetDocsRegistered)
             .then((values: any) => {
-              setUserLyricsRegistered(values)
-              values.forEach((lyricRegistered: any) => {
+              // Músicas ainda não cadastradas para o usuário vêm como undefined
+              const registereds = (values as (registeredLyricType | undefined)[]).filter((v): v is registeredLyricType => !!v)
+              setUserLyricsRegistered(registereds)
+              registereds.forEach((lyricRegistered) => {
                 let indexOf = sheet.lyrics.map(function (e: any) { return e.lyricId; }).indexOf(lyricRegistered.lyricId)
                 if (indexOf >= 0) {
-                  sheet.lyrics[indexOf].offset = lyricRegistered.offset
+                  sheet.lyrics[indexOf].offset = normalizeOffset(lyricRegistered.offset)
                   sheet.lyrics[indexOf].stars = lyricRegistered.stars
                 }
               })
+              const offsets: Record<string, number> = {}
+              sheet.lyrics.forEach((l: lyricInSheetMusicType) => {
+                l.offset = normalizeOffset(l.offset)
+                offsets[l.lyricId] = l.offset
+              })
+              setSavedOffsets(offsets)
+              // Restaura a música em que o usuário estava (ex.: após F5).
+              // Procura pelo lyricId primeiro, caso o repertório tenha sido reordenado.
+              let initialStep = 0
+              const storedActive = callGetActiveLyricSheetMusicLocalStorage(sheetMusicId)
+              if (storedActive) {
+                const byId = storedActive.lyricId
+                  ? sheet.lyrics.findIndex((l: any) => l.lyricId === storedActive.lyricId)
+                  : -1
+                if (byId >= 0) initialStep = byId
+                else if (storedActive.index >= 0 && storedActive.index < sheet.lyrics.length) initialStep = storedActive.index
+              }
+
               setSheetMusicToShow(sheet)
-              setLyricToShow(sheet.lyrics[0])
+              setActiveStep(initialStep)
               setReadyToRender(true)
             })
         })
@@ -121,7 +145,6 @@ export const useShowSheetMusic = ({ sheetMusicId }: { sheetMusicId: string }) =>
     }
 
     setActiveStep((prevActiveStep: any) => prevActiveStep + 1);
-    setLyricToShow(sheetMusicToShow.lyrics[activeStep + 1])
   }
 
   function handleBack() {
@@ -137,7 +160,6 @@ export const useShowSheetMusic = ({ sheetMusicId }: { sheetMusicId: string }) =>
     }
 
     setActiveStep((prevActiveStep: any) => prevActiveStep - 1);
-    setLyricToShow(sheetMusicToShow.lyrics[activeStep - 1])
 
   }
 
@@ -153,8 +175,7 @@ export const useShowSheetMusic = ({ sheetMusicId }: { sheetMusicId: string }) =>
       setStartTime(new Date().getTime())
     }
 
-    setActiveStep((prevActiveStep: any) => step);
-    setLyricToShow(sheetMusicToShow.lyrics[step])
+    setActiveStep(step);
   }
 
   useEffect(() => {
@@ -162,6 +183,16 @@ export const useShowSheetMusic = ({ sheetMusicId }: { sheetMusicId: string }) =>
       callPutCompletedSheetMusicLocalStorage(sheetMusicId, completed)
     }
   }, [completed])
+
+  // Salva a música atual para continuar nela ao recarregar a página
+  useEffect(() => {
+    if (readyToRender && sheetMusicToShow) {
+      callPutActiveLyricSheetMusicLocalStorage(sheetMusicId, {
+        index: activeStep,
+        lyricId: sheetMusicToShow.lyrics[activeStep]?.lyricId
+      })
+    }
+  }, [activeStep, readyToRender])
 
   const downHandler = ({ key }: any) => {
     if (key == "ArrowRight" || key == " ") handleNext()
@@ -172,51 +203,49 @@ export const useShowSheetMusic = ({ sheetMusicId }: { sheetMusicId: string }) =>
     }
   };
 
-  async function changeOffSet(increaseOrDecrease: boolean) {
-    if (!sheetMusicToShow) return;
-
-    let value = 0
-    increaseOrDecrease ? value = 1 : value = -1
-
-    const current = sheetMusicToShow.lyrics?.[activeStep];
-    if (!current) return;
-
-    let newOffset = (current.offset ?? 0) + value;
-    if (newOffset > 11 || newOffset < -11) {
-      newOffset = 0
-    }
-
-    sheetMusicToShow.lyrics[activeStep].offset = newOffset
-    setSheetMusicToShow({ ...sheetMusicToShow })
-
-    // For the updated offset
-    offsetsUpdateds[activeStep].offsetNow = newOffset
-    if (offsetsUpdateds[activeStep].offsetBefore != newOffset) {
-      offsetsUpdateds[activeStep].offsetChanged = true
-    } else {
-      offsetsUpdateds[activeStep].offsetChanged = false
-    }
-    setOffsetsUpdateds([...offsetsUpdateds])
+  /** Muda o tom da música atual em `semitones` (+1 sobe meio tom, -1 desce). */
+  function changeOffSet(semitones: number) {
+    setSheetMusicToShow((prev) => {
+      const current = prev?.lyrics?.[activeStep]
+      if (!prev || !current) return prev
+      const lyrics = prev.lyrics.slice()
+      lyrics[activeStep] = { ...current, offset: normalizeOffset((current.offset ?? 0) + semitones) }
+      return { ...prev, lyrics }
+    })
   }
 
   async function updateOffset() {
-    if (!userLyricsRegistered || !sheetMusicToShow) return;
+    const current = sheetMusicToShow?.lyrics[activeStep]
+    if (!current || offsetIsUpdating) return;
 
+    const offset = current.offset ?? 0
     setOffsetIsUpdating(true)
-
-    // Update in registered lyrics the new offset
-    let newOffset = offsetsUpdateds[activeStep].offsetNow
-    let indexOfLyricToUpdate = userLyricsRegistered.map(function (e: any) { return e.lyricId; }).indexOf(sheetMusicToShow.lyrics[activeStep].lyricId)
-    if (indexOfLyricToUpdate >= 0) {
-      let idToRegisteredUpdateOffset = userLyricsRegistered[indexOfLyricToUpdate].id
-      await updateUserRegisteredLyricOffset(idToRegisteredUpdateOffset, newOffset)
-        .then(() => {
-          offsetsUpdateds[activeStep].offsetBefore = newOffset
-          offsetsUpdateds[activeStep].offsetChanged = false
-          setOffsetsUpdateds([...offsetsUpdateds])
-          setOffsetIsUpdating(false)
-          setOpenUpdatedSuccess(true)
-        })
+    try {
+      const registered = userLyricsRegistered?.find((r) => r.lyricId === current.lyricId)
+      if (registered?.id) {
+        await updateUserRegisteredLyricOffset(registered.id, offset)
+      } else {
+        // Música ainda não cadastrada para o usuário: cadastra já com o novo tom
+        const newRegistered: registeredLyricType = {
+          composerId: current.composerId,
+          composerName: current.composerName,
+          lyricId: current.lyricId,
+          lyricName: current.lyricName,
+          lyricStyle: current.lyricStyle ?? '',
+          originalTone: current.originalTone ?? '',
+          offset,
+          stars: current.stars ?? 0,
+          userId: uid as string,
+        }
+        const id = await putUserLyricRegistered(newRegistered)
+        setUserLyricsRegistered((prev) => [...(prev ?? []), { ...newRegistered, id }])
+      }
+      setSavedOffsets((prev) => ({ ...prev, [current.lyricId]: offset }))
+      setOpenUpdatedSuccess(true)
+    } catch (err) {
+      console.error('Error: ', err)
+    } finally {
+      setOffsetIsUpdating(false)
     }
   }
 
@@ -267,16 +296,19 @@ export const useShowSheetMusic = ({ sheetMusicId }: { sheetMusicId: string }) =>
   }
 
 
-  useEffect(() => {
-    if (readyToRender && sheetMusicToShow) {
-      sheetMusicToShow.lyrics.map((value: any) => {
-        offsetsUpdateds.push({ offsetBefore: value.offset, offsetChanged: false })
-      })
-      setOffsetsUpdateds([...offsetsUpdateds])
-    }
-  }, [readyToRender])
+  const lyricToShow = sheetMusicToShow?.lyrics[activeStep]
 
-  const handleCloseUpdatedSuccess = (event?: React.SyntheticEvent | Event, reason?: string) => {
+  // Por música do repertório: tom salvo, tom atual e se há mudança a salvar
+  const offsetsUpdateds = useMemo(
+    () => (sheetMusicToShow?.lyrics ?? []).map((l) => {
+      const offsetBefore = savedOffsets[l.lyricId] ?? 0
+      const offsetNow = l.offset ?? 0
+      return { offsetBefore, offsetNow, offsetChanged: offsetBefore !== offsetNow }
+    }),
+    [sheetMusicToShow, savedOffsets],
+  )
+
+  const handleCloseUpdatedSuccess = (event?: React.SyntheticEvent | Event | null, reason?: string) => {
     if (reason === 'clickaway') {
       return;
     }

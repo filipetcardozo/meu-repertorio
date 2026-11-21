@@ -8,6 +8,8 @@ export type registeredLyricType = {
     offset: number;
     originalTone: string;
     stars: number;
+    composerImage?: string;
+    compactView?: boolean;
     userId: string;
     id?: string;
 }

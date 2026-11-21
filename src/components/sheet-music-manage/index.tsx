@@ -6,7 +6,6 @@ import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
 import DeleteIcon from '@mui/icons-material/Delete';
 import MuiAlert, { AlertProps } from '@mui/material/Alert';
-import LoadingButton from '@mui/lab/LoadingButton';
 import Box from '@mui/material/Box'
 import PlayCircleFilledIcon from '@mui/icons-material/PlayCircleFilled';
 import Tooltip from '@mui/material/Tooltip';
@@ -20,9 +19,17 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogContentText from '@mui/material/DialogContentText';
 import DialogTitle from '@mui/material/DialogTitle';
 import Button from '@mui/material/Button';
-import { CircularProgress, Fab } from '@mui/material';
+import { alpha, CircularProgress, Fab, SxProps, Theme } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import UpdateIcon from '@mui/icons-material/Update';
+
+// Dicas suaves na cor da marca, legíveis no tema claro e no escuro.
+const hintAlertSx: SxProps<Theme> = (theme) => ({
+  backgroundColor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.16 : 0.1),
+  color: 'text.primary',
+  boxShadow: 0,
+  '& .MuiAlert-icon': { color: 'primary.main' },
+});
 
 export const ManageSheetMusicComponent = ({ sheetMusicId }: { sheetMusicId: any }) => {
   const {
@@ -48,15 +55,15 @@ export const ManageSheetMusicComponent = ({ sheetMusicId }: { sheetMusicId: any 
 
   const AddedLyrics = () => {
     return <>
-      <Typography sx={{ mt: 1, mb: 2 }} variant="h6" component="div" textAlign="center" fontWeight="bold">
+      <Typography sx={{ textAlign: 'center', fontWeight: 'bold', mt: 1, mb: 2 }} variant="h6" component="div">
         Músicas adicionadas
       </Typography>
       {
         lyricsToAdd.length > 0 ? "" : <>
-          <Alert severity="info" sx={{ backgroundColor: "#d0eeff", color: "#3d3d3d", boxShadow: 0 }}>
+          <Alert severity="info" sx={hintAlertSx}>
             Ainda não foi adicionada nenhuma música — <strong>as músicas adicionadas aparecerão aqui!</strong>
           </Alert>
-          <Alert severity="info" sx={{ mt: 2, backgroundColor: "#d0eeff", color: "#3d3d3d", boxShadow: 0 }}>
+          <Alert severity="info" sx={[hintAlertSx, { mt: 2 }]}>
             <strong>Você pode reordenar as músicas arrastando e soltando!</strong>
           </Alert>
         </>
@@ -73,33 +80,33 @@ export const ManageSheetMusicComponent = ({ sheetMusicId }: { sheetMusicId: any 
   const [openModalDelete, setOpenModalDelete] = React.useState(false);
 
   if (loading) {
-    return <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
+    return <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
       <CircularProgress />
     </Box>
   }
 
   return (
     <>
-      <Box px={3} py={2} sx={{ mt: 2, mb: 10, backgroundColor: "#a1bbd412", borderRadius: 1.4, boxShadow: 1, position: "relative" }}>
+      <Box sx={(theme) => ({ px: 3, py: 2, mt: 2, mb: 10, backgroundColor: alpha(theme.palette.primary.main, 0.04), borderRadius: 1.4, boxShadow: 1, position: "relative" })}>
         <Grid container spacing={5}>
-          <Grid item xs={4}>
+          <Grid size={4}>
             <TextField label="Nome da partitura" size="small" id="filled-basic" variant="filled" name="sheetMusicName" fullWidth
               value={sheetMusicToAdd.sheetMusicName}
               onChange={(event) => setSheetMusicToAdd({ ...sheetMusicToAdd, sheetMusicName: event.target.value })}
             />
           </Grid>
-          <Grid item xs={8}>
+          <Grid size={8}>
             <TextField label="Descrição" size="small" multiline id="filled-basic" variant="filled" name="description" fullWidth
               value={sheetMusicToAdd.description}
               onChange={(event) => setSheetMusicToAdd({ ...sheetMusicToAdd, description: event.target.value })}
             />
           </Grid>
           {/* Musicas Adicionadas */}
-          <Grid item xs={4}>
+          <Grid size={4}>
             {<AddedLyrics />}
           </Grid>
           {/* {<FilterLyrics />} */}
-          <Grid item xs={8} minHeight={400}>
+          <Grid sx={{ minHeight: 400 }} size={8}>
             {<FilterLyrics
               handlePushMusicToSheets={handlePushMusicToSheets}
               lyricsToAdd={lyricsToAdd} />}

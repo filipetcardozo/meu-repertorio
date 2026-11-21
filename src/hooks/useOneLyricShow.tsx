@@ -1,7 +1,8 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import { registeredLyricType } from "../types/registeredLyricType";
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { getLyric, getRegisteredLyric, putUserLyricRegistered, updateUserRegisteredLyricOffset } from "../providers/lyrics/services";
+import { normalizeOffset } from "../utils/chords/transpose";
 import { useAuth } from "./useAuth";
 import { useRouter } from "next/router";
 
@@ -11,15 +12,15 @@ export const useOneLyricShow = (idLyric: string) => {
   const { id } = router.query
 
   const [registeredLyric, setRegisteredLyric] = useState<registeredLyricType>()
+  // Offset salvo no banco (para saber se há mudança de tom a salvar)
   const [oldOffset, setOldOffset] = useState<number>()
-  const [offsetChanged, setOffsetChanged] = useState(false)
   const [offsetIsUpdating, setOffsetIsUpdating] = useState(false)
+  const offsetChanged = !!registeredLyric && oldOffset !== undefined && registeredLyric.offset !== oldOffset
 
   useEffect(() => {
     if (id) {
       setRegisteredLyric(undefined);
       setOldOffset(undefined);
-      setOffsetChanged(false);
       setOffsetIsUpdating(false);
 
       Promise.all([
@@ -43,6 +44,11 @@ export const useOneLyricShow = (idLyric: string) => {
           if (values[0]) {
             newObj = values[0];
             newObj.lyric = values[1].lyric;
+            // Tom original vem da música (pode ter sido atualizado do Cifra Club depois do cadastro do usuário)
+            if (values[1].originalTone) newObj.originalTone = values[1].originalTone;
+            newObj.composerImage = values[1].composerImage;
+            newObj.compactView = values[1].compactView;
+            newObj.offset = normalizeOffset(newObj.offset);
             setOldOffset(newObj.offset);
           } else {
             newObj = values[1];
@@ -59,54 +65,31 @@ export const useOneLyricShow = (idLyric: string) => {
     }
   }, [id])
 
-  async function changeOffSet(increaseOrDecrease: boolean) {
-    if (!registeredLyric) return;
-
-    let value = 0
-    increaseOrDecrease ? value = 1 : value = -1
-
-    let newOffset = registeredLyric.offset + value
-    if (newOffset > 11 || newOffset < -11) {
-      newOffset = 0
-    }
-
-    registeredLyric.offset = newOffset
-    setRegisteredLyric({ ...registeredLyric })
-
-    if (newOffset == oldOffset) {
-      setOffsetChanged(false)
-    } else {
-      setOffsetChanged(true)
-    }
+  /** Muda o tom em `semitones` (+1 sobe meio tom, -1 desce). */
+  function changeOffSet(semitones: number) {
+    setRegisteredLyric((prev) => prev && { ...prev, offset: normalizeOffset((prev.offset ?? 0) + semitones) })
   }
 
   async function updateOffset() {
-    if (!registeredLyric) return;
+    if (!registeredLyric || offsetIsUpdating) return;
 
+    const offset = registeredLyric.offset
     setOffsetIsUpdating(true)
-
-    if (registeredLyric && registeredLyric.userId) {
-      await updateUserRegisteredLyricOffset(registeredLyric.id, registeredLyric.offset)
-        .then(() => {
-          setOldOffset(registeredLyric.offset);
-          setOffsetIsUpdating(false);
-          setOffsetChanged(false);
-        })
-        .catch((err) => {
-          console.error('Error: ', err)
-        })
-    } else {
-      await putUserLyricRegistered({ ...registeredLyric, userId: uid as string })
-        .then(registeredLyricId => {
-          setRegisteredLyric({ ...registeredLyric, id: registeredLyricId });
-
-          setOldOffset(registeredLyric.offset);
-          setOffsetIsUpdating(false);
-          setOffsetChanged(false);
-        })
+    try {
+      if (registeredLyric.id) {
+        await updateUserRegisteredLyricOffset(registeredLyric.id, offset)
+      } else {
+        // Primeira vez: cadastra a música para o usuário (guardando id e userId para não duplicar)
+        const userId = uid as string
+        const id = await putUserLyricRegistered({ ...registeredLyric, userId })
+        setRegisteredLyric((prev) => prev && { ...prev, id, userId })
+      }
+      setOldOffset(offset)
+    } catch (err) {
+      console.error('Error: ', err)
+    } finally {
+      setOffsetIsUpdating(false)
     }
-
-
   }
 
   return {

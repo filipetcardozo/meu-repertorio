@@ -5,16 +5,16 @@ import { Skeleton } from '@mui/material';
 
 export const SkeletonComponent = () => {
     return <Stack direction="row" sx={{ mt: 1 }}>
-        <Box sx={{ ml: 2, mt: 2, maxWidth: 200 }}>
+        <Box sx={{ ml: 2, mt: 2, maxWidth: 200, display: { xs: 'none', md: 'block' } }}>
             {renderSkeletonStepper()}
         </Box>
-        <Box sx={{ ml: 8, mt: 4, maxWidth: 400 }}>
+        <Box sx={{ ml: { xs: 2, md: 8 }, mt: 4, maxWidth: 400 }}>
             {renderSkeletonLyric()}
         </Box>
-        <Box sx={{ ml: 8, mt: 4, maxWidth: 400 }}>
+        <Box sx={{ ml: 8, mt: 4, maxWidth: 400, display: { xs: 'none', md: 'block' } }}>
             {renderSkeletonLyric(false)}
         </Box>
-        <Box sx={{ ml: 8, mt: 4, maxWidth: 400 }}>
+        <Box sx={{ ml: 8, mt: 4, maxWidth: 400, display: { xs: 'none', md: 'block' } }}>
             {renderSkeletonLyric(false)}
         </Box>
     </Stack>
@@ -26,10 +26,10 @@ function renderSkeletonStepper() {
     for (let i = 0; i <= 7; i++) {
         skeletonArray.push(
             <Grid container>
-                <Grid item xs={1}>
+                <Grid size={1}>
                     <Skeleton variant="circular" width={25} height={25} />
                 </Grid>
-                <Grid item xs={8}>
+                <Grid size={8}>
                     <Skeleton sx={{ ml: 3 }} variant="text" height={15} width={i % 2 == 0 ? 110 : 80} />
                     <Skeleton sx={{ ml: 3 }} variant="text" height={10} width={i % 2 == 0 ? 80 : 50} />
                 </Grid>
@@ -52,7 +52,7 @@ function renderSkeletonLyric(withHeader = true) {
         skeletonArray.push(
             <Stack direction="column">
                 {/* Lyrics Notes */}
-                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1 }}>
                     <Skeleton variant="text" sx={{ ml: 1 }} height={30} width={130} />
                     <Skeleton variant="text" sx={{ ml: 1 }} height={23} width={50} />
                     <Skeleton variant="text" sx={{ ml: 1 }} height={23} width={20} />
@@ -65,18 +65,17 @@ function renderSkeletonLyric(withHeader = true) {
         skeletonArray.push(
             <Stack direction="column">
                 {/* Lyrics Notes */}
-                <Stack direction="row" spacing={5} justifyContent={i % 2 == 0 ? "start" : "space-around"}>
+                <Stack sx={{ justifyContent: i % 2 == 0 ? "start" : "space-around" }} direction="row" spacing={5}>
                     <Skeleton variant="text" sx={{ ml: 3 }} height={23} width={30} />
                     <Skeleton variant="text" sx={{ ml: 1 }} height={23} width={30} />
                 </Stack>
                 <Skeleton variant="text" sx={{ ml: 1 }} height={23} width={i % 2 == 0 ? 170 : 140} />
 
-                <Stack direction="row" spacing={5} justifyContent="center">
+                <Stack sx={{ justifyContent: 'center' }} direction="row" spacing={5}>
                     <Skeleton variant="text" sx={{ ml: 1 }} height={23} width={30} />
                 </Stack>
                 <Skeleton variant="text" sx={{ ml: 1 }} height={23} width={i % 2 == 1 ? 200 : 110} />
-                <Stack direction="row" spacing={5}
-                    justifyContent={i % 2 == 0 ? "start" : "end"}
+                <Stack sx={{ justifyContent: i % 2 == 0 ? "start" : "end" }} direction="row" spacing={5}
                 >
                     <Skeleton variant="text" sx={{ ml: 1 }} height={23} width={30} />
                     <Skeleton variant="text" sx={{ ml: 1 }} height={23} width={30} />

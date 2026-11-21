@@ -3,14 +3,16 @@ import Grid from '@mui/material/Grid';
 import ListItemButton from '@mui/material/ListItemButton';
 import ListItemText from '@mui/material/ListItemText';
 import ListItemAvatar from '@mui/material/ListItemAvatar';
-import Avatar from '@mui/material/Avatar';
 import { alpha } from '@mui/material/styles';
 import { useRouter } from 'next/router';
+import { ArtistAvatar } from '../ArtistAvatar';
 
 type Hit = {
   objectID: string;
   lyricName: string;
   composerName: string;
+  composerId?: string;
+  composerImage?: string;
 };
 
 type Props = {
@@ -25,7 +27,7 @@ export const CustomHitsNavbarSearch: React.FC<Props> = ({ hits = [], closePopper
   return (
     <>
       {hits.map((value, index) => (
-        <Grid item key={value.objectID ?? index} sx={{ p: 0.5 }} xs={12} sm={6}>
+        <Grid size={{ xs: 12, sm: 6 }} key={value.objectID ?? index} sx={{ p: 0.5 }}>
           <ListItemButton
             onClick={() => {
               closePopper?.();
@@ -57,38 +59,26 @@ export const CustomHitsNavbarSearch: React.FC<Props> = ({ hits = [], closePopper
             })}
           >
             <ListItemAvatar>
-              <Avatar
-                sx={(theme) => ({
-                  bgcolor: alpha(
-                    theme.palette.primary.main,
-                    theme.palette.mode === 'dark' ? 0.3 : 0.18
-                  ),
-                  color: theme.palette.primary.contrastText,
-                  fontWeight: 600,
-                  width: 28,
-                  height: 28,
-                  fontSize: 13,
-                  mt: 0.25,
-                })}
-              >
-                {index + 1}
-              </Avatar>
+              <ArtistAvatar
+                composerId={value.composerId}
+                image={value.composerImage}
+                name={value.composerName}
+                size={28}
+              />
             </ListItemAvatar>
 
             <ListItemText
               primary={value.lyricName}
               secondary={value.composerName}
-              primaryTypographyProps={{
+              slotProps={{ primary: {
                 variant: 'subtitle2',
                 color: 'text.primary',
-                fontWeight: 600,
-                lineHeight: 1.2,
-              }}
-              secondaryTypographyProps={{
+                sx: { fontWeight: 600, lineHeight: 1.2 },
+              }, secondary: {
                 variant: 'body2',
                 color: 'text.secondary',
                 noWrap: true,
-              }}
+              } }}
               sx={{ my: 0 }}
             />
           </ListItemButton>
