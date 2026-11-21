@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useShowTimer } from '../../hooks/useShowTimer';
-import { Box, Button, Grow, IconButton, Snackbar, Typography } from '@mui/material';
+import { Box, Button, IconButton, Snackbar } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrowOutlined';
 import PauseIcon from '@mui/icons-material/Pause';
 import AlarmOffIcon from '@mui/icons-material/AlarmOff';
 import AccessAlarmIcon from '@mui/icons-material/AccessAlarm';
 import moment from 'moment'
-import { styled, keyframes } from '@mui/system';
+import { keyframes } from '@mui/system';
 import { displayFontFamily } from '../../theme/createAppTheme';
 
 export const ShowTimer = ({ compact = false }: { compact?: boolean }) => {
@@ -37,8 +37,16 @@ export const ShowTimer = ({ compact = false }: { compact?: boolean }) => {
     }
   };
 
+  const running = timer > 0 || isActive;
+  const hydrationAlert = (
+    <Snackbar
+      open={showAlert}
+      anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      message='🌊 Onda de Hidratação! Dê um intervalo para a voz e hidrate-se! 💦'
+    />
+  );
+
   if (compact) {
-    const running = timer > 0 || isActive;
     return (
       <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
         {isActive && <LiveDot />}
@@ -59,18 +67,14 @@ export const ShowTimer = ({ compact = false }: { compact?: boolean }) => {
             <AlarmOffIcon />
           </IconButton>
         )}
-        <Snackbar
-          open={showAlert}
-          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-          message='🌊 Onda de Hidratação! Dê um intervalo para a voz e hidrate-se! 💦'
-        />
+        {hydrationAlert}
       </Box>
     );
   }
 
   return <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', ml: 5 }}>
     {
-      (timer <= 0 && !isActive) && <Button
+      !running && <Button
         variant='outlined' color='inherit'
         startIcon={<AccessAlarmIcon />}
         onClick={isActive ? pause : start}
@@ -79,7 +83,7 @@ export const ShowTimer = ({ compact = false }: { compact?: boolean }) => {
       </Button>
     }
     {
-      (timer > 0 || isActive) && <>
+      running && <>
         <Box sx={{ ml: 1, display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
           {isActive ? (
             <>
@@ -115,21 +119,11 @@ export const ShowTimer = ({ compact = false }: { compact?: boolean }) => {
         >
           Zerar
         </Button>
-        <Grow in={showAlert}>
-          <PulsatingTypography variant='h6' sx={{ fontSize: 16, color: 'inherit', ml: 2 }}>
-            🌊 Onda de Hidratação! 🎤 Dê um intervalo para a voz e hidrate-se! 💦
-          </PulsatingTypography>
-        </Grow>
+        {hydrationAlert}
       </>
     }
   </Box>
 }
-
-const pulse = keyframes`
-  0% { transform: scale(1); }
-  50% { transform: scale(1.1); }
-  100% { transform: scale(1); }
-`;
 
 const livePulse = keyframes`
   0% { box-shadow: 0 0 0 0 rgba(232, 121, 249, 0.55); }
@@ -154,12 +148,3 @@ const LiveDot = () => (
     }}
   />
 );
-
-const PulsatingTypography = styled(Typography)({
-  animation: `${pulse} 2s infinite`,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: '10px',
-  fontWeight: 'bold',
-});
