@@ -10,7 +10,7 @@ $manifest.externally_connectable.matches = @($manifest.externally_connectable.ma
 
 $outputDirectory = Join-Path $repository 'build'
 [System.IO.Directory]::CreateDirectory($outputDirectory) | Out-Null
-$package = Join-Path $outputDirectory "meu-repertorio-cifra-$($manifest.version).zip"
+$package = Join-Path $outputDirectory "toca-mais-uma-cifra-$($manifest.version).zip"
 $stream = [System.IO.File]::Create($package)
 try {
   $zip = [System.IO.Compression.ZipArchive]::new($stream, [System.IO.Compression.ZipArchiveMode]::Create, $true)
