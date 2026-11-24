@@ -31,9 +31,19 @@ export type FrettedInstrument = {
     /** Espessura de cada corda (px), mesma ordem de `tuning`. */
     stringGauges: number[];
   };
-  /** Timbre do som sintetizado (corda dedilhada). */
+  /** Timbre do som sintetizado (corda dedilhada), usado enquanto as gravações não carregam. */
   sound: PluckSound;
+  /** Gravações do instrumento (ver utils/audio/samples). */
+  samples?: NoteBankId;
+  /**
+   * Ajuste do timbre das gravações para o instrumento soar como ele mesmo quando usa as de outro
+   * (ex.: cavaco e banjo usam o violão de aço): quanto a nota dura (s, constante de queda),
+   * brilho e ressonâncias do corpo.
+   */
+  sampleTone?: { decay?: number; bright?: number; body?: { hz: number; q: number; db: number }[] };
 };
+
+import type { NoteBankId } from '../audio/samples';
 
 export type PluckSound = {
   /** Quanto tempo a corda soa (s). */
@@ -82,6 +92,7 @@ export const INSTRUMENTS: Instrument[] = [
       body: [{ hz: 105, q: 1.4, db: 5 }, { hz: 210, q: 1.2, db: 3 }, { hz: 2600, q: 0.9, db: 2 }],
       reverb: 0.22, pickNoise: 0,
     },
+    samples: 'violao',
   },
   {
     kind: 'fretted',
@@ -103,6 +114,10 @@ export const INSTRUMENTS: Instrument[] = [
       body: [{ hz: 320, q: 1.5, db: 4 }, { hz: 3400, q: 1, db: 3 }],
       reverb: 0.18, pickNoise: 0.35,
     },
+    // Não há cavaquinho gravado com licença livre: violão de aço na região aguda, mais curto e
+    // com o "estalo" da caixa pequena.
+    samples: 'aco',
+    sampleTone: { decay: 0.55, bright: 1.25, body: [{ hz: 3000, q: 1.2, db: 4 }, { hz: 220, q: 1, db: -4 }] },
   },
   {
     kind: 'fretted',
@@ -124,6 +139,9 @@ export const INSTRUMENTS: Instrument[] = [
       body: [{ hz: 260, q: 1.5, db: 4 }, { hz: 1900, q: 1, db: 2 }],
       reverb: 0.2, pickNoise: 0,
     },
+    // Ukulele também é de nylon: usa as gravações do violão, na região aguda, mais curto e doce.
+    samples: 'violao',
+    sampleTone: { decay: 0.7, bright: 0.9, body: [{ hz: 300, q: 1.2, db: 3 }, { hz: 140, q: 1, db: -5 }] },
   },
   {
     kind: 'keyboard',

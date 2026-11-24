@@ -1,13 +1,18 @@
 {
   "manifest_version": 3,
   "name": "Toca Mais Uma — Importar cifra",
-  "version": "0.2.1",
-  "description": "Importa a cifra da música selecionada no Toca Mais Uma pelo navegador.",
+  "version": "0.3.0",
+  "description": "Busca e importa cifras (Cifra Club, Cifras.com.br e Ultimate Guitar) para o Toca Mais Uma pelo navegador.",
   "icons": { "128": "icon-128.png" },
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqj0fi5ywx5H4ueTI9v2dft2DvRJo0EAax1myMeTcfsiETpIRGjOXuSr6d7JNzbv2qc0wcep9+ZpFXeGdEJ1RyOngi3VE2ed7IzVVlyZ7fIRpGNPv9YsPJhs+SupXkNlF9EQtLwdjSnwGjEUV2hym1dtS9yn0NNF9bRb4g7utSzId4iDf8ALPspIWZlT66s0NpjWAHTrAItjqx4kvrxKx4bZSJVmkV5QD7yN278mkulcUzaymTc861lVoHWlIdKbFRKyDVx9WSR4PPY7nuFJZLJwI/D0Qg+CRaQp6pvzrRZaJMf/1dbKgLNTbqnS6BzgFNkNfFG67MCjKCOwlvVglSwIDAQAB",
   "background": { "service_worker": "background.js" },
   "permissions": ["scripting"],
-  "host_permissions": ["https://www.cifraclub.com.br/*"],
+  "host_permissions": [
+    "https://www.cifraclub.com.br/*",
+    "https://www.cifras.com.br/*",
+    "https://www.ultimate-guitar.com/*",
+    "https://tabs.ultimate-guitar.com/*"
+  ],
   "externally_connectable": {
     "matches": [
       "https://tocamaisuma.com.br/*",

@@ -58,6 +58,16 @@ service cloud.firestore {
         && request.resource.data.userId == resource.data.userId;
     }
 
+    // Playbacks (mp3 sincronizado com a cifra): privados do dono.
+    // O app cria e renomeia; status/linha do tempo são gravados pela Cloud Function (Admin SDK).
+    match /playbacks/{playbackId} {
+      allow read, delete: if isOwner(resource.data.userId);
+      allow create: if isOwner(request.resource.data.userId)
+        && request.resource.data.status == 'uploading';
+      allow update: if isOwner(resource.data.userId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['label', 'updatedAt']);
+    }
+
     // Qualquer outra coleção fica fechada.
     match /{document=**} {
       allow read, write: if false;

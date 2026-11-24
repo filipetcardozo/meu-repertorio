@@ -23,6 +23,10 @@ export type CifraSearchResult = {
   song: string;
   url: string;
   image?: string;
+  /** De qual site veio (sem valor = Cifra Club) */
+  source?: 'cifraclub' | 'cifras' | 'ultimateguitar';
+  /** Informação extra para a lista (ex.: nota e votos no Ultimate Guitar) */
+  detail?: string;
 };
 
 export type CifraStrumming = {
@@ -103,6 +107,7 @@ export async function searchCifraClub(query: string, limit = 10): Promise<CifraS
     .filter((d) => d.tipo === '2' && d.dns && d.url) // tipo 2 = música
     .slice(0, limit)
     .map((d) => ({
+      source: 'cifraclub' as const,
       artist: String(d.art ?? ''),
       song: String(d.txt ?? ''),
       url: `${SITE}/${d.dns}/${d.url}/`,

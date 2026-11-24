@@ -6,7 +6,8 @@ import { cleanChordToken, parseChord } from './parseChord';
 import { generateVoicings } from './voicings';
 import { generateKeyboardVoicings } from './keyboardVoicings';
 import { getInstrument } from './instruments';
-import { playFretted, playKeyboard } from './chordAudio';
+import { playFretted, playKeyboard, type StrokeOptions } from './chordAudio';
+import { BAND_ONLY_INSTRUMENTS } from './band';
 
 /** Lê os acordes (<b> da cifra exibida, já transpostos) na ordem da música. */
 export function songChordSequence(root: HTMLElement | null): string[] {
@@ -21,19 +22,26 @@ export function songChordSequence(root: HTMLElement | null): string[] {
   return out;
 }
 
-/** Toca o acorde pelo nome. Retorna false se não souber tocá-lo. */
-export function playChordByName(name: string, instrumentId: string): boolean {
+/**
+ * Toca o acorde pelo nome. Retorna false se não souber tocá-lo.
+ * `opts` escolhe o toque: batida para cima, só o baixo, abafado, agendado etc. (ver `StrokeOptions`).
+ */
+export function playChordByName(name: string, instrumentId: string, opts: StrokeOptions = {}): boolean {
   const parsed = parseChord(name);
   if (!parsed) return false;
-  const instrument = getInstrument(instrumentId);
+  const instrument = BAND_ONLY_INSTRUMENTS.find((i) => i.id === instrumentId) ?? getInstrument(instrumentId);
   if (instrument.kind === 'keyboard') {
     const v = generateKeyboardVoicings(parsed)[0];
     if (!v) return false;
-    playKeyboard(v.notes, v.bass);
+    playKeyboard(v.notes, v.bass, opts);
     return true;
   }
-  const v = generateVoicings(parsed, instrument, 1)[0];
+  const v = voicingCache.get(`${instrument.id}:${name}`) ?? generateVoicings(parsed, instrument, 1)[0];
   if (!v) return false;
-  playFretted(instrument, v.frets);
+  voicingCache.set(`${instrument.id}:${name}`, v);
+  playFretted(instrument, v.frets, opts);
   return true;
 }
+
+// O ritmo toca o mesmo acorde várias vezes por tempo: guarda a digitação em vez de gerar de novo.
+const voicingCache = new Map<string, { frets: number[] }>();

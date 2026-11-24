@@ -59,6 +59,10 @@ export function useLyricFollow(lyricKey: string) {
   const [currentLine, setCurrentLine] = React.useState<number | null>(null);
   const [highlight, setHighlight] = React.useState<HighlightBox | null>(null);
   const voiceSupported = useSpeechSupported();
+  // Playback sincronizado: o áudio diz qual é a linha (no lugar da voz).
+  const [externalActive, setExternalActive] = React.useState(false);
+  const externalActiveRef = React.useRef(false);
+  const externalClickRef = React.useRef<((line: number) => void) | null>(null);
 
   // Troca de música: carrega a velocidade dessa música e zera a posição.
   // A rolagem automática e a voz continuam como estavam (no repertório, a próxima música segue no mesmo modo).
@@ -150,7 +154,10 @@ export function useLyricFollow(lyricKey: string) {
       const st = followRef.current;
       if (st.cursor >= tokens.length) followRef.current = { ...st, cursor: tokens.length - 1 };
       const cur = followRef.current.cursor;
-      if (currentLineRef.current != null) {
+      if (externalActiveRef.current) {
+        // playback: a linha vem do áudio; só garante que ainda existe
+        if (currentLineRef.current != null && currentLineRef.current >= lines.length) currentLineRef.current = null;
+      } else if (currentLineRef.current != null) {
         currentLineRef.current = cur >= 0 ? tokens[cur].line : null;
         setCurrentLine(currentLineRef.current);
       }
@@ -320,9 +327,42 @@ export function useLyricFollow(lyricKey: string) {
   const faster = React.useCallback(() => setSpeed((s) => clampSpeed(s * SPEED_STEP)), []);
   const slower = React.useCallback(() => setSpeed((s) => clampSpeed(s / SPEED_STEP)), []);
 
-  /** Toque numa linha (com a voz ligada): "estou aqui". */
+  // ---------- Playback sincronizado ----------
+
+  const activateExternal = React.useCallback((on: boolean) => {
+    externalActiveRef.current = on;
+    setExternalActive(on);
+    if (on) {
+      setPlaying(false); // a rolagem passa a seguir o áudio
+    } else if (!voiceEnabledRef.current) {
+      currentLineRef.current = null;
+      setCurrentLine(null);
+      setHighlight(null);
+    }
+  }, []);
+
+  /**
+   * O áudio chegou numa linha: destaca e põe na altura de leitura.
+   * `line` null = trecho sem letra (introdução, solo): sem destaque, mas já mostra `upcoming`.
+   */
+  const followExternal = React.useCallback((line: number | null, upcoming: number | null = null) => {
+    const engine = getEngine();
+    currentLineRef.current = line;
+    setCurrentLine(line);
+    updateHighlight();
+    const target = line ?? upcoming;
+    if (target == null || engine.isUserActive()) return;
+    const m = measureLine(target);
+    if (!m) return;
+    const error = m.y - m.vp.height * ANCHOR;
+    if (Math.abs(error) > m.vp.height * 0.04) engine.correct(error);
+  }, [getEngine, measureLine, updateHighlight]);
+
+  const getLines = React.useCallback(() => linesRef.current, []);
+
+  /** Toque numa linha (com a voz ligada): "estou aqui". Com playback: pula o áudio para ela. */
   const handleLyricClick = React.useCallback((e: React.MouseEvent) => {
-    if (!voiceEnabledRef.current) return;
+    if (!voiceEnabledRef.current && !externalActiveRef.current) return;
     const body = (e.target as Element).closest('[data-lyric-body]');
     if (!body) return;
     const lines = linesRef.current;
@@ -336,6 +376,10 @@ export function useLyricFollow(lyricKey: string) {
       if (dist < bestDist) { bestDist = dist; pick = i; }
     });
     if (pick < 0) return;
+    if (externalActiveRef.current) {
+      externalClickRef.current?.(pick);
+      return;
+    }
     const first = tokensRef.current.findIndex((t) => t.line === pick);
     followRef.current = { cursor: first, pendingJump: null };
     heardWordsRef.current = [];
@@ -361,7 +405,14 @@ export function useLyricFollow(lyricKey: string) {
       toggle: toggleVoice,
     },
     currentLine,
-    highlight: voiceEnabled ? highlight : null,
+    highlight: voiceEnabled || externalActive ? highlight : null,
     handleLyricClick,
+    external: {
+      active: externalActive,
+      activate: activateExternal,
+      follow: followExternal,
+      getLines,
+      onLineClickRef: externalClickRef,
+    },
   };
 }

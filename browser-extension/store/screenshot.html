@@ -20,6 +20,14 @@
   .dialog { flex: 1; background: #1d1a23; border-radius: 20px; padding: 32px; box-shadow: 0 30px 80px #0008; border: 1px solid #2f2a38; }
   .dialog h2 { font-size: 26px; margin-bottom: 20px; }
   .search { border: 1px solid #3a3446; border-radius: 999px; padding: 14px 22px; font-size: 18px; color: #ddd; }
+  .list { margin-top: 12px; background: #26222e; border-radius: 14px; padding: 8px 0; }
+  .group { padding: 10px 20px 4px; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #b58cff; }
+  .item { display: flex; align-items: center; gap: 14px; padding: 9px 20px; }
+  .item.sel { background: #332d3f; }
+  .thumb { width: 38px; height: 38px; border-radius: 8px; background: linear-gradient(135deg,#7b5cff,#e0559b); flex: none; }
+  .item b { font-size: 17px; display: block; }
+  .item small { color: #a59eb3; font-size: 14px; }
+  .item .detail { margin-left: auto; color: #cfc6e0; font-size: 14px; }
   .card { margin-top: 20px; display: flex; gap: 16px; align-items: center; background: #26222e; border-radius: 14px; padding: 16px; }
   .cover { width: 64px; height: 64px; border-radius: 10px; background: linear-gradient(135deg,#7b5cff,#e0559b); }
   .card b { font-size: 19px; display: block; }
@@ -37,28 +45,30 @@
 <body>
   <div class="intro">
     <img src="../icon-128.png" alt="">
-    <h1>Importe cifras direto para o seu repertório</h1>
-    <p>Escolha a música no Toca Mais Uma e a extensão traz a cifra, o tom e os acordes para você revisar e salvar.</p>
+    <h1>Busque a cifra em vários sites de uma vez</h1>
+    <p>Pesquise a música no Toca Mais Uma e veja os resultados do Cifra Club, do Cifras.com.br e do Ultimate Guitar. Escolha uma e a cifra vem com tom e acordes.</p>
     <div class="steps">
       <div><span>1</span>Busque a música no app</div>
-      <div><span>2</span>Confira a prévia da cifra</div>
-      <div><span>3</span>Salve no seu repertório</div>
+      <div><span>2</span>Escolha a versão que preferir</div>
+      <div><span>3</span>Revise e salve no repertório</div>
     </div>
   </div>
   <div class="dialog">
     <h2>Importar cifra</h2>
-    <div class="search">🔍&nbsp; Minha música - Meu artista</div>
-    <div class="card">
-      <div class="cover"></div>
-      <div><b>Minha música</b><small>Meu artista</small></div>
-      <div class="tags"><span class="tag">Tom: C</span><span class="tag">Capo 2</span><span class="tag">96 BPM</span></div>
+    <div class="search">🔍&nbsp; Minha música</div>
+    <div class="list">
+      <div class="group">Cifra Club</div>
+      <div class="item sel"><div class="thumb"></div><div><b>Minha música</b><small>Meu artista</small></div></div>
+      <div class="group">Cifras.com.br</div>
+      <div class="item"><div class="thumb"></div><div><b>Minha música</b><small>Meu artista</small></div></div>
+      <div class="group">Ultimate Guitar</div>
+      <div class="item"><div class="thumb"></div><div><b>Minha Música</b><small>Meu Artista</small></div><span class="detail">★ 4.8 · 37 votos</span></div>
+      <div class="item"><div class="thumb"></div><div><b>Minha Música</b><small>Meu Artista</small></div><span class="detail">versão 2 · ★ 4.5 · 12 votos</span></div>
     </div>
 <pre><b>C</b>              <b>G</b>
 Primeira linha da canção
 <b>Am</b>            <b>F</b>
-Segunda linha da canção
-<b>C</b>        <b>G</b>         <b>F</b>
-Refrão que todo mundo canta</pre>
+Segunda linha da canção</pre>
     <div class="actions"><span class="btn ghost">Cancelar</span><span class="btn primary">Importar música</span></div>
   </div>
 </body>

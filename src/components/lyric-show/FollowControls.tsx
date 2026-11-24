@@ -44,13 +44,15 @@ type Props = {
   };
   /** Painel do afinador (aparece acima da barrinha quando ligado). */
   tunerPanel?: React.ReactNode;
+  /** Outro painel acima da barrinha (ex.: player do playback). */
+  extraPanel?: React.ReactNode;
   /** Distância do rodapé (ex.: para não cobrir outro botão flutuante). */
   bottomOffset?: number;
 };
 
 /** Barrinha flutuante: rolagem automática (play/pausa + velocidade) e seguir a voz. */
 export function FollowControls({
-  playing, onTogglePlay, speedLabel, onFaster, onSlower, voice, hasCurrentLine, tuner, tunerPanel, bottomOffset = 16,
+  playing, onTogglePlay, speedLabel, onFaster, onSlower, voice, hasCurrentLine, tuner, tunerPanel, extraPanel, bottomOffset = 16,
 }: Props) {
   let caption: React.ReactNode = null;
   const errorMsg = voice.error ?? tuner.error;
@@ -86,6 +88,7 @@ export function FollowControls({
       }}
     >
       {tuner.enabled && tunerPanel}
+      {extraPanel}
 
       {caption && (
         <Paper
@@ -167,7 +170,7 @@ export function FollowControls({
           </span>
         </Tooltip>
 
-        <Tooltip title={!tuner.supported ? 'Seu navegador não permite usar o microfone aqui' : tuner.enabled ? 'Fechar afinador' : 'Afinador: mostra se você está afinado e em que tom canta'}>
+        <Tooltip title={!tuner.supported ? 'Seu navegador não permite usar o microfone aqui' : tuner.enabled ? 'Fechar afinador' : 'Afinador: mostra se você está cantando afinado'}>
           <span>
             <IconButton
               aria-label={tuner.enabled ? 'fechar afinador' : 'abrir afinador'}

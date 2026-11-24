@@ -7,6 +7,16 @@ const appOrigins = new Set([
   'http://127.0.0.1:3000',
 ]);
 
+/**
+ * Páginas que o app pode pedir com "source:fetch": só busca e página de música de cada site.
+ * (O Cifra Club continua no "cifra:import", que lê a página já montada.)
+ */
+const fetchablePages = {
+  'https://www.cifras.com.br': [/^\/api\/search$/, /^\/cifra\/[a-z0-9-]+\/[a-z0-9-]+\/?$/i],
+  'https://www.ultimate-guitar.com': [/^\/search\.php$/],
+  'https://tabs.ultimate-guitar.com': [/^\/tab\/[a-z0-9-]+(?:\/[a-z0-9-]+)?\/?$/i],
+};
+
 function getUrl(value) {
   if (typeof value !== 'string') return null;
   try {
@@ -16,7 +26,12 @@ function getUrl(value) {
   }
 }
 
-function waitForTab(tabId) {
+function isFetchable(url) {
+  if (!url || url.protocol !== 'https:' || url.username || url.password || url.port) return false;
+  return (fetchablePages[url.origin] ?? []).some((re) => re.test(url.pathname));
+}
+
+function waitForTab(tabId, origin) {
   return new Promise((resolve, reject) => {
     const finish = (error) => {
       clearTimeout(timeout);
@@ -27,7 +42,7 @@ function waitForTab(tabId) {
     };
 
     const checkLoaded = (tab) => {
-      if (tab.status === 'complete' && getUrl(tab.url)?.origin === cifraOrigin) finish();
+      if (tab.status === 'complete' && getUrl(tab.url)?.origin === origin) finish();
     };
     const onUpdated = (updatedId, _change, tab) => {
       if (updatedId === tabId) checkLoaded(tab);
@@ -35,7 +50,7 @@ function waitForTab(tabId) {
     const onRemoved = (removedId) => {
       if (removedId === tabId) finish(new Error('A aba da cifra foi fechada.'));
     };
-    const timeout = setTimeout(() => finish(new Error('A página da cifra demorou para carregar.')), 12000);
+    const timeout = setTimeout(() => finish(new Error('A página da cifra demorou para carregar.')), 15000);
 
     chrome.tabs.onUpdated.addListener(onUpdated);
     chrome.tabs.onRemoved.addListener(onRemoved);
@@ -80,7 +95,7 @@ function readCifraPage(expectedOrigin) {
 async function importSong(url) {
   const tab = await chrome.tabs.create({ url, active: false });
   try {
-    await waitForTab(tab.id);
+    await waitForTab(tab.id, cifraOrigin);
     const [injection] = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: readCifraPage,
@@ -97,9 +112,57 @@ async function importSong(url) {
   }
 }
 
+// Roda na aba aberta: pede a mesma página de novo (já liberada pelo site) e devolve o HTML bruto.
+async function readRawPage() {
+  const res = await fetch(location.href, { credentials: 'include' });
+  return { html: await res.text(), url: location.href, status: res.status };
+}
+
+/** Página como o navegador do usuário recebe: pedido direto e, se o site barrar, por uma aba em segundo plano. */
+async function fetchPage(url) {
+  try {
+    const res = await fetch(url.href, { credentials: 'include', redirect: 'follow' });
+    const finalUrl = getUrl(res.url);
+    if (res.ok && isFetchable(finalUrl)) return { html: await res.text(), url: res.url, status: res.status };
+  } catch {
+    // segue para a aba
+  }
+
+  const tab = await chrome.tabs.create({ url: url.href, active: false });
+  try {
+    await waitForTab(tab.id, url.origin);
+    const [injection] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: readRawPage });
+    const page = injection?.result;
+    if (!page || !isFetchable(getUrl(page.url))) throw new Error('A página não ficou disponível no navegador. Tente novamente.');
+    if (page.status >= 400) return { error: `O site respondeu com HTTP ${page.status}.` };
+    return page;
+  } finally {
+    await chrome.tabs.remove(tab.id).catch(() => {});
+  }
+}
+
 chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
   const source = getUrl(sender.url);
-  if (!source || !appOrigins.has(source.origin) || message?.type !== 'cifra:import') return false;
+  if (!source || !appOrigins.has(source.origin)) return false;
+
+  if (message?.type === 'ping') {
+    sendResponse({ ok: true, version: chrome.runtime.getManifest().version, fetch: true });
+    return false;
+  }
+
+  if (message?.type === 'source:fetch') {
+    const url = getUrl(message.url);
+    if (!isFetchable(url)) {
+      sendResponse({ error: 'Este endereço não é de uma fonte de cifras suportada.' });
+      return false;
+    }
+    fetchPage(url).then(sendResponse, (error) => {
+      sendResponse({ error: error?.message || 'A extensão não conseguiu carregar a página.' });
+    });
+    return true;
+  }
+
+  if (message?.type !== 'cifra:import') return false;
 
   const url = getUrl(message.url);
   if (!url || url.origin !== cifraOrigin || !songPath.test(url.pathname) || url.username || url.password) {

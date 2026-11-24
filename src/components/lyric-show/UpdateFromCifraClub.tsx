@@ -28,6 +28,9 @@ import { chordSheetMarksSx } from './chordSheetStyles';
 import { CifraClubImport } from '../lyric-manage/CifraClubImport';
 import { displayFontFamily, monoFont } from '../../theme/createAppTheme';
 import { writeTone } from '../../utils/writeTone';
+import { SOURCE_LABEL, sourceOfUrl } from '../../lib/cifraSources';
+
+const sourceName = (url?: string) => SOURCE_LABEL[(url && sourceOfUrl(url)) || 'cifraclub'];
 
 const normalizeName = (s: string) =>
   (s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
@@ -60,8 +63,8 @@ export const UpdateFromCifraClubButton = (props: Props) => {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Tooltip title='Atualizar do Cifra Club'>
-        <IconButton aria-label='atualizar do Cifra Club' onClick={() => setOpen(true)} color='inherit' size={props.size}>
+      <Tooltip title='Atualizar cifra (Cifra Club, Cifras.com.br, Ultimate Guitar)'>
+        <IconButton aria-label='atualizar cifra' onClick={() => setOpen(true)} color='inherit' size={props.size}>
           <CloudSyncIcon color='primary' fontSize={props.size} />
         </IconButton>
       </Tooltip>
@@ -234,7 +237,7 @@ const UpdateFromCifraClubDialog = ({
   return (
     <Dialog open onClose={saving ? undefined : onClose} fullWidth maxWidth='md' fullScreen={fullScreen}>
       <DialogTitle sx={{ fontFamily: displayFontFamily, fontWeight: 600, pb: 0.5 }}>
-        Atualizar do Cifra Club
+        Atualizar cifra
       </DialogTitle>
       <DialogContent sx={{ pt: '16px !important' }}>
         {loadError ? <Alert severity='error'>{loadError}</Alert> : null}
@@ -295,14 +298,14 @@ const UpdateFromCifraClubDialog = ({
             {artistDiffers ? (
               <Box sx={{ p: 1.5, pb: 1, mb: 1.5, borderRadius: 3, border: `1px solid ${theme.palette.divider}` }}>
                 <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.secondary', mb: 0.5 }}>
-                  No Cifra Club o artista é &quot;{data.artist}&quot;
+                  No {sourceName(data.url)} o artista é &quot;{data.artist}&quot;
                 </Typography>
                 <RadioGroup value={artistMode} onChange={(e) => setArtistMode(e.target.value as ArtistMode)}>
                   {currentComposer ? (
                     <ArtistOption
                       value='update'
                       avatar={<ArtistAvatar image={data.artistImage} name={data.artist} size={26} />}
-                      title={<>Atualizar &quot;{lyric.composerName}&quot; com os dados do Cifra Club</>}
+                      title={<>Atualizar &quot;{lyric.composerName}&quot; com os dados do {sourceName(data.url)}</>}
                       hint={`Vira "${data.artist}", com foto${data.genre ? ` e estilo ${data.genre}` : ''}, em todas as músicas dele`}
                     />
                   ) : null}

@@ -4,9 +4,9 @@
 
 **Description**
 
-Importe cifras do Cifra Club direto para o Toca Mais Uma.
+Busque e importe cifras do Cifra Club, do Cifras.com.br e do Ultimate Guitar direto para o Toca Mais Uma.
 
-Ao buscar uma música no Toca Mais Uma (ou atualizar uma música que já tem link salvo), o app pede à extensão a cifra daquela página. A extensão abre a música no Cifra Club em uma aba em segundo plano, lê a cifra, o tom e os dados da música, devolve tudo ao app para você revisar e fecha a aba.
+Ao buscar uma música no Toca Mais Uma (ou atualizar uma música que já tem link salvo), o app pede à extensão os resultados da busca e a cifra escolhida. A extensão carrega a página pelo seu navegador (quando preciso, em uma aba em segundo plano, fechada em seguida), lê a cifra, o tom e os dados da música e devolve tudo ao app para você revisar.
 
 O que é importado:
 • Cifra com acordes e tablaturas
@@ -16,7 +16,7 @@ O que é importado:
 
 Privacidade:
 • Só funciona quando o Toca Mais Uma pede a importação de uma música
-• Só acessa páginas de música em www.cifraclub.com.br
+• Só acessa páginas de busca e de música do Cifra Club, Cifras.com.br e Ultimate Guitar
 • Não lê senhas, histórico nem outras abas e não guarda nenhum dado
 
 Requer o Chrome para computador e uma conta no Toca Mais Uma.
@@ -32,15 +32,15 @@ Requer o Chrome para computador e uma conta no Toca Mais Uma.
 
 **Single purpose**
 
-Importar para o Toca Mais Uma a cifra da música que o usuário seleciona no app, lendo a página dessa música no Cifra Club.
+Importar para o Toca Mais Uma a cifra da música que o usuário seleciona no app, buscando e lendo a página dessa música no Cifra Club, Cifras.com.br ou Ultimate Guitar.
 
 **Justificativa — scripting**
 
-Usada para ler a cifra, o tom e os dados da música na página do Cifra Club que a extensão abre a pedido do Toca Mais Uma. O script roda só nessa aba, que é fechada logo após a leitura.
+Usada para ler a cifra, o tom e os dados da música na página do site de cifras que a extensão abre a pedido do Toca Mais Uma. O script roda só nessa aba, que é fechada logo após a leitura.
 
-**Justificativa — host permission (https://www.cifraclub.com.br/*)**
+**Justificativa — host permissions (www.cifraclub.com.br, www.cifras.com.br, www.ultimate-guitar.com, tabs.ultimate-guitar.com)**
 
-Necessária para abrir e ler a página da música selecionada no Cifra Club. A extensão não acessa nenhum outro site.
+Necessárias para buscar a música e ler a página da cifra escolhida nesses três sites de cifras, pelo navegador do usuário. A extensão aceita só endereços de busca e de música desses sites, só a pedido do Toca Mais Uma, e não acessa nenhum outro site.
 
 **Remote code:** No, I am not using remote code.
 

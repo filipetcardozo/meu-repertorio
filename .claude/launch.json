@@ -4,8 +4,33 @@
     {
       "name": "dev",
       "runtimeExecutable": "yarn",
-      "runtimeArgs": ["dev"],
+      "runtimeArgs": [
+        "dev"
+      ],
       "port": 3000
+    },
+    {
+      "name": "playback-sync-demo",
+      "runtimeExecutable": "prototype/playback-sync/.venv/Scripts/python.exe",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8765",
+        "--bind",
+        "127.0.0.1",
+        "--directory",
+        "prototype/playback-sync/out"
+      ],
+      "port": 8765
+    },
+    {
+      "name": "dev-emulators",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set NEXT_DIST_DIR=.next-emu&& set NEXT_PUBLIC_USE_FIREBASE_EMULATORS=1&& yarn next dev -p 3010"
+      ],
+      "port": 3010
     }
   ]
 }

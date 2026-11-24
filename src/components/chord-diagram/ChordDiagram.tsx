@@ -17,6 +17,34 @@ const FRET_TAPER = Math.pow(2, -1 / 12);
 const INLAYS = [3, 5, 7, 9, 15];
 const DOUBLE_INLAY = 12;
 
+/** Os dedos "pulam" no braço um depois do outro (da corda grave para a aguda). */
+const DOT_DELAY_MS = 90;
+const DOT_STAGGER_MS = 35;
+const DOT_STYLE = `
+@keyframes chord-dot-pop {
+  0% { opacity: 0; transform: scale(0.2); }
+  65% { opacity: 1; transform: scale(1.15); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes chord-barre-grow {
+  from { opacity: 0; transform: scaleX(0.1); }
+  to { opacity: 1; transform: scaleX(1); }
+}
+.chord-dot {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: chord-dot-pop 260ms cubic-bezier(.3, .7, .4, 1) backwards;
+}
+.chord-barre {
+  transform-box: fill-box;
+  transform-origin: left center;
+  animation: chord-barre-grow 240ms 60ms cubic-bezier(.2, .8, .3, 1) backwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chord-dot, .chord-barre { animation: none; }
+}
+`;
+
 /** Diagrama vertical: cordas graves à esquerda, casas de cima para baixo. */
 export function ChordDiagram({ voicing, instrument }: Props) {
   const theme = useTheme();
@@ -75,6 +103,7 @@ export function ChordDiagram({ voicing, instrument }: Props) {
       aria-label={`Digitação: ${frets.map((f) => (f < 0 ? 'x' : f)).join(' ')}`}
       style={{ display: 'block', fontFamily: theme.typography.fontFamily }}
     >
+      <style>{DOT_STYLE}</style>
       {/* escala (madeira do braço) */}
       <rect
         x={x(0) - boardEdge}
@@ -134,6 +163,8 @@ export function ChordDiagram({ voicing, instrument }: Props) {
       {/* pestana feita com o dedo */}
       {barre && (
         <rect
+          key={`b${barre.fret}-${barre.fromString}-${barre.toString}`}
+          className='chord-barre'
           x={x(barre.fromString) - dotR}
           y={yDot(barre.fret) - dotR}
           width={x(barre.toString) - x(barre.fromString) + dotR * 2}
@@ -149,7 +180,8 @@ export function ChordDiagram({ voicing, instrument }: Props) {
         const inBarre = barre && f === barre.fret && s >= barre.fromString && s <= barre.toString;
         if (inBarre && s !== barre.fromString) return null;
         return (
-          <g key={`d${s}`}>
+          // A chave inclui a casa: ao trocar de digitação, só os dedos que mudaram "pulam" de novo.
+          <g key={`d${s}-${f}`} className='chord-dot' style={{ animationDelay: `${DOT_DELAY_MS + s * DOT_STAGGER_MS}ms` }}>
             {!inBarre && <circle cx={x(s)} cy={yDot(f)} r={dotR} fill={dot} />}
             {fingers[s] > 0 && (
               <text x={x(s)} y={yDot(f) + 4} textAnchor='middle' fontSize={11} fontWeight={700} fill={dotText}>

@@ -1,0 +1,17 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Playbacks: cada usuário só lê e grava os próprios arquivos (áudio de até 30 MB).
+    // A análise (analysis/*.npz) é gravada só pela Cloud Function.
+    match /playbacks/{uid}/{fileName} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.size < 30 * 1024 * 1024
+        && request.resource.contentType.matches('audio/.*');
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

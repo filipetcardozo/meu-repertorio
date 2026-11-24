@@ -1,5 +1,6 @@
 import React from 'react';
 import Portal from '@mui/material/Portal';
+import { keyframes } from '@mui/material/styles';
 import Paper from '@mui/material/Paper';
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
@@ -74,10 +75,52 @@ export type ChordDiagramCardsHandle = {
   leaveChord: () => void;
 };
 
-/** pinned = false é a prévia do hover (só existe uma por vez). */
-type Card = { id: number; name: string; x: number; y: number; z: number; pinned: boolean; anchor: string };
+/** Duração das animações de abrir e fechar o card. */
+const ENTER_MS = 240;
+const EXIT_MS = 160;
+
+// O card "nasce" do acorde (transform-origin no acorde) e volta para ele ao sumir.
+const cardEnter = keyframes`
+  0% { opacity: 0; transform: scale(0.55); filter: blur(3px); }
+  60% { opacity: 1; filter: blur(0); }
+  100% { opacity: 1; transform: scale(1); filter: blur(0); }
+`;
+const cardExit = keyframes`
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.8); }
+`;
+const cardFade = keyframes`
+  from { opacity: 0; }
+  to { opacity: 1; }
+`;
+
+/**
+ * pinned = false é a prévia do hover (só existe uma por vez).
+ * ax/ay = centro do acorde que abriu o card (de onde a animação sai).
+ * closing = está tocando a animação de saída; some de vez quando ela termina.
+ */
+type Card = {
+  id: number; name: string; x: number; y: number; z: number; pinned: boolean; anchor: string;
+  ax: number; ay: number; closing?: boolean;
+};
+
+const isLive = (c: Card) => !c.closing;
+const isLivePreview = (c: Card) => !c.pinned && !c.closing;
+const livePinned = (cards: Card[]) => cards.filter((c) => c.pinned && !c.closing);
+
+/** Começa a animação de saída da prévia (se houver uma aberta). */
+function dismissPreview(cards: Card[]): Card[] {
+  return cards.some(isLivePreview) ? cards.map((c) => (isLivePreview(c) ? { ...c, closing: true } : c)) : cards;
+}
 
 const anchorKey = (name: string, rect: DOMRect) => `${name}@${Math.round(rect.left)},${Math.round(rect.top)}`;
+
+function newCard(id: number, name: string, rect: DOMRect, others: Card[], z: number, pinned: boolean): Card {
+  return {
+    id, name, ...placeNear(rect, others), z, pinned, anchor: anchorKey(name, rect),
+    ax: rect.left + rect.width / 2, ay: rect.top + rect.height / 2,
+  };
+}
 
 function placeNear(rect: DOMRect, others: Card[]) {
   let x = rect.left + rect.width / 2 - CARD_WIDTH / 2;
@@ -126,7 +169,7 @@ export const ChordDiagramCards = React.forwardRef<ChordDiagramCardsHandle>(funct
     window.clearTimeout(closeTimer.current);
     closeTimer.current = window.setTimeout(() => {
       previewKey.current = null;
-      setCards((prev) => (prev.some((c) => !c.pinned) ? prev.filter((c) => c.pinned) : prev));
+      setCards(dismissPreview);
     }, HOVER_CLOSE_MS);
   }, []);
 
@@ -142,16 +185,17 @@ export const ChordDiagramCards = React.forwardRef<ChordDiagramCardsHandle>(funct
       previewKey.current = null;
       setCards((prev) => {
         const z = ++topZ.current;
-        const preview = prev.find((c) => !c.pinned);
+        const preview = prev.find(isLivePreview);
         // Clique no acorde da prévia: ela vira card fixo.
         if (preview && preview.name === name) {
           return normalizeZ(prev.map((c) => (c.id === preview.id ? { ...c, pinned: true, z } : c)), topZ);
         }
-        const pinned = prev.filter((c) => c.pinned);
+        const kept = dismissPreview(prev);
+        const pinned = livePinned(kept);
         // Acorde já aberto: só traz para frente.
         const existing = pinned.find((c) => c.name === name);
-        if (existing) return normalizeZ(pinned.map((c) => (c.id === existing.id ? { ...c, z } : c)), topZ);
-        return normalizeZ([...pinned, { id: nextId.current++, name, ...placeNear(rect, pinned), z, pinned: true, anchor: anchorKey(name, rect) }], topZ);
+        if (existing) return normalizeZ(kept.map((c) => (c.id === existing.id ? { ...c, z } : c)), topZ);
+        return normalizeZ([...kept, newCard(nextId.current++, name, rect, pinned, z, true)], topZ);
       });
     },
 
@@ -167,11 +211,12 @@ export const ChordDiagramCards = React.forwardRef<ChordDiagramCardsHandle>(funct
         cancelPreviewClose();
         previewKey.current = key;
         setCards((prev) => {
-          const pinned = prev.filter((c) => c.pinned);
+          const kept = dismissPreview(prev);
+          const pinned = livePinned(kept);
           // Já está aberto fixo: não precisa de prévia.
-          if (pinned.some((c) => c.name === name)) { previewKey.current = null; return pinned; }
+          if (pinned.some((c) => c.name === name)) { previewKey.current = null; return kept; }
           const z = ++topZ.current;
-          return normalizeZ([...pinned, { id: nextId.current++, name, ...placeNear(rect, pinned), z, pinned: false, anchor: key }], topZ);
+          return normalizeZ([...kept, newCard(nextId.current++, name, rect, pinned, z, false)], topZ);
         });
       }, HOVER_OPEN_MS);
     },
@@ -184,12 +229,16 @@ export const ChordDiagramCards = React.forwardRef<ChordDiagramCardsHandle>(funct
     },
   }), [cancelPreviewClose, schedulePreviewClose]);
 
-  const close = React.useCallback((id: number) => setCards((prev) => prev.filter((c) => c.id !== id)), []);
+  /** Fechar começa a animação de saída; remove() tira o card quando ela termina. */
+  const close = React.useCallback((id: number) => {
+    setCards((prev) => prev.map((c) => (c.id === id && !c.closing ? { ...c, closing: true } : c)));
+  }, []);
+  const remove = React.useCallback((id: number) => setCards((prev) => prev.filter((c) => c.id !== id)), []);
   /** Tocar/arrastar o card traz para frente e, se for a prévia, fixa ela. */
   const focus = React.useCallback((id: number) => {
     setCards((prev) => {
       const card = prev.find((c) => c.id === id);
-      if (!card) return prev;
+      if (!card || !isLive(card)) return prev;
       if (!card.pinned) {
         cancelPreviewClose();
         previewKey.current = null;
@@ -225,7 +274,7 @@ export const ChordDiagramCards = React.forwardRef<ChordDiagramCardsHandle>(funct
   return (
     <Portal>
       {cards.map((card) => (
-        <ChordCard key={card.id} card={card} onClose={close} onFocus={focus} onMove={move} onHover={hoverCard} />
+        <ChordCard key={card.id} card={card} onClose={close} onRemove={remove} onFocus={focus} onMove={move} onHover={hoverCard} />
       ))}
     </Portal>
   );
@@ -234,12 +283,13 @@ export const ChordDiagramCards = React.forwardRef<ChordDiagramCardsHandle>(funct
 type CardProps = {
   card: Card;
   onClose: (id: number) => void;
+  onRemove: (id: number) => void;
   onFocus: (id: number) => void;
   onMove: (id: number, x: number, y: number) => void;
   onHover: (pinned: boolean, inside: boolean) => void;
 };
 
-const ChordCard = React.memo(function ChordCard({ card, onClose, onFocus, onMove, onHover }: CardProps) {
+const ChordCard = React.memo(function ChordCard({ card, onClose, onRemove, onFocus, onMove, onHover }: CardProps) {
   // Todo card abre no violão.
   const [instrumentId, setInstrumentId] = React.useState<string>(DEFAULT_INSTRUMENT_ID);
   const [index, setIndex] = React.useState(0);
@@ -343,6 +393,18 @@ const ChordCard = React.memo(function ChordCard({ card, onClose, onFocus, onMove
     storeScale(scale);
     keepInside();
   };
+  // A animação sai do acorde. Card fixo que foi arrastado para longe some no próprio lugar.
+  const nearAnchor = Math.abs(card.ax - card.x - CARD_WIDTH / 2) < CARD_WIDTH * 1.5
+    && Math.abs(card.ay - card.y) < CARD_HEIGHT_GUESS * 1.5;
+  const origin = card.closing && !nearAnchor ? 'center' : `${card.ax - card.x}px ${card.ay - card.y}px`;
+
+  // Garantia: se a animação não rodar (aba em segundo plano etc.), remove do mesmo jeito.
+  React.useEffect(() => {
+    if (!card.closing) return;
+    const t = window.setTimeout(() => onRemove(card.id), EXIT_MS + 150);
+    return () => window.clearTimeout(t);
+  }, [card.closing, card.id, onRemove]);
+
   const resetSize = () => {
     setScale(1);
     storeScale(1);
@@ -362,6 +424,10 @@ const ChordCard = React.memo(function ChordCard({ card, onClose, onFocus, onMove
       onMouseEnter={() => onHover(card.pinned, true)}
       onMouseLeave={() => onHover(card.pinned, false)}
       onKeyDown={(e) => { if (e.key === 'Escape') onClose(card.id); }}
+      onAnimationEnd={(e) => {
+        // animationend dos filhos (bolinhas do diagrama) também sobe até aqui.
+        if (e.target === e.currentTarget && card.closing) onRemove(card.id);
+      }}
       sx={{
         position: 'fixed',
         left: card.x,
@@ -374,6 +440,16 @@ const ChordCard = React.memo(function ChordCard({ card, onClose, onFocus, onMove
         touchAction: 'none',
         userSelect: 'none',
         cursor: dragging ? 'grabbing' : 'grab',
+        transformOrigin: origin,
+        animation: card.closing
+          ? `${cardExit} ${EXIT_MS}ms cubic-bezier(.4, 0, 1, 1) forwards`
+          : `${cardEnter} ${ENTER_MS}ms cubic-bezier(.2, .9, .3, 1.15) backwards`,
+        pointerEvents: card.closing ? 'none' : undefined,
+        '@media (prefers-reduced-motion: reduce)': {
+          animation: card.closing
+            ? `${cardFade} 120ms linear reverse forwards`
+            : `${cardFade} 120ms linear backwards`,
+        },
       }}
     >
       {/* zoom escala tudo junto (texto, botões e desenho, que é vetorial e continua nítido) */}

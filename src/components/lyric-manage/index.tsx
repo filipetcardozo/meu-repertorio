@@ -39,6 +39,9 @@ import { chordSheetMarksSx } from '../lyric-show/chordSheetStyles';
 
 import { CifraClubImport, CifraImportInfo } from './CifraClubImport';
 import type { CifraImport } from '../../lib/cifraClub';
+import { SOURCE_LABEL, sourceOfUrl } from '../../lib/cifraSources';
+
+const sourceName = (url?: string) => SOURCE_LABEL[(url && sourceOfUrl(url)) || 'cifraclub'];
 import { monoFont } from '../../theme/createAppTheme';
 
 const normalizeName = (s: string) =>
@@ -265,7 +268,7 @@ export const LyricManage = ({ idLyric }: { idLyric: string | undefined }) => {
             icon={importedFrom.coverImage ? <Avatar src={importedFrom.coverImage} variant='rounded' sx={{ width: 40, height: 40 }} /> : undefined}
           >
             Cifra importada do{' '}
-            <Link href={importedFrom.url} target='_blank' rel='noreferrer' color='inherit'>Cifra Club</Link>. Revise os campos antes de salvar.
+            <Link href={importedFrom.url} target='_blank' rel='noreferrer' color='inherit'>{sourceName(importedFrom.url)}</Link>. Revise os campos antes de salvar.
             {importedFrom.songwriters?.length ? (
               <Box component='span' sx={{ display: 'block', opacity: 0.8, fontSize: 13 }}>
                 Composição: {importedFrom.songwriters.join(', ')}
@@ -285,7 +288,7 @@ export const LyricManage = ({ idLyric }: { idLyric: string | undefined }) => {
             sx={{ mb: 3 }}
             icon={importedFrom.artistImage ? <Avatar src={importedFrom.artistImage} sx={{ width: 28, height: 28 }} /> : undefined}
           >
-            Ao salvar, o cadastro de &quot;{importedFrom.artist}&quot; será atualizado com os dados do Cifra Club
+            Ao salvar, o cadastro de &quot;{importedFrom.artist}&quot; será atualizado com os dados do {sourceName(importedFrom.url)}
             (foto{importedFrom.genre ? `, estilo ${importedFrom.genre}` : ''}), inclusive nas outras músicas dele.
           </MuiAlert>
         )}
@@ -324,7 +327,7 @@ export const LyricManage = ({ idLyric }: { idLyric: string | undefined }) => {
               ? [musicToAdd.composerName, musicToAdd.songwriters?.length ? `composição: ${musicToAdd.songwriters.join(', ')}` : '']
                 .filter(Boolean)
                 .join(' · ')
-              : 'Preencha os dados ou importe do Cifra Club'
+              : 'Preencha os dados ou importe pela busca'
           }
           action={
             <Stack direction='row' sx={{ gap: 1, flexWrap: 'wrap' }}>
@@ -495,7 +498,7 @@ export const LyricManage = ({ idLyric }: { idLyric: string | undefined }) => {
               multiline
               fullWidth
               minRows={16}
-              placeholder='Cole aqui a cifra (ou importe do Cifra Club)'
+              placeholder='Cole aqui a cifra (ou importe pela busca)'
               value={musicToAdd.lyric}
               onChange={handleAddMusic('lyric')}
               spellCheck={false}

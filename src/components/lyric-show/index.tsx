@@ -39,6 +39,9 @@ import { ChordDiagramCards, ChordDiagramCardsHandle } from '../chord-diagram/Cho
 import { chordAtPoint } from '../../utils/chords/chordAtPoint';
 import { useLyricDisplayPrefs } from '../../hooks/useLyricDisplayPrefs';
 import { DisplaySettingsButton } from './DisplaySettings';
+import { useAuth } from '../../hooks/useAuth';
+import { usePlaybackSync } from '../../hooks/usePlaybackSync';
+import { PlaybackBar, PlaybackButton, PlaybackManagerDialog } from './Playback';
 
 const SHOW_TABS_KEY = 'lyricShowTabs';
 
@@ -132,10 +135,19 @@ export const LyricShowComponent = ({
     setFollowRoot(el);
   }, [setFollowRoot]);
 
+  // Playback (mp3) sincronizado com a cifra
+  const { uid } = useAuth();
+  const playback = usePlaybackSync({
+    lyricId: lyricToShow?.lyricId ?? '',
+    uid,
+    external: follow.external,
+    onNext: nextLyricToShow ? handleNext : undefined,
+  });
+  const [playbackManagerOpen, setPlaybackManagerOpen] = React.useState(false);
+
   // Afinador + detecção de tom
   const currentKey = writeTone(lyricToShow);
   const tuner = usePitchTuner({ root: follow.root, currentKey, lyricKey: lyricToShow?.lyricId ?? '' });
-  const shiftKey = (semitones: number) => changeOffSet(semitones);
 
   // Clique num acorde abre um card com o desenho dele; nos outros lugares segue o comportamento normal.
   const chordCardsRef = React.useRef<ChordDiagramCardsHandle>(null);
@@ -375,6 +387,13 @@ export const LyricShowComponent = ({
           />
 
           <Stack direction='row' sx={{ alignItems: 'center', ml: 'auto', flexShrink: 0 }}>
+            {lyricToShow.lyricId ? (
+              <PlaybackButton
+                sync={playback}
+                onManage={() => setPlaybackManagerOpen(true)}
+                size={isMobile ? 'small' : 'medium'}
+              />
+            ) : null}
             {FontControls()}
             {CompactToggleButton()}
             {TabsToggleButton()}
@@ -529,22 +548,44 @@ export const LyricShowComponent = ({
         voice={follow.voice}
         hasCurrentLine={follow.currentLine != null}
         tuner={tuner}
+        extraPanel={
+          <PlaybackBar
+            sync={playback}
+            offset={offsetLyricToShow ?? 0}
+            onShiftKey={changeOffSet}
+            onManage={() => setPlaybackManagerOpen(true)}
+          />
+        }
         tunerPanel={
           <TunerPanel
             listening={tuner.listening}
             reading={tuner.reading}
-            keyState={tuner.keyState}
             accuracy={tuner.accuracy}
-            currentKey={currentKey}
             songKey={tuner.songKey}
             voiceCenter={tuner.voiceCenter}
             songChords={tuner.songChords}
-            onShiftKey={shiftKey}
           />
         }
       />
     );
   }
+
+  function PlaybackManager() {
+    if (!lyricToShow?.lyricId) return null;
+    return (
+      <PlaybackManagerDialog
+        open={playbackManagerOpen}
+        onClose={() => setPlaybackManagerOpen(false)}
+        sync={playback}
+        lyricId={lyricToShow.lyricId}
+        uid={uid}
+        lyricHtml={lyricToShow.lyric}
+      />
+    );
+  }
+
+  // Espaço no fim da cifra para os painéis flutuantes não cobrirem as últimas linhas.
+  const floatingPad = tuner.enabled ? 26 : playback.open ? 26 : null;
 
   if (isMobile) {
     return (
@@ -578,7 +619,7 @@ export const LyricShowComponent = ({
               overflow: 'visible',
             },
             // espaço para os botões flutuantes não cobrirem as últimas linhas
-            pb: tuner.enabled ? 26 : 12,
+            pb: floatingPad ?? 12,
           }}
         >
           <CurrentLineHighlight box={follow.highlight} />
@@ -587,6 +628,7 @@ export const LyricShowComponent = ({
         </Box>
 
         {Follow()}
+        {PlaybackManager()}
         <ChordDiagramCards ref={chordCardsRef} />
         {/* No celular a troca de música é pelo gesto de arrastar para o lado (no repertório). */}
       </>
@@ -618,7 +660,7 @@ export const LyricShowComponent = ({
           // Nunca rolagem própria no <pre> (ver comentário no layout do celular).
           '& pre': { overflow: 'visible' },
           // Espaço no fim para os botões flutuantes (rolagem/voz, "Próxima") não cobrirem as últimas linhas.
-          pb: tuner.enabled ? 26 : 10,
+          pb: floatingPad ?? 10,
         }}
       >
         <CurrentLineHighlight box={follow.highlight} />
@@ -644,6 +686,7 @@ export const LyricShowComponent = ({
       </Box>
 
       {Follow()}
+      {PlaybackManager()}
       <ChordDiagramCards ref={chordCardsRef} />
       {hasNextMusic && NextMusicFloatButton()}
     </>

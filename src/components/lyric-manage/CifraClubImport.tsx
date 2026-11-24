@@ -19,6 +19,17 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { alpha } from '@mui/material/styles';
 import type { CifraImport, CifraSearchResult, CifraVersion } from '../../lib/cifraClub';
 import { cifraExtensionInstallUrl, importWithCifraExtension } from '../../lib/cifraClubExtension';
+import {
+  canUseExtensionSources,
+  EXTENSION_SOURCES,
+  ExtensionMissingError,
+  importFromExtensionSource,
+  isSourceUrl,
+  searchExtensionSource,
+  sourceOfUrl,
+  SOURCE_LABEL,
+  type SourceId,
+} from '../../lib/cifraSources';
 import { displayFontFamily } from '../../theme/createAppTheme';
 import { BrandIcon } from './formUi';
 
@@ -43,7 +54,9 @@ type ImportError = {
   extensionNeeded?: boolean;
 };
 
-const isCifraUrl = (s: string) => /^https?:\/\/(www\.|m\.)?cifraclub\.com\.br\//i.test(s.trim());
+/** Ordem das fontes na lista de resultados. */
+const SOURCE_ORDER: SourceId[] = ['cifraclub', 'cifras', 'ultimateguitar'];
+const sourceLabel = (o: CifraSearchResult) => SOURCE_LABEL[o.source ?? 'cifraclub'];
 const formatLists = (n?: number) =>
   n === undefined ? '' : n >= 1000 ? `${(n / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mil listas` : `${n} listas`;
 
@@ -55,11 +68,13 @@ export const CifraClubImport = ({ onImport, initialQuery, autoImportUrl, bare }:
   const [importing, setImporting] = useState<string | null>(null);
   const [error, setError] = useState<ImportError | null>(null);
   const [current, setCurrent] = useState<CifraImport | null>(null);
+  /** null = ainda não sabe; false = sem extensão que busque nas outras fontes */
+  const [extensionReady, setExtensionReady] = useState<boolean | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const openOnResults = useRef(!!initialQuery && !autoImportUrl);
 
   const query = input.trim();
-  const canSearch = query.length >= 2 && !isCifraUrl(query);
+  const canSearch = query.length >= 2 && !isSourceUrl(query);
 
   // Busca com debounce enquanto digita (ignora quando é um link colado).
   useEffect(() => {
@@ -68,28 +83,60 @@ export const CifraClubImport = ({ onImport, initialQuery, autoImportUrl, bare }:
       return;
     }
     const q = query;
-    const timer = setTimeout(async () => {
+    const timer = setTimeout(() => {
       setSearching(true);
       abortRef.current?.abort();
       const controller = new AbortController();
       abortRef.current = controller;
-      try {
-        const res = await fetch(`/api/cifra/search?q=${encodeURIComponent(q)}`, { signal: controller.signal });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data?.error || 'Erro na busca.');
-        setOptions(data.results ?? []);
-        setError(null);
-        if (openOnResults.current) {
+      const live = () => !controller.signal.aborted;
+
+      // Cada fonte entra na lista assim que responde (Cifra Club pelo servidor; as outras pela extensão).
+      const bySource: Partial<Record<SourceId, CifraSearchResult[]>> = {};
+      const publish = () => {
+        if (!live()) return;
+        const merged = SOURCE_ORDER.flatMap((src) => bySource[src] ?? []);
+        setOptions(merged);
+        if (merged.length && openOnResults.current) {
           openOnResults.current = false;
           setOpen(true);
         }
-      } catch (e: any) {
-        if (e?.name === 'AbortError') return;
-        setOptions([]);
-        setError({ message: e?.message || 'Erro na busca.' });
-      } finally {
-        if (abortRef.current === controller) setSearching(false);
-      }
+      };
+
+      const cifraClub = fetch(`/api/cifra/search?q=${encodeURIComponent(q)}`, { signal: controller.signal })
+        .then(async (res) => {
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.error || 'Erro na busca.');
+          bySource.cifraclub = data.results ?? [];
+          publish();
+        });
+
+      const others = canUseExtensionSources().then((ok) => {
+        if (!live()) return;
+        setExtensionReady(ok);
+        if (!ok) return;
+        return Promise.all(
+          EXTENSION_SOURCES.map((src) =>
+            searchExtensionSource(src, q)
+              .then((results) => {
+                bySource[src] = results;
+                publish();
+              })
+              .catch(() => undefined), // uma fonte fora do ar não atrapalha as outras
+          ),
+        );
+      });
+
+      Promise.allSettled([cifraClub, others]).then(([cc]) => {
+        if (!live()) return;
+        publish();
+        const total = SOURCE_ORDER.reduce((n, src) => n + (bySource[src]?.length ?? 0), 0);
+        if (cc.status === 'rejected' && !total && (cc.reason as Error)?.name !== 'AbortError') {
+          setError({ message: (cc.reason as Error)?.message || 'Erro na busca.' });
+        } else {
+          setError(null);
+        }
+        setSearching(false);
+      });
     }, 350);
     return () => clearTimeout(timer);
   }, [query, canSearch]);
@@ -102,10 +149,20 @@ export const CifraClubImport = ({ onImport, initialQuery, autoImportUrl, bare }:
     let extensionNeeded = false;
     let extensionError: unknown;
     try {
-      let data = await importWithCifraExtension(url).catch((e: unknown) => {
-        extensionError = e;
-        return undefined;
-      });
+      const source = sourceOfUrl(url);
+      let data: CifraImport | undefined;
+      if (source && source !== 'cifraclub') {
+        // Cifras.com.br e Ultimate Guitar: só pela extensão
+        data = await importFromExtensionSource(url).catch((e: unknown) => {
+          if (e instanceof ExtensionMissingError) extensionNeeded = true;
+          throw e;
+        });
+      } else {
+        data = await importWithCifraExtension(url).catch((e: unknown) => {
+          extensionError = e;
+          return undefined;
+        });
+      }
       if (!data) {
         const res = await fetch(`/api/cifra/import?url=${encodeURIComponent(url)}`);
         const body = await res.json();
@@ -143,7 +200,7 @@ export const CifraClubImport = ({ onImport, initialQuery, autoImportUrl, bare }:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoImportUrl]);
 
-  const pastedUrl = isCifraUrl(input);
+  const pastedUrl = isSourceUrl(input);
 
   // Versões: as que a página destaca + a importada (se for outra, ex.: ukulele ou de usuário)
   const versions: CifraVersion[] = current?.versions ? [...current.versions] : [];
@@ -161,6 +218,7 @@ export const CifraClubImport = ({ onImport, initialQuery, autoImportUrl, bare }:
         onClose={() => setOpen(false)}
         options={canSearch ? options : []}
         filterOptions={(x) => x}
+        groupBy={sourceLabel}
         loading={canSearch && searching}
         disabled={!!importing}
         inputValue={input}
@@ -170,7 +228,7 @@ export const CifraClubImport = ({ onImport, initialQuery, autoImportUrl, bare }:
         value={null}
         onChange={(_, v) => {
           if (v && typeof v !== 'string') importUrl(v.url);
-          else if (typeof v === 'string' && isCifraUrl(v)) importUrl(v);
+          else if (typeof v === 'string' && isSourceUrl(v)) importUrl(v);
         }}
         getOptionLabel={(o) => (typeof o === 'string' ? o : `${o.song} - ${o.artist}`)}
         isOptionEqualToValue={(a, b) => typeof b !== 'string' && a.url === b.url}
@@ -183,7 +241,10 @@ export const CifraClubImport = ({ onImport, initialQuery, autoImportUrl, bare }:
               <Avatar src={o.image} variant='rounded' sx={{ width: 32, height: 32, mr: 1.5 }} />
               <Box sx={{ minWidth: 0 }}>
                 <Typography variant='body2' noWrap>{o.song}</Typography>
-                <Typography variant='caption' color='text.secondary' noWrap>{o.artist}</Typography>
+                <Typography variant='caption' color='text.secondary' noWrap component='div'>
+                  {o.artist}
+                  {o.detail ? <Box component='span' sx={{ opacity: 0.75 }}> · {o.detail}</Box> : null}
+                </Typography>
               </Box>
             </li>
           );
@@ -267,7 +328,7 @@ export const CifraClubImport = ({ onImport, initialQuery, autoImportUrl, bare }:
             />
           );
         })}
-        <Tooltip title='Abra no Cifra Club, copie o link da versão e cole na busca'>
+        <Tooltip title={`Abra no ${SOURCE_LABEL[sourceOfUrl(current.url) ?? 'cifraclub']}, copie o link da versão e cole na busca`}>
           <Link
             href={versions[0]?.url ?? current.url}
             target='_blank'
@@ -281,12 +342,27 @@ export const CifraClubImport = ({ onImport, initialQuery, autoImportUrl, bare }:
     </Box>
   );
 
+  // Sem a extensão, a busca fica só no Cifra Club: avisa (sem atrapalhar) como liberar as outras fontes.
+  const extensionHint = extensionReady === false && canSearch && (
+    <Typography variant='caption' sx={{ display: 'block', mt: 1, ml: 2, color: 'text.secondary' }}>
+      Buscando só no Cifra Club.{' '}
+      {cifraExtensionInstallUrl ? (
+        <Link href={cifraExtensionInstallUrl} target='_blank' rel='noopener noreferrer'>
+          Instale a extensão
+        </Link>
+      ) : (
+        'Instale a extensão'
+      )}{' '}
+      no Chrome para computador para buscar também no Cifras.com.br e no Ultimate Guitar.
+    </Typography>
+  );
+
   const errorAlert = error && (
     <Alert severity='error' sx={{ mt: 1.5 }} onClose={() => setError(null)}>
       {error.message}
       {error.extensionNeeded && (
         <Typography variant='body2' sx={{ mt: 0.5 }}>
-          Instale a extensão Toca Mais Uma no Chrome para computador e tente novamente.
+          Instale (ou atualize) a extensão Toca Mais Uma no Chrome para computador e tente novamente.
         </Typography>
       )}
       {error.retry && (
@@ -308,6 +384,7 @@ export const CifraClubImport = ({ onImport, initialQuery, autoImportUrl, bare }:
     return (
       <Box>
         {search}
+        {extensionHint}
         {errorAlert}
         {versionBar}
       </Box>
@@ -331,14 +408,16 @@ export const CifraClubImport = ({ onImport, initialQuery, autoImportUrl, bare }:
         </BrandIcon>
         <Box sx={{ minWidth: 0 }}>
           <Typography sx={{ fontFamily: displayFontFamily, fontWeight: 600, fontSize: 17, lineHeight: 1.3 }}>
-            Importar do Cifra Club
+            Importar cifra
           </Typography>
           <Typography variant='body2' sx={{ color: 'text.secondary' }}>
-            Busque pela música ou artista, ou cole o link. Cifra, tom, ritmo e artista são preenchidos sozinhos.
+            Busque pela música ou artista no Cifra Club, Cifras.com.br e Ultimate Guitar, ou cole o link. Cifra, tom e
+            artista são preenchidos sozinhos.
           </Typography>
         </Box>
       </Box>
       {search}
+      {extensionHint}
       {errorAlert}
       {versionBar}
     </Paper>

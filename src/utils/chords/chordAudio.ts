@@ -6,39 +6,89 @@
  * - Teclado: piano com duas cordas levemente desafinadas por nota, ataque do martelo e
  *   nota mais aguda (melodia) um pouco mais forte.
  * - Tudo passa por um reverb curto de sala e se espalha no estéreo (grave à esquerda).
+ *
+ * Cada toque pode ser só uma parte do acorde (baixo, agudos, uma corda), abafado, curto ou
+ * mais forte/fraco — é o que os ritmos (batidas e dedilhados) usam.
  */
 import type { FrettedInstrument, PluckSound } from './instruments';
 import { bindVolume } from '../audio/practiceVolume';
+import { ensureNotes, noteSample, type NoteBankId } from '../audio/samples';
 
 type AudioCtor = typeof AudioContext;
 
 let ctx: AudioContext | null = null;
 let out: AudioNode | null = null;
 let reverbIn: AudioNode | null = null;
-let current: GainNode | null = null;
 const bufferCache = new Map<string, AudioBuffer>();
 let pianoWave: PeriodicWave | null = null;
 let noiseBuffer: AudioBuffer | null = null;
 
-/** Resposta de uma sala pequena: ruído estéreo que decai, sem agudos ásperos. */
-function roomImpulse(c: AudioContext, seconds = 1.6): AudioBuffer {
+/**
+ * Toques soando (ou agendados), por canal (um por instrumento), para abafar quando entra outro
+ * no mesmo instrumento sem calar os outros (a batida do violão não corta o baixo).
+ */
+export type Voice = { gain: GainNode; start: number; onDamp?: (t: number) => void };
+const pools = new Map<string, Voice[]>();
+
+/** Qual parte do acorde o toque pega. */
+export type StrokePart =
+  | 'all'      // todas as cordas
+  | 'upper'    // as de cima (batida para cima pega mais as agudas)
+  | 'bass'     // só o baixo (polegar)
+  | 'altBass'  // baixo alternado (a corda grave seguinte)
+  | 'treble'   // as três mais agudas juntas (dedos)
+  | 'pinch'    // baixo + três agudas juntos (pinça)
+  | 't1' | 't2' | 't3'; // uma das três mais agudas (t1 = a mais grave delas)
+
+export type StrokeOptions = {
+  /** Quando tocar (relógio do áudio, ver `audioTime`); sem isso, toca agora. */
+  when?: number;
+  /** Batida de baixo para cima (ordem das cordas invertida). */
+  reverse?: boolean;
+  part?: StrokePart;
+  /** Força: 1 = normal. */
+  gain?: number;
+  /** Abafado: som percussivo, quase sem nota ("tchá"). */
+  muted?: boolean;
+  /** Curto (staccato): solta o acorde logo depois do ataque. */
+  short?: boolean;
+  /** Abafa o que estava soando (padrão). Dedilhado deixa as cordas anteriores soando. */
+  damp?: boolean;
+  /** Canal (instrumento) do toque: só abafa o que soa no mesmo canal. */
+  channel?: string;
+  /** Posição no estéreo (-1 esquerda .. 1 direita) do instrumento na banda. */
+  pan?: number;
+};
+
+/**
+ * Resposta de uma sala de estúdio: primeiras reflexões (paredes próximas) e uma cauda estéreo
+ * que vai ficando mais escura com o tempo, como numa sala de verdade (os agudos morrem antes).
+ */
+function roomImpulse(c: AudioContext, seconds = 2.2): AudioBuffer {
   const sr = c.sampleRate;
   const len = Math.floor(sr * seconds);
-  const pre = Math.floor(sr * 0.012);
+  const pre = Math.floor(sr * 0.018);
   const ir = c.createBuffer(2, len, sr);
   for (let ch = 0; ch < 2; ch++) {
     const d = ir.getChannelData(ch);
+    // Primeiras reflexões: ecos esparsos nos primeiros ~70 ms, diferentes em cada lado.
+    for (let k = 0; k < 14; k++) {
+      const idx = pre + Math.floor(Math.random() * sr * 0.07);
+      d[idx] += (Math.random() < 0.5 ? -1 : 1) * 0.55 * (1 - k / 14);
+    }
     let lp = 0;
     for (let i = pre; i < len; i++) {
       const t = (i - pre) / sr;
-      lp += 0.45 * ((Math.random() * 2 - 1) - lp);
-      d[i] = lp * Math.exp(-t * 3.6);
+      const coef = 0.08 + 0.55 * Math.exp(-t * 1.6);
+      lp += coef * ((Math.random() * 2 - 1) - lp);
+      d[i] += lp * Math.exp(-t * 3.1) * 0.7;
     }
   }
   return ir;
 }
 
-function audio(): { ctx: AudioContext; out: AudioNode; reverbIn: AudioNode } | null {
+/** Contexto de áudio do app e as entradas da mixagem (saída e reverb). Null sem Web Audio. */
+export function audio(): { ctx: AudioContext; out: AudioNode; reverbIn: AudioNode } | null {
   if (typeof window === 'undefined') return null;
   if (!ctx) {
     const Ctor: AudioCtor | undefined = window.AudioContext ?? (window as unknown as { webkitAudioContext?: AudioCtor }).webkitAudioContext;
@@ -51,8 +101,23 @@ function audio(): { ctx: AudioContext; out: AudioNode; reverbIn: AudioNode } | n
     // Volume dos sons do app (controle no painel do afinador).
     const volume = ctx.createGain();
     bindVolume(volume, ctx);
-    comp.connect(volume).connect(ctx.destination);
-    out = comp;
+    // Limitador no fim: a banda inteira junta nunca estoura.
+    const limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -2;
+    limiter.knee.value = 0;
+    limiter.ratio.value = 20;
+    limiter.attack.value = 0.002;
+    limiter.release.value = 0.1;
+    // Corta o grave que só embola (abaixo do que os instrumentos tocam).
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 32;
+    // Folga antes do compressor: com a banda inteira ele só "cola" o som, sem bombear.
+    const headroom = ctx.createGain();
+    headroom.gain.value = 0.75;
+    hp.connect(headroom).connect(comp);
+    comp.connect(volume).connect(limiter).connect(ctx.destination);
+    out = hp;
 
     const conv = ctx.createConvolver();
     conv.buffer = roomImpulse(ctx);
@@ -61,6 +126,58 @@ function audio(): { ctx: AudioContext; out: AudioNode; reverbIn: AudioNode } | n
   }
   if (ctx.state === 'suspended') void ctx.resume();
   return { ctx, out: out!, reverbIn: reverbIn! };
+}
+
+/** Relógio do áudio (segundos), para agendar sons no tempo exato. Null sem Web Audio. */
+export function audioTime(): number | null {
+  return audio()?.ctx.currentTime ?? null;
+}
+
+/** Clique de metrônomo em `when` (relógio do áudio); `accent` marca o primeiro tempo do compasso. */
+export function playClick(when: number, accent: boolean) {
+  const a = audio();
+  if (!a) return;
+  const { ctx: c } = a;
+  const osc = c.createOscillator();
+  osc.type = 'triangle';
+  osc.frequency.value = accent ? 1760 : 1175;
+  const g = c.createGain();
+  const level = accent ? 0.32 : 0.2;
+  g.gain.setValueAtTime(0.0001, when);
+  g.gain.exponentialRampToValueAtTime(level, when + 0.002);
+  g.gain.exponentialRampToValueAtTime(0.0001, when + 0.05);
+  osc.connect(g).connect(a.out);
+  osc.start(when);
+  osc.stop(when + 0.06);
+}
+
+/** Cala na hora os toques agendados para `time` ou depois (ex.: trocou o acorde de um tempo já agendado). */
+export function cancelVoicesFrom(time: number) {
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  pools.forEach((list, key) => {
+    pools.set(key, list.filter((v) => {
+      if (v.start < time - 0.001) return true;
+      silence(v, now);
+      return false;
+    }));
+  });
+}
+
+/** Solta rapidinho o que está soando num canal, ou em todos (ex.: parou o "tocar junto"). */
+export function releaseVoices(channel?: string) {
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  pools.forEach((list, key) => {
+    if (channel && key !== channel) return;
+    list.forEach((v) => {
+      v.gain.gain.cancelScheduledValues(now);
+      v.gain.gain.setTargetAtTime(0, now, 0.04);
+      v.onDamp?.(now + 0.3);
+      window.setTimeout(() => v.gain.disconnect(), 400);
+    });
+    pools.delete(key);
+  });
 }
 
 const midiToFreq = (m: number) => 440 * Math.pow(2, (m - 69) / 12);
@@ -75,25 +192,50 @@ function getNoise(c: AudioContext): AudioBuffer {
   return noiseBuffer;
 }
 
-type VoiceOptions = {
+function silence(v: Voice, now: number) {
+  v.gain.gain.cancelScheduledValues(0);
+  v.gain.gain.setValueAtTime(0, now);
+  v.onDamp?.(now + 0.05);
+  window.setTimeout(() => v.gain.disconnect(), 100);
+}
+
+export type VoiceOptions = {
   lowpassHz?: number;
   body?: PluckSound['body'];
   reverb: number;
+  damp: boolean;
+  channel?: string;
+  pan?: number;
 };
 
 /**
- * Começa um novo acorde, abaixando rapidinho o anterior (como abafar as cordas).
+ * Começa um novo toque em `t`. Com `damp`, abaixa rapidinho o que estava soando (como abafar
+ * as cordas) e troca o que estava agendado para depois. Sem `damp` (dedilhado), soma ao que soa.
  * Caminho: notas → corpo (EQ) → corte de agudos → saída, e um pouco para o reverb.
  */
-function newVoice(c: AudioContext, dest: AudioNode, reverb: AudioNode, opts: VoiceOptions): GainNode {
-  const t = c.currentTime;
-  if (current) {
-    current.gain.cancelScheduledValues(t);
-    current.gain.setValueAtTime(current.gain.value, t);
-    current.gain.linearRampToValueAtTime(0, t + 0.06);
-    const old = current;
-    window.setTimeout(() => old.disconnect(), 250);
-  }
+function newVoice(c: AudioContext, dest: AudioNode, reverb: AudioNode, opts: VoiceOptions, t: number): Voice {
+  const now = c.currentTime;
+  const channel = opts.channel ?? 'chord';
+  const list = (pools.get(channel) ?? []).filter((v) => {
+    if (opts.damp) {
+      if (v.start >= t - 0.005) {
+        silence(v, now);
+      } else {
+        v.gain.gain.cancelScheduledValues(t);
+        v.gain.gain.setTargetAtTime(0, t, 0.02);
+        v.onDamp?.(t + 0.2);
+        window.setTimeout(() => v.gain.disconnect(), Math.max(0, t - now) * 1000 + 300);
+      }
+      return false;
+    }
+    // Sem abafar: só larga os que já acabaram de soar.
+    if (v.start < now - 6) {
+      v.gain.disconnect();
+      return false;
+    }
+    return true;
+  });
+
   const voice = c.createGain();
   voice.gain.value = 1;
 
@@ -115,14 +257,40 @@ function newVoice(c: AudioContext, dest: AudioNode, reverb: AudioNode, opts: Voi
     node.connect(lp);
     node = lp;
   }
+  if (opts.pan) {
+    const pan = c.createStereoPanner();
+    pan.pan.value = opts.pan;
+    node.connect(pan);
+    node = pan;
+  }
   node.connect(dest);
 
   const send = c.createGain();
   send.gain.value = opts.reverb;
   node.connect(send).connect(reverb);
 
-  current = voice;
-  return voice;
+  const v: Voice = { gain: voice, start: t };
+  list.push(v);
+  pools.set(channel, list);
+  return v;
+}
+
+/** Abre um toque novo no canal (para outros sintetizadores do app, ex.: banda). */
+export function openVoice(t: number, opts: VoiceOptions): Voice | null {
+  const a = audio();
+  if (!a) return null;
+  return newVoice(a.ctx, a.out, a.reverbIn, opts, t);
+}
+
+/** Envelope do toque inteiro: abafado some quase na hora; curto solta logo depois do ataque. */
+function shapeVoice(voice: GainNode, t: number, opts: StrokeOptions) {
+  if (opts.muted) {
+    voice.gain.setValueAtTime(1, t);
+    voice.gain.setTargetAtTime(0, t + 0.012, 0.012);
+  } else if (opts.short) {
+    voice.gain.setValueAtTime(1, t);
+    voice.gain.setTargetAtTime(0, t + 0.13, 0.03);
+  }
 }
 
 /** Corda dedilhada (Karplus-Strong). Afinação exata via playbackRate. */
@@ -178,52 +346,134 @@ function pluckBuffer(c: AudioContext, key: string, freq: number, s: PluckSound):
   return { buffer, rate };
 }
 
-/** Toca uma digitação de instrumento de cordas (frets: -1 = corda não tocada). */
-export function playFretted(instrument: FrettedInstrument, frets: number[]) {
+/**
+ * Uma nota de corda dedilhada (ex.: baixo): gravada (bank), ou sintetizada com o timbre `sound`
+ * enquanto a gravação não carregou.
+ */
+export function playPluckNote(key: string, sound: PluckSound, midi: number, opts: StrokeOptions = {}, bank?: NoteBankId) {
+  const a = audio();
+  if (!a) return;
+  const { ctx: c } = a;
+  const t = Math.max(opts.when ?? 0, c.currentTime + 0.02);
+  if (bank) ensureNotes(c, bank);
+  const smp = bank ? noteSample(bank, midi) : null;
+  const level = opts.gain ?? 1;
+  const voice = newVoice(c, a.out, a.reverbIn, smp
+    ? { lowpassHz: 1200 + 3000 * Math.min(1, level), reverb: 0.05, damp: opts.damp ?? true, channel: opts.channel, pan: opts.pan }
+    : { lowpassHz: sound.lowpassHz, body: sound.body, reverb: sound.reverb, damp: opts.damp ?? true, channel: opts.channel, pan: opts.pan }, t).gain;
+  shapeVoice(voice, t, opts);
+  const src = c.createBufferSource();
+  const g = c.createGain();
+  if (smp) {
+    src.buffer = smp.sample.buffer;
+    src.playbackRate.value = smp.rate;
+    g.gain.value = 0.75 * level * smp.sample.gain;
+    src.connect(g).connect(voice);
+    src.start(t, smp.sample.offset);
+  } else {
+    const { buffer, rate } = pluckBuffer(c, key, midiToFreq(midi), sound);
+    src.buffer = buffer;
+    src.playbackRate.value = rate;
+    g.gain.value = 0.7 * level;
+    src.connect(g).connect(voice);
+    src.start(t);
+  }
+}
+
+/** Escolhe as cordas do toque (na ordem física), a partir das que soam no acorde. */
+function pickStrings(sounding: { i: number; midi: number }[], part: StrokePart) {
+  if (part === 'all' || sounding.length === 0) return sounding;
+  const byPitch = [...sounding].sort((a, b) => a.midi - b.midi);
+  const bass = byPitch[0];
+  // As agudas são as últimas cordas na ordem física, sem contar o baixo.
+  const rest = sounding.filter((s) => s !== bass);
+  const treble = rest.slice(-3);
+  switch (part) {
+    case 'upper': return sounding.slice(-Math.min(sounding.length, 4));
+    case 'bass': return [bass];
+    case 'altBass': return [byPitch[1] ?? bass];
+    case 'treble': return treble;
+    case 'pinch': return [bass, ...treble];
+    case 't1': return [treble[0] ?? bass];
+    case 't2': return [treble[1] ?? treble[0] ?? bass];
+    case 't3': return [treble[2] ?? treble[treble.length - 1] ?? bass];
+  }
+}
+
+/**
+ * Toca uma digitação de instrumento de cordas (frets: -1 = corda não tocada).
+ * Ver `StrokeOptions` para tocar só uma parte, abafado, curto, para cima ou agendado.
+ */
+export function playFretted(instrument: FrettedInstrument, frets: number[], opts: StrokeOptions = {}) {
   const a = audio();
   if (!a) return;
   const { ctx: c } = a;
   const s = instrument.sound;
-  const voice = newVoice(c, a.out, a.reverbIn, { lowpassHz: s.lowpassHz, body: s.body, reverb: s.reverb });
+  const part = opts.part ?? 'all';
+  let t = Math.max(opts.when ?? 0, c.currentTime + 0.02);
+  const bank = instrument.samples;
+  if (bank) ensureNotes(c, bank);
+  // Gravado se o instrumento já carregou; senão, sintetizado.
+  const sampled = !!bank && noteSample(bank, instrument.tuning[0] + 12) != null;
+  const strength = Math.min(1, opts.gain ?? 1);
+  const tone = instrument.sampleTone;
+  const voice = newVoice(c, a.out, a.reverbIn, sampled
+    // Toque mais fraco soa mais escuro, como na mão.
+    ? {
+      lowpassHz: ((opts.muted ? 1500 : 2800) + 9000 * strength * strength) * (tone?.bright ?? 1),
+      body: tone?.body, reverb: 0.2, damp: opts.damp ?? true, channel: opts.channel, pan: opts.pan,
+    }
+    : { lowpassHz: s.lowpassHz, body: s.body, reverb: s.reverb, damp: opts.damp ?? true, channel: opts.channel, pan: opts.pan }, t).gain;
+  shapeVoice(voice, t, opts);
+  // Instrumento de corda mais curta (cavaco, banjo): a nota morre antes.
+  if (sampled && tone?.decay && !opts.muted && !opts.short) {
+    voice.gain.setValueAtTime(1, t);
+    voice.gain.setTargetAtTime(0, t + 0.08, tone.decay);
+  }
 
-  // Batida para baixo, na ordem física das cordas (no ukulele o G agudo vem primeiro, como na mão)
-  const order = frets.map((f, i) => ({ f, i })).filter(({ f }) => f >= 0);
+  // Batida na ordem física das cordas (no ukulele o G agudo vem primeiro, como na mão); `reverse` volta pelo outro lado
+  const sounding = frets.map((f, i) => ({ i, midi: instrument.tuning[i] + f, f })).filter(({ f }) => f >= 0);
+  const order = pickStrings(sounding, part);
+  if (opts.reverse) order.reverse();
   const strings = frets.length;
-  const base = 0.55 / Math.sqrt(Math.max(1, order.length));
-  let t = c.currentTime + 0.02;
+  // Dedilhado (pinça, agudos juntos) soa junto, sem o "arrastar" da batida.
+  const together = part === 'treble' || part === 'pinch';
+  const level = (opts.gain ?? 1) * (opts.muted ? 0.8 : 1);
+  const base = (0.55 * level) / Math.sqrt(Math.max(1, part === 'all' || part === 'upper' ? order.length : 3));
 
-  order.forEach(({ f, i }, k) => {
-    const midi = instrument.tuning[i] + f;
-    const { buffer, rate } = pluckBuffer(c, instrument.id, midiToFreq(midi), s);
+  order.forEach(({ i, midi }, k) => {
+    const smp = sampled ? noteSample(bank!, midi) : null;
+    const { buffer, rate } = smp ? { buffer: smp.sample.buffer, rate: smp.rate } : pluckBuffer(c, instrument.id, midiToFreq(midi), s);
     // Mão humana: tempo e força variam um pouco; a batida acelera levemente
-    if (k > 0) t += (s.strumMs / 1000) * rand(0.8, 1.2) * (1 - k * 0.04);
+    if (k > 0) t += together ? rand(0, 0.006) : (s.strumMs / 1000) * rand(0.8, 1.2) * (1 - k * 0.04);
     const gain = base * rand(0.85, 1) * (1.08 - (i / Math.max(1, strings - 1)) * 0.16);
 
     const pan = c.createStereoPanner();
-    pan.pan.value = -0.35 + 0.7 * (i / Math.max(1, strings - 1));
+    pan.pan.value = (-0.35 + 0.7 * (i / Math.max(1, strings - 1))) * (sampled ? 0.5 : 1);
     pan.connect(voice);
 
     const src = c.createBufferSource();
     src.buffer = buffer;
     src.playbackRate.value = rate;
     const g = c.createGain();
-    g.gain.value = gain;
+    g.gain.value = smp ? gain * smp.sample.gain * 0.8 : gain;
     src.connect(g).connect(pan);
-    src.start(t);
+    src.start(t, smp ? smp.sample.offset : 0);
 
-    // Palheta raspando a corda
-    if (s.pickNoise > 0) {
+    // Palheta raspando a corda; no abafado, o "tchá" da mão batendo nas cordas
+    const noise = opts.muted ? Math.max(0.6, s.pickNoise) : sampled ? 0 : s.pickNoise;
+    if (noise > 0) {
       const nz = c.createBufferSource();
       nz.buffer = getNoise(c);
       const hp = c.createBiquadFilter();
-      hp.type = 'highpass';
-      hp.frequency.value = 2500;
+      hp.type = opts.muted ? 'bandpass' : 'highpass';
+      hp.frequency.value = opts.muted ? 1800 : 2500;
       const ng = c.createGain();
-      ng.gain.setValueAtTime(gain * s.pickNoise, t);
-      ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.015);
+      ng.gain.setValueAtTime(gain * noise, t);
+      ng.gain.exponentialRampToValueAtTime(0.0001, t + (opts.muted ? 0.03 : 0.015));
       nz.connect(hp).connect(ng).connect(pan);
       nz.start(t);
-      nz.stop(t + 0.03);
+      nz.stop(t + 0.04);
     }
   });
 }
@@ -236,16 +486,63 @@ function getPianoWave(c: AudioContext) {
   return pianoWave;
 }
 
-/** Toca as notas do teclado juntas (com o baixo da mão esquerda, se houver). */
-export function playKeyboard(notes: number[], bass: number | null) {
+/** Notas do teclado para cada parte do toque (o baixo fica na mão esquerda). */
+function pickKeys(notes: number[], bass: number | null, part: StrokePart): number[] {
+  const sorted = [...notes].sort((a, b) => a - b);
+  const low = bass ?? sorted[0] - 12;
+  const top = sorted.slice(-3);
+  switch (part) {
+    case 'all': return bass != null ? [bass, ...notes] : notes;
+    case 'upper': case 'treble': return notes;
+    case 'bass': return [low];
+    case 'altBass': return [low + 7];
+    case 'pinch': return [low, ...notes];
+    case 't1': return [top[0]];
+    case 't2': return [top[1] ?? top[0]];
+    case 't3': return [top[top.length - 1]];
+  }
+}
+
+/**
+ * Toca as notas do teclado juntas (com o baixo da mão esquerda, se houver).
+ * Ver `StrokeOptions` para tocar só uma parte, curto, mais forte/fraco ou agendado.
+ */
+export function playKeyboard(notes: number[], bass: number | null, opts: StrokeOptions = {}) {
   const a = audio();
   if (!a) return;
   const { ctx: c } = a;
-  const voice = newVoice(c, a.out, a.reverbIn, { reverb: 0.28 });
-  const all = bass != null ? [bass, ...notes] : notes;
-  const top = Math.max(...notes);
-  const base = 0.4 / Math.sqrt(all.length);
-  const t0 = c.currentTime + 0.02;
+  const t0 = Math.max(opts.when ?? 0, c.currentTime + 0.02);
+  ensureNotes(c, 'piano');
+  const sampled = noteSample('piano', 60) != null;
+  const strength = Math.min(1, opts.gain ?? 1);
+  const voice = newVoice(c, a.out, a.reverbIn, {
+    reverb: sampled ? 0.22 : 0.28, damp: opts.damp ?? true, channel: opts.channel, pan: opts.pan,
+    // Piano gravado: toque mais leve, som mais aveludado.
+    lowpassHz: sampled ? 2500 + 12000 * strength * strength : undefined,
+  }, t0).gain;
+  // No teclado, "abafado" vira um acorde bem curto.
+  shapeVoice(voice, t0, opts.muted ? { short: true } : opts);
+  const all = pickKeys(notes, bass, opts.part ?? 'all');
+  const top = Math.max(...all);
+  const base = (0.4 * (opts.gain ?? 1) * (opts.muted ? 0.6 : 1)) / Math.sqrt(Math.max(all.length, 3));
+
+  if (sampled) {
+    all.forEach((midi, k) => {
+      const smp = noteSample('piano', midi);
+      if (!smp) return;
+      const t = t0 + k * 0.007 + rand(0, 0.006);
+      const src = c.createBufferSource();
+      src.buffer = smp.sample.buffer;
+      src.playbackRate.value = smp.rate;
+      const g = c.createGain();
+      g.gain.value = base * 1.6 * smp.sample.gain * (midi === top ? 1.15 : 1) * rand(0.9, 1);
+      const pan = c.createStereoPanner();
+      pan.pan.value = Math.max(-0.4, Math.min(0.4, (midi - 60) / 40));
+      src.connect(g).connect(pan).connect(voice);
+      src.start(t, smp.sample.offset);
+    });
+    return;
+  }
 
   all.forEach((midi, k) => {
     const f = midiToFreq(midi);
