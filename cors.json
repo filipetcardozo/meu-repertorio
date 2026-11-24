@@ -1,0 +1,12 @@
+[
+  {
+    "origin": [
+      "https://tocamaisuma.com.br",
+      "https://www.tocamaisuma.com.br",
+      "http://localhost:3000"
+    ],
+    "method": ["GET", "HEAD"],
+    "responseHeader": ["Content-Type", "Content-Length", "Range"],
+    "maxAgeSeconds": 3600
+  }
+]

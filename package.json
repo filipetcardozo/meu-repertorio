@@ -10,7 +10,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "postinstall": "node scripts/copy-vendor.mjs",
+    "predev": "node scripts/copy-vendor.mjs",
+    "prebuild": "node scripts/copy-vendor.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.13.0",
@@ -32,7 +35,8 @@
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-icons": "^5.7.0",
-    "react-instantsearch": "^7.55.1"
+    "react-instantsearch": "^7.55.1",
+    "signalsmith-stretch": "1.3.2"
   },
   "devDependencies": {
     "@types/node": "^24",

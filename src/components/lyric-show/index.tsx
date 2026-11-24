@@ -142,6 +142,7 @@ export const LyricShowComponent = ({
     uid,
     external: follow.external,
     onNext: nextLyricToShow ? handleNext : undefined,
+    keyOffset: offsetLyricToShow ?? 0,
   });
   const [playbackManagerOpen, setPlaybackManagerOpen] = React.useState(false);
 
@@ -549,12 +550,7 @@ export const LyricShowComponent = ({
         hasCurrentLine={follow.currentLine != null}
         tuner={tuner}
         extraPanel={
-          <PlaybackBar
-            sync={playback}
-            offset={offsetLyricToShow ?? 0}
-            onShiftKey={changeOffSet}
-            onManage={() => setPlaybackManagerOpen(true)}
-          />
+          <PlaybackBar sync={playback} onManage={() => setPlaybackManagerOpen(true)} />
         }
         tunerPanel={
           <TunerPanel

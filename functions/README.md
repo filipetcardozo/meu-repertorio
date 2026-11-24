@@ -27,6 +27,15 @@ firebase deploy --only firestore:rules,storage,functions
 - No primeiro deploy de um gatilho de Storage o CLI pode pedir para liberar permissões do Eventarc.
 - Custo por música: uma execução de ~10 s com 2 GB de memória (análise) e um arquivo `.npz` pequeno.
 
+## CORS do Storage (troca de tom do áudio)
+
+O player com troca de tom (`src/utils/audio/stretchPlayer.ts`) baixa o mp3 com `fetch`, então o bucket
+precisa liberar CORS para o domínio do app. Sem isso o player cai para o `<audio>` comum, sem transpor.
+
+```powershell
+gcloud storage buckets update gs://avid-bricolage-313721.appspot.com --cors-file=cors.json
+```
+
 ## Testar local (emuladores)
 
 ```powershell

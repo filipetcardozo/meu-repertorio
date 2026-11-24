@@ -56,8 +56,8 @@ const fmt = (t: number) => {
 };
 
 const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
-/** Diferença de semitons no intervalo -6..+5. */
-const wrapSemis = (n: number) => ((((n + 6) % 12) + 12) % 12) - 6;
+/** Acima disso (em semitons) a transposição do áudio começa a soar artificial. */
+const NATURAL_SHIFT = 4;
 
 function statusChip(p: PlaybackType) {
   switch (p.status) {
@@ -100,11 +100,8 @@ export function PlaybackButton({ sync, onManage, size }: {
 // Player flutuante
 // ---------------------------------------------------------------------------------------------
 
-export function PlaybackBar({ sync, offset, onShiftKey, onManage }: {
+export function PlaybackBar({ sync, onManage }: {
   sync: PlaybackSync;
-  /** Tom atual da cifra em relação ao original (semitons). */
-  offset: number;
-  onShiftKey?: (semitones: number) => void;
   onManage: () => void;
 }) {
   const [menuEl, setMenuEl] = React.useState<HTMLElement | null>(null);
@@ -114,7 +111,10 @@ export function PlaybackBar({ sync, offset, onShiftKey, onManage }: {
   if (!sync.open || !t) return null;
 
   const ready = sync.readyTrack;
-  const keyDiff = ready?.transpose != null ? wrapSemis(ready.transpose - offset) : 0;
+  const wanted = sync.wantedSemitones;
+  const keyLabel = wanted === 0
+    ? 'Áudio no tom da cifra'
+    : `Áudio no tom da cifra (${signed(wanted)} semitom${Math.abs(wanted) > 1 ? 's' : ''})`;
 
   return (
     <Paper
@@ -179,6 +179,11 @@ export function PlaybackBar({ sync, offset, onShiftKey, onManage }: {
         <Alert severity='error' sx={{ my: 1 }} action={<Button color='inherit' size='small' onClick={onManage}>Ver</Button>}>
           {t.error || 'Não foi possível sincronizar este playback.'}
         </Alert>
+      ) : sync.audioLoading ? (
+        <Box sx={{ py: 1 }}>
+          <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 1 }}>Carregando o áudio…</Typography>
+          <LinearProgress />
+        </Box>
       ) : (
         <>
           <Stack direction='row' sx={{ alignItems: 'center', gap: 0.5 }}>
@@ -235,12 +240,25 @@ export function PlaybackBar({ sync, offset, onShiftKey, onManage }: {
           <Stack direction='row' sx={{ alignItems: 'center', gap: 1, flexWrap: 'wrap', minHeight: 28 }}>
             {sync.audioError ? (
               <Typography sx={{ fontSize: 12, color: 'error.main' }}>{sync.audioError}</Typography>
-            ) : keyDiff !== 0 && onShiftKey ? (
-              <Button size='small' onClick={() => onShiftKey(keyDiff)} sx={{ textTransform: 'none', fontSize: 12, px: 0.5 }}>
-                Playback está {signed(keyDiff)} semitom{Math.abs(keyDiff) > 1 ? 's' : ''}: ajustar o tom da cifra
-              </Button>
+            ) : sync.pitchAvailable ? (
+              <Tooltip
+                title={sync.followKey
+                  ? 'O áudio muda de tom junto com a cifra. Desligue para ouvir o tom original do playback.'
+                  : 'Ligue para o áudio mudar de tom junto com a cifra.'}
+              >
+                <FormControlLabel
+                  sx={{ mr: 0, ml: -0.5, '& .MuiFormControlLabel-label': { fontSize: 12, color: 'text.secondary' } }}
+                  control={<Switch size='small' checked={sync.followKey} onChange={(e) => sync.setFollowKey(e.target.checked)} />}
+                  label={keyLabel}
+                />
+              </Tooltip>
             ) : (
-              <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Toque numa linha para tocar dali</Typography>
+              <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                {wanted !== 0 ? `Áudio no tom original (${signed(-wanted)} da cifra): este navegador não transpõe` : 'Toque numa linha para tocar dali'}
+              </Typography>
+            )}
+            {sync.pitchAvailable && sync.followKey && Math.abs(wanted) > NATURAL_SHIFT && (
+              <Typography sx={{ fontSize: 12, color: 'warning.main' }}>transposição grande: pode soar artificial</Typography>
             )}
             <Box sx={{ flex: 1 }} />
             {sync.canAutoNext && (

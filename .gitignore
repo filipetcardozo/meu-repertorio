@@ -41,3 +41,6 @@ next-env.d.ts
 # firebase (emuladores e CLI)
 *-debug.log
 .firebase/
+
+# copiado de node_modules por scripts/copy-vendor.mjs
+/public/vendor/

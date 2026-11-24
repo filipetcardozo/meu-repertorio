@@ -2,7 +2,7 @@
  * Playback sincronizado no modo show.
  *
  * - Lista (ao vivo) os playbacks do usuário para a música e lembra o escolhido no aparelho.
- * - Toca o mp3; a cada quadro acha o ponto da linha do tempo (gerada pela Cloud Function) e manda o
+ * - Toca o mp3 (com troca de tom e velocidade: utils/audio/stretchPlayer); a cada quadro acha o ponto da linha do tempo (gerada pela Cloud Function) e manda o
  *   `useLyricFollow` destacar a linha e rolar até ela.
  * - As linhas são localizadas na tela pelo TEXTO (não pela posição), então funciona com a quebra de
  *   linha do celular, com o modo compacto e com tablaturas escondidas.
@@ -15,13 +15,18 @@ import type { PlaybackSyncItem, PlaybackType } from '../types/playbackType';
 import {
   loadPickedPlayback, playbackUrl, savePickedPlayback, watchPlaybacks,
 } from '../providers/playbacks/services';
+import { createMediaEngine, createPlaybackEngine, type PlaybackEngine, type PlayerEvents } from '../utils/audio/stretchPlayer';
 
 /** O destaque entra um pouco antes da frase (dá tempo de ler). */
 const LEAD_S = 0.25;
 /** Ao pular para uma linha, começa um pouco antes dela. */
 const SEEK_PREROLL_S = 0.6;
 const AUTO_NEXT_KEY = 'playback:auto-next';
+const FOLLOW_KEY_KEY = 'playback:follow-key';
 const RATES = [0.75, 0.85, 1, 1.1, 1.25];
+
+/** Diferença de tom no intervalo -6..+5 (o caminho mais curto). */
+export const wrapSemitones = (n: number) => ((((Math.round(n) + 6) % 12) + 12) % 12) - 6;
 
 type External = {
   active: boolean;
@@ -68,8 +73,10 @@ export function usePlaybackSync(opts: {
   external: External;
   /** Repertório: passa para a próxima música quando o playback termina. */
   onNext?: () => void;
+  /** Tom da cifra na tela, em semitons a partir do tom original (o offset da música). */
+  keyOffset?: number;
 }) {
-  const { lyricId, uid, external, onNext } = opts;
+  const { lyricId, uid, external, onNext, keyOffset = 0 } = opts;
   const [tracks, setTracks] = React.useState<PlaybackType[]>([]);
   const [loaded, setLoaded] = React.useState(false);
   const [pickedId, setPickedId] = React.useState<string | null>(null);
@@ -77,19 +84,30 @@ export function usePlaybackSync(opts: {
   const [playing, setPlaying] = React.useState(false);
   const [time, setTime] = React.useState(0);
   const [duration, setDuration] = React.useState(0);
+  const [audioLoading, setAudioLoading] = React.useState(false);
   const [rate, setRateState] = React.useState(1);
   const [audioError, setAudioError] = React.useState<string | null>(null);
+  const [pitchAvailable, setPitchAvailable] = React.useState(true);
   const [autoNext, setAutoNextState] = React.useState<boolean>(() => {
     try { return window.localStorage.getItem(AUTO_NEXT_KEY) !== '0'; } catch { return true; }
   });
+  const [followKey, setFollowKeyState] = React.useState<boolean>(() => {
+    try { return window.localStorage.getItem(FOLLOW_KEY_KEY) !== '0'; } catch { return true; }
+  });
 
-  const audioRef = React.useRef<HTMLAudioElement | null>(null);
+  const engineRef = React.useRef<PlaybackEngine | null>(null);
+  const enginePromiseRef = React.useRef<Promise<PlaybackEngine> | null>(null);
   const continueRef = React.useRef(false); // veio do fim da música anterior: já toca a próxima
   const externalRef = React.useRef(external);
   const onNextRef = React.useRef(onNext);
+  const autoNextRef = React.useRef(autoNext);
+  const rateRef = React.useRef(rate);
+  const semisRef = React.useRef(0);
   React.useEffect(() => {
     externalRef.current = external;
     onNextRef.current = onNext;
+    autoNextRef.current = autoNext;
+    rateRef.current = rate;
   });
 
   // ---------- Lista de playbacks ----------
@@ -112,6 +130,8 @@ export function usePlaybackSync(opts: {
     return tracks.find((t) => t.id === pickedId) ?? ready[0] ?? tracks[0] ?? null;
   }, [tracks, pickedId]);
   const readyTrack = track?.status === 'ready' && track.timeline?.length ? track : null;
+  // Para o áudio ficar no tom da cifra: offset escolhido − tom em que o playback foi gravado.
+  const semitones = wrapSemitones(keyOffset - (readyTrack?.transpose ?? 0));
 
   const pick = React.useCallback((id: string) => {
     setPickedId(id);
@@ -120,64 +140,97 @@ export function usePlaybackSync(opts: {
   }, [lyricId]);
 
   // ---------- Áudio ----------
+  const events = React.useMemo<PlayerEvents>(() => ({
+    onPlay: () => setPlaying(true),
+    onPause: () => setPlaying(false),
+    onEnded: () => {
+      setPlaying(false);
+      if (autoNextRef.current && onNextRef.current) {
+        continueRef.current = true;
+        onNextRef.current();
+      }
+    },
+    onError: (m) => setAudioError(m),
+  }), []);
+
+  const getEngine = React.useCallback(() => {
+    enginePromiseRef.current ??= createPlaybackEngine(events).then((e) => {
+      engineRef.current = e;
+      setPitchAvailable(e.canShiftPitch);
+      return e;
+    });
+    return enginePromiseRef.current;
+  }, [events]);
+
+  // Ferramenta de desenvolvimento: inspecionar o player (window.__playbackEngine()).
   React.useEffect(() => {
-    const a = new Audio();
-    a.preload = 'auto';
-    audioRef.current = a;
-    const onPlay = () => setPlaying(true);
-    const onPause = () => setPlaying(false);
-    const onMeta = () => setDuration(a.duration || 0);
-    const onTime = () => setTime(a.currentTime);
-    const onErr = () => setAudioError('Não foi possível carregar o áudio.');
-    a.addEventListener('play', onPlay);
-    a.addEventListener('pause', onPause);
-    a.addEventListener('loadedmetadata', onMeta);
-    a.addEventListener('timeupdate', onTime);
-    a.addEventListener('error', onErr);
-    return () => {
-      a.pause();
-      a.removeAttribute('src');
-      a.load();
-      a.removeEventListener('play', onPlay);
-      a.removeEventListener('pause', onPause);
-      a.removeEventListener('loadedmetadata', onMeta);
-      a.removeEventListener('timeupdate', onTime);
-      a.removeEventListener('error', onErr);
-      audioRef.current = null;
-    };
+    if (process.env.NODE_ENV === 'production') return;
+    const w = window as unknown as { __playbackEngine?: () => PlaybackEngine | null };
+    w.__playbackEngine = () => engineRef.current;
+    return () => { delete w.__playbackEngine; };
   }, []);
 
-  // Troca de faixa (ou de música): carrega o arquivo novo.
+  React.useEffect(() => () => {
+    engineRef.current?.destroy();
+    engineRef.current = null;
+    enginePromiseRef.current = null;
+  }, []);
+
+  // Troca de faixa (ou de música): baixa e prepara o arquivo novo.
   const srcPath = readyTrack?.storagePath ?? null;
-  React.useEffect(() => {
-    const a = audioRef.current;
-    if (!a) return;
-    a.pause();
+  const [prevSrc, setPrevSrc] = React.useState<string | null>(null);
+  if (prevSrc !== srcPath) {
+    setPrevSrc(srcPath);
     setTime(0);
     setDuration(0);
     setAudioError(null);
-    if (!srcPath) { a.removeAttribute('src'); return; }
+    setAudioLoading(!!srcPath);
+  }
+  React.useEffect(() => {
+    engineRef.current?.pause();
+    if (!srcPath) return;
     let alive = true;
-    playbackUrl(srcPath)
-      .then((url) => {
-        if (!alive) return;
-        a.src = url;
-        a.playbackRate = rate;
-        if (continueRef.current) {
-          continueRef.current = false;
-          setOpen(true);
-          a.play().catch(() => undefined);
-        }
-      })
-      .catch(() => alive && setAudioError('Não foi possível carregar o áudio.'));
+    (async () => {
+      const url = await playbackUrl(srcPath);
+      let engine = await getEngine();
+      try {
+        await engine.load(url);
+      } catch (e) {
+        if (!engine.canShiftPitch) throw e;
+        // O player com troca de tom precisa baixar o arquivo (CORS do Storage); sem isso, toca sem transpor.
+        engine.destroy();
+        engine = createMediaEngine(events);
+        engineRef.current = engine;
+        enginePromiseRef.current = Promise.resolve(engine);
+        setPitchAvailable(false);
+        await engine.load(url);
+      }
+      if (!alive) return;
+      engine.setRate(rateRef.current);
+      engine.setSemitones(semisRef.current);
+      setDuration(engine.duration);
+      if (continueRef.current) {
+        continueRef.current = false;
+        setOpen(true);
+        await engine.play();
+      }
+    })()
+      .catch(() => alive && setAudioError('Não foi possível carregar o áudio.'))
+      .finally(() => alive && setAudioLoading(false));
     return () => { alive = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [srcPath]);
+  }, [srcPath, getEngine, events]);
 
   // Música nova sem playback pronto: não continua tocando sozinha.
   React.useEffect(() => {
     if (loaded && !readyTrack) continueRef.current = false;
   }, [loaded, readyTrack]);
+
+  // Tom do áudio: acompanha a cifra (ou fica no original, se o usuário preferir).
+  const appliedSemitones = followKey && pitchAvailable ? semitones : 0;
+  React.useEffect(() => {
+    semisRef.current = appliedSemitones;
+    engineRef.current?.setSemitones(appliedSemitones);
+  }, [appliedSemitones]);
 
   // Liga o modo "seguir o áudio" enquanto o player está aberto.
   const active = open && !!readyTrack;
@@ -220,12 +273,18 @@ export function usePlaybackSync(opts: {
     externalRef.current.follow(line, upcoming);
   }, [timeline, lineMap]);
 
+  // A cada quadro: linha da cifra; a barra de tempo é atualizada ~4x por segundo.
   React.useEffect(() => {
     if (!active) return;
     let raf = 0;
+    let shown = -1;
     const loop = () => {
-      const a = audioRef.current;
-      if (a) applyAt(a.currentTime);
+      const e = engineRef.current;
+      if (e) {
+        const t = e.currentTime();
+        applyAt(t);
+        if (Math.abs(t - shown) >= 0.25) { shown = t; setTime(t); }
+      }
       raf = requestAnimationFrame(loop);
     };
     lastItemRef.current = -2;
@@ -237,54 +296,40 @@ export function usePlaybackSync(opts: {
   React.useEffect(() => {
     const ref = external.onLineClickRef;
     ref.current = (line: number) => {
-      const a = audioRef.current;
-      if (!a || !timeline) return;
+      const e = engineRef.current;
+      if (!e || !timeline) return;
       const map = lineMap();
       const times = timeline.map((it, i) => (map[i] === line ? it.t : null)).filter((x): x is number => x != null);
       if (!times.length) return;
-      const now = a.currentTime;
+      const now = e.currentTime();
       const next = times.find((x) => x > now + 1) ?? times[0];
-      a.currentTime = Math.max(0, next - SEEK_PREROLL_S);
+      e.seek(Math.max(0, next - SEEK_PREROLL_S));
       lastItemRef.current = -2;
-      a.play().catch(() => undefined);
+      e.play().catch(() => undefined);
     };
     return () => { ref.current = null; };
   }, [external.onLineClickRef, timeline, lineMap]);
 
-  // Fim da faixa: próxima música do repertório (se ligado).
-  React.useEffect(() => {
-    const a = audioRef.current;
-    if (!a) return;
-    const onEnded = () => {
-      if (autoNext && onNextRef.current) {
-        continueRef.current = true;
-        onNextRef.current();
-      }
-    };
-    a.addEventListener('ended', onEnded);
-    return () => a.removeEventListener('ended', onEnded);
-  }, [autoNext]);
-
   // ---------- Ações ----------
   const togglePlay = React.useCallback(() => {
-    const a = audioRef.current;
-    if (!a || !readyTrack) return;
+    const e = engineRef.current;
+    if (!e || !readyTrack) return;
     setOpen(true);
-    if (a.paused) a.play().catch(() => setAudioError('O navegador bloqueou o áudio. Toque de novo.'));
-    else a.pause();
+    if (e.playing) e.pause();
+    else e.play().catch(() => setAudioError('O navegador bloqueou o áudio. Toque de novo.'));
   }, [readyTrack]);
 
   const seek = React.useCallback((t: number) => {
-    const a = audioRef.current;
-    if (!a) return;
-    a.currentTime = Math.max(0, Math.min(t, (a.duration || t) - 0.05));
-    setTime(a.currentTime);
+    const e = engineRef.current;
+    if (!e) return;
+    e.seek(Math.max(0, Math.min(t, (e.duration || t) - 0.05)));
+    setTime(e.currentTime());
     lastItemRef.current = -2;
   }, []);
 
   const setRate = React.useCallback((r: number) => {
     setRateState(r);
-    if (audioRef.current) audioRef.current.playbackRate = r;
+    engineRef.current?.setRate(r);
   }, []);
 
   const setAutoNext = React.useCallback((v: boolean) => {
@@ -292,8 +337,13 @@ export function usePlaybackSync(opts: {
     try { window.localStorage.setItem(AUTO_NEXT_KEY, v ? '1' : '0'); } catch { /* sem storage */ }
   }, []);
 
+  const setFollowKey = React.useCallback((v: boolean) => {
+    setFollowKeyState(v);
+    try { window.localStorage.setItem(FOLLOW_KEY_KEY, v ? '1' : '0'); } catch { /* sem storage */ }
+  }, []);
+
   const close = React.useCallback(() => {
-    audioRef.current?.pause();
+    engineRef.current?.pause();
     setOpen(false);
   }, []);
 
@@ -312,10 +362,17 @@ export function usePlaybackSync(opts: {
     togglePlay,
     time,
     duration: duration || readyTrack?.durationSec || 0,
+    audioLoading,
     seek,
     rate,
     rates: RATES,
     setRate,
+    /** Tom do áudio: semitons aplicados agora, e se acompanha a cifra. */
+    semitones: appliedSemitones,
+    wantedSemitones: semitones,
+    followKey,
+    setFollowKey,
+    pitchAvailable,
     autoNext,
     setAutoNext,
     canAutoNext: !!onNext,
