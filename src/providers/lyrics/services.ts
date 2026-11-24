@@ -43,9 +43,10 @@ export const getSheetMusic: getSheetMusicType = async (idSheetMusic) => {
 
     let sheetMusic: any
     const docRef = doc(database, "sheetsMusics", idSheetMusic)
-    const querySnapshot = await getDoc(docRef);
+    // Repertório é privado: de outro usuário, as regras recusam (permission-denied) e conta como inexistente.
+    const querySnapshot = await getDoc(docRef).catch(() => null);
 
-    if (querySnapshot.exists()) {
+    if (querySnapshot?.exists() && querySnapshot.data().userId === getAuth().currentUser?.uid) {
         sheetMusic = { ...querySnapshot.data() }
         sheetMusic.id = querySnapshot.id
 

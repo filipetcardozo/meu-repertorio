@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import { doc, getDoc } from "firebase/firestore";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/router";
 import { database } from "../../firebaseConfig";
 import { getRegisteredLyric, getSheetMusic, putUserLyricRegistered, updateUserRegisteredLyricOffset, updateUserRegisteredLyricStars } from "../providers/lyrics/services";
 import { normalizeOffset } from "../utils/chords/transpose";
@@ -12,6 +13,7 @@ import { registeredLyricType } from "../types/registeredLyricType";
 
 export const useShowSheetMusic = ({ sheetMusicId }: { sheetMusicId: string }) => {
   const { uid } = useAuth()
+  const router = useRouter()
   const db = database
 
   // Lyrics to show in this sheet
@@ -50,6 +52,11 @@ export const useShowSheetMusic = ({ sheetMusicId }: { sheetMusicId: string }) =>
     let sheet: any
     if (sheetMusicId) {
       sheet = await getSheetMusic(sheetMusicId)
+      if (!sheet) {
+        // Não existe ou é de outro usuário
+        router.replace('/sheet-music/all-sheet-music')
+        return
+      }
 
       let allGetDocs: any = []
       let allGetDocsRegistered: any = []

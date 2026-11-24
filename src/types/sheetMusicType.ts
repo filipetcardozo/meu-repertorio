@@ -24,5 +24,6 @@ export type lyricInSheetMusicType = {
     id?: string;
 }
 
-export type getSheetMusicType = (idSheetMusic: string) => Promise<sheetMusicType>
+/** `false` quando não existe ou não é do usuário logado. */
+export type getSheetMusicType = (idSheetMusic: string) => Promise<sheetMusicType | false>
 export type getAllSheetsMusicsType = (uid: string) => Promise<sheetMusicType[]>

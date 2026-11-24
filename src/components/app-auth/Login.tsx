@@ -1,153 +1,82 @@
-import Button from '@mui/material/Button';
-import { Box, Grid, TextField, Typography } from "@mui/material"
-import Link from "next/link"
-import React, { useState } from "react"
-import { useAuth } from "../../hooks/useAuth"
-import { Copyright } from "./Copyright"
-
-interface LoginInfosInterface {
-    email: string;
-    password: string;
-}
+import React, { useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/router';
+import Alert from '@mui/material/Alert';
+import Box from '@mui/material/Box';
+import TextField from '@mui/material/TextField';
+import { useAuth } from '../../hooks/useAuth';
+import { AuthLink, AuthShell, authFieldSx, GoogleButton, isEmail, OrDivider, SubmitButton } from './AuthShell';
 
 export const LoginComponent = () => {
-    const [loginInfos, setLoginInfos] = useState<LoginInfosInterface>({ email: "", password: "" })
-    const [errorInputs, setErrorInputs] = useState({ loginError: false, passwordError: false })
-    const { signIn, loading } = useAuth()
+  const { signIn, signInWithGoogle } = useAuth();
+  const router = useRouter();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-    const login = () => {
-        let validInfos = validateInputs()
-        if (validInfos) {
-            signIn(loginInfos)
-        }
+  const emailError = submitted && !isEmail(email);
+  const passwordError = submitted && !password;
+  // Mantém o ?next= ao trocar para o cadastro
+  const next = typeof router.query.next === 'string' ? `?next=${encodeURIComponent(router.query.next)}` : '';
+
+  const attempt = async (action: () => Promise<void>) => {
+    setError(null);
+    try {
+      await action();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Não foi possível entrar.');
     }
+  };
 
-    const handleLoginInfos = (event: any) => {
-        if (event.target.name == "email") {
-            loginInfos.email = event.target.value
-        } else if (event.target.name == "password") {
-            loginInfos.password = event.target.value
-        }
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitted(true);
+    if (!isEmail(email) || !password) return;
+    setLoading(true);
+    await attempt(() => signIn({ email, password }));
+    setLoading(false);
+  };
 
-        setLoginInfos({ ...loginInfos })
-    }
-
-    const validateInputs = () => {
-        const validateEmail = (email: string) => {
-            let emailRegex = /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/
-            let result = email.match(emailRegex) ? true : false
-            return result
-        };
-        const validatePassword = (password: string) => {
-            let passw = /^(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[a-zA-Z]).{8,}$/
-            let result = password.match(passw) ? true : false
-            return result
-        }
-
-        let emailIsValid = validateEmail(loginInfos.email)
-        if (!emailIsValid) {
-            errorInputs.loginError = true
-        } else {
-            errorInputs.loginError = false
-        }
-
-        let passwordIsValid = validatePassword(loginInfos.password)
-        if (!passwordIsValid) {
-            errorInputs.passwordError = true
-        } else {
-            errorInputs.passwordError = false
-        }
-
-        setErrorInputs({ ...errorInputs })
-
-        return emailIsValid && passwordIsValid
-    }
-
-    return <Box
-        sx={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: "center",
-            width: "100%",
-            height: "95vh",
-        }}
+  return (
+    <AuthShell
+      title='Entrar'
+      subtitle='Acesse seus repertórios e cifras.'
+      footer={<>Ainda não tem conta? <Link href={`/auth/create-account${next}`}>Criar conta</Link></>}
     >
-        <Box
-            sx={{
-                backgroundColor: "background.paper",
-                minWidth: { xs: 0, sm: 300 },
-                width: { xs: 'calc(100% - 32px)', sm: 'auto' },
-                maxWidth: 420,
-                boxSizing: 'border-box',
-                py: 6,
-                px: 2,
-                boxShadow: 2,
-                borderRadius: 1.5
-            }}
-        >
-            <Box sx={{ textAlign: "center", displey: "flex", justifyContent: "center" }}>
-                <Typography sx={{ color: 'primary.main' }} component="h1" variant="h5">
-                    Meu Repertório
-                </Typography>
-            </Box>
-            <Box component="form" noValidate sx={{ mt: 1 }}>
-                <TextField
-                    onChange={handleLoginInfos}
-                    error={errorInputs.loginError}
-                    helperText={errorInputs.loginError ? "Email inválido." : ""}
-                    margin="normal"
-                    required
-                    fullWidth
-                    id="email"
-                    label="Email"
-                    name="email"
-                    autoComplete="email"
-                    autoFocus
-                />
-                <TextField
-                    onChange={handleLoginInfos}
-                    error={errorInputs.passwordError}
-                    helperText={errorInputs.passwordError ? "Senha inválida." : ""}
-                    margin="normal"
-                    required
-                    fullWidth
-                    name="password"
-                    label="Senha"
-                    type="password"
-                    id="password"
-                    autoComplete="current-password"
-                />
-                {/* <FormControlLabel
-                        control={<Checkbox value="remember" color="primary" />}
-                        label="Manter logado"
-                    /> */}
-                <Button
-                    fullWidth
-                    variant="contained"
-                    sx={{ mt: 3, mb: 2 }}
-                    onClick={() => login()}
-                    loading={loading}
-                >
-                    Entrar
-                </Button>
-                <Grid container sx={{ '& a': { color: 'primary.main' } }}>
-                    <Grid size={'grow'}>
-                        <Link href="/auth/forget-password">
-                            Esqueceu a senha?
-                        </Link>
-                    </Grid>
-                    <Grid>
-                        <Link href="/auth/create-account">
-                            {"Criar uma conta"}
-                        </Link>
-                    </Grid>
-                </Grid>
-            </Box>
-            <Box sx={{ mt: 8, mb: 4 }}>
-                <Copyright />
-            </Box>
+      <GoogleButton label='Entrar com o Google' onClick={() => attempt(signInWithGoogle)} disabled={loading} />
+      <OrDivider />
 
+      <Box component='form' noValidate onSubmit={submit} sx={{ display: 'grid', gap: 2 }}>
+        {error && <Alert severity='error'>{error}</Alert>}
+        <TextField variant='outlined'
+          label='E-mail'
+          type='email'
+          autoComplete='email'
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          error={emailError}
+          helperText={emailError ? 'Informe um e-mail válido.' : undefined}
+          fullWidth
+          sx={authFieldSx}
+        />
+        <TextField variant='outlined'
+          label='Senha'
+          type='password'
+          autoComplete='current-password'
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          error={passwordError}
+          helperText={passwordError ? 'Informe a senha.' : undefined}
+          fullWidth
+          sx={authFieldSx}
+        />
+        <Box sx={{ textAlign: 'right', mt: -1, fontSize: 14, '& a': { color: 'primary.main' } }}>
+          <AuthLink href='/auth/forget-password'>Esqueceu a senha?</AuthLink>
         </Box>
-    </Box>
-}
+        <SubmitButton loading={loading}>Entrar</SubmitButton>
+      </Box>
+    </AuthShell>
+  );
+};

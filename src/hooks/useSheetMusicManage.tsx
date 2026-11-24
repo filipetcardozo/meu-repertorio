@@ -42,8 +42,9 @@ export const useSheetMusicManage = ({ sheetMusicId }: { sheetMusicId: any }) => 
             setSheetMusicToAdd({ ...sheetMusicToAdd });
             setLoading(false);
           } else {
-            // redirect('/app/sheet-music-create')
-            console.log("Invalid id of Sheet Music");
+            // Não existe ou é de outro usuário
+            enqueueSnackbar("Repertório não encontrado.", { variant: "warning" });
+            router.replace('/sheet-music/all-sheet-music');
           }
         })
         .catch((error) => {
