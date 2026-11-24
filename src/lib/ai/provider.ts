@@ -6,8 +6,9 @@
  * - automático: usa o que tiver chave (ANTHROPIC_API_KEY primeiro, depois OPENAI_API_KEY).
  * Modelo: ANTHROPIC_MODEL / OPENAI_MODEL (opcionais).
  */
-import Anthropic from '@anthropic-ai/sdk';
-import OpenAI from 'openai';
+// Os SDKs são carregados só na hora da chamada: a checagem "a IA está ligada?" não depende deles.
+import type Anthropic from '@anthropic-ai/sdk';
+import type OpenAI from 'openai';
 
 export type AiProvider = 'anthropic' | 'openai';
 
@@ -59,8 +60,11 @@ let anthropic: Anthropic | null = null;
 let openai: OpenAI | null = null;
 
 async function callAnthropic(model: string, req: JsonRequest): Promise<string> {
-  anthropic ??= new Anthropic();
   try {
+    if (!anthropic) {
+      const { default: AnthropicClient } = await import('@anthropic-ai/sdk');
+      anthropic = new AnthropicClient();
+    }
     const response = await anthropic.beta.messages.create({
       model,
       max_tokens: req.maxTokens ?? 16000,
@@ -81,8 +85,11 @@ async function callAnthropic(model: string, req: JsonRequest): Promise<string> {
 }
 
 async function callOpenAI(model: string, req: JsonRequest): Promise<string> {
-  openai ??= new OpenAI();
   try {
+    if (!openai) {
+      const { default: OpenAIClient } = await import('openai');
+      openai = new OpenAIClient();
+    }
     const response = await openai.responses.create({
       model,
       instructions: req.system,

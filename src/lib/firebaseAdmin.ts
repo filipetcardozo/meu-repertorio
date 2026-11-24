@@ -10,6 +10,7 @@ import { cert, getApps, initializeApp, type App } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import type { NextApiRequest } from 'next';
+import { HttpError } from './httpError';
 
 const projectId = process.env.NEXT_PUBLIC_REACT_APP_PROJECT_ID;
 
@@ -30,11 +31,7 @@ function adminApp(): App {
   return getApps()[0] ?? initializeApp(account ? { credential: cert(account), projectId } : { projectId });
 }
 
-export class HttpError extends Error {
-  constructor(message: string, public status: number) {
-    super(message);
-  }
-}
+export { HttpError };
 
 /** Usuário logado que fez a requisição (header Authorization: Bearer <ID token do Firebase>). */
 export async function requireUser(req: NextApiRequest): Promise<{ uid: string }> {

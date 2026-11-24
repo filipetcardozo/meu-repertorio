@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { AiError, activeProvider } from '../../../lib/ai/provider';
 import { improveCifra, MAX_CIFRA_CHARS } from '../../../lib/ai/improveCifra';
-import { consumeDailyQuota, HttpError, requireUser } from '../../../lib/firebaseAdmin';
+import { HttpError } from '../../../lib/httpError';
 
 // A IA pode levar mais de um minuto numa cifra longa (e há uma segunda tentativa se a conferência falhar),
 // mas o plano Hobby da Vercel recusa o deploy com mais de 60s. Para subir este limite, troque de plano ou ative o Fluid Compute.
@@ -12,7 +12,7 @@ const str = (v: unknown, max = 200) => (typeof v === 'string' ? v.slice(0, max) 
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === 'GET') {
-    // A tela pergunta se a IA está ligada para mostrar (ou não) o botão.
+    // A tela pergunta se a IA está ligada para mostrar (ou não) o botão. Não carrega nenhum SDK.
     return res.status(200).json({ enabled: !!activeProvider() });
   }
   if (req.method !== 'POST') {
@@ -22,6 +22,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     if (!activeProvider()) throw new AiError('A IA ainda não foi configurada no servidor.', 503);
+    // Firebase Admin é pesado: só carrega quando a IA é usada de fato.
+    const { consumeDailyQuota, requireUser } = await import('../../../lib/firebaseAdmin');
     const { uid } = await requireUser(req);
 
     const lyric = req.body?.lyric;
