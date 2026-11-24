@@ -1,5 +1,5 @@
 /**
- * Busca e importação de cifras do Cifra Club (uso somente no servidor, via rotas /api/cifra/*).
+ * Busca e importação de cifras do Cifra Club, com parser compartilhado pelo servidor e pela extensão.
  *
  * - Busca: usa o mesmo endpoint de autocomplete do site (solr.sscdn.co).
  * - Importação: baixa a página da música e extrai o conteúdo do <pre> da cifra,
@@ -67,16 +67,16 @@ export type CifraVersion = {
 };
 
 export class CifraError extends Error {
-  constructor(message: string, public status = 500) {
+  constructor(message: string, public status = 500, public code?: 'CIFRA_ACCESS_DENIED') {
     super(message);
   }
 }
 
-async function fetchWithTimeout(url: string, ms = 10000) {
+async function fetchWithTimeout(url: string, ms = 10000, headers: HeadersInit = HEADERS) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ms);
   try {
-    return await fetch(url, { headers: HEADERS, signal: controller.signal, redirect: 'follow' });
+    return await fetch(url, { headers, signal: controller.signal, redirect: 'follow' });
   } catch (e) {
     throw new CifraError('Não foi possível acessar o Cifra Club.', 502);
   } finally {
@@ -343,10 +343,10 @@ function extractSongMeta(html: string, url: string): SongMeta {
 }
 
 /** Foto do artista: o autocomplete devolve o próprio artista (tipo 1) com a foto. */
-async function findArtistImage(artistName: string, slug?: string): Promise<string | undefined> {
+export async function findArtistImage(artistName: string, slug?: string, headers: HeadersInit = HEADERS): Promise<string | undefined> {
   if (!artistName) return undefined;
   try {
-    const res = await fetchWithTimeout(`${SEARCH_URL}?q=${encodeURIComponent(artistName)}&limit=10`, 6000);
+    const res = await fetchWithTimeout(`${SEARCH_URL}?q=${encodeURIComponent(artistName)}&limit=10`, 6000, headers);
     if (!res.ok) return undefined;
     const docs: any[] = JSON.parse(await res.text())?.response?.docs ?? [];
     const artistDoc =
@@ -359,18 +359,12 @@ async function findArtistImage(artistName: string, slug?: string): Promise<strin
   }
 }
 
-export async function importFromCifraClub(rawUrl: string): Promise<CifraImport> {
-  const url = normalizeCifraUrl(rawUrl);
-  const res = await fetchWithTimeout(url);
-  if (res.status === 404) throw new CifraError('Música não encontrada no Cifra Club.', 404);
-  if (!res.ok) throw new CifraError(`O Cifra Club recusou o acesso (${res.status}).`, 502);
-
-  const html = await res.text();
+export function parseCifraPage(html: string, url: string, pageUrl = url): CifraImport {
   const pre = extractPre(html);
   if (!pre) throw new CifraError('Essa página não tem cifra (só letra?).', 422);
 
   const title = extractTitle(html);
-  const { artistName, songName, ...meta } = extractSongMeta(html, res.url || url);
+  const { artistName, songName, ...meta } = extractSongMeta(html, pageUrl);
   const artist = artistName || title.artist;
   const artistSlug = meta.artistSlug ?? new URL(url).pathname.split('/').filter(Boolean)[0];
 
@@ -382,6 +376,21 @@ export async function importFromCifraClub(rawUrl: string): Promise<CifraImport> 
     lyric: cleanCifraHtml(pre),
     ...meta,
     artistSlug,
-    artistImage: await findArtistImage(artist, artistSlug),
   };
+}
+
+export async function importFromCifraClub(rawUrl: string): Promise<CifraImport> {
+  const url = normalizeCifraUrl(rawUrl);
+  const res = await fetchWithTimeout(url);
+  if (res.status === 404) throw new CifraError('Música não encontrada no Cifra Club.', 404);
+  if (!res.ok) {
+    throw new CifraError(
+      `O Cifra Club recusou o acesso (${res.status}).`,
+      502,
+      res.status === 403 ? 'CIFRA_ACCESS_DENIED' : undefined,
+    );
+  }
+
+  const data = parseCifraPage(await res.text(), url, res.url || url);
+  return { ...data, artistImage: await findArtistImage(data.artist, data.artistSlug) };
 }

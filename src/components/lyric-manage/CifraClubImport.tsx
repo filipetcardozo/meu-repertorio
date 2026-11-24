@@ -18,6 +18,7 @@ import VerifiedIcon from '@mui/icons-material/Verified';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { alpha } from '@mui/material/styles';
 import type { CifraImport, CifraSearchResult, CifraVersion } from '../../lib/cifraClub';
+import { cifraExtensionInstallUrl, importWithCifraExtension } from '../../lib/cifraClubExtension';
 import { displayFontFamily } from '../../theme/createAppTheme';
 import { BrandIcon } from './formUi';
 
@@ -36,6 +37,12 @@ type Props = {
   bare?: boolean;
 };
 
+type ImportError = {
+  message: string;
+  retry?: { url: string; versionSwitch: boolean };
+  extensionNeeded?: boolean;
+};
+
 const isCifraUrl = (s: string) => /^https?:\/\/(www\.|m\.)?cifraclub\.com\.br\//i.test(s.trim());
 const formatLists = (n?: number) =>
   n === undefined ? '' : n >= 1000 ? `${(n / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mil listas` : `${n} listas`;
@@ -46,7 +53,7 @@ export const CifraClubImport = ({ onImport, initialQuery, autoImportUrl, bare }:
   const [options, setOptions] = useState<CifraSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [importing, setImporting] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ImportError | null>(null);
   const [current, setCurrent] = useState<CifraImport | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const openOnResults = useRef(!!initialQuery && !autoImportUrl);
@@ -79,7 +86,7 @@ export const CifraClubImport = ({ onImport, initialQuery, autoImportUrl, bare }:
       } catch (e: any) {
         if (e?.name === 'AbortError') return;
         setOptions([]);
-        setError(e?.message || 'Erro na busca.');
+        setError({ message: e?.message || 'Erro na busca.' });
       } finally {
         if (abortRef.current === controller) setSearching(false);
       }
@@ -88,19 +95,39 @@ export const CifraClubImport = ({ onImport, initialQuery, autoImportUrl, bare }:
   }, [query, canSearch]);
 
   const importUrl = async (url: string, versionSwitch = false) => {
+    abortRef.current?.abort();
     setImporting(url);
     setError(null);
     setOpen(false);
+    let extensionNeeded = false;
+    let extensionError: unknown;
     try {
-      const res = await fetch(`/api/cifra/import?url=${encodeURIComponent(url)}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || 'Não foi possível importar.');
-      setCurrent(data as CifraImport);
-      onImport(data as CifraImport, { versionSwitch });
+      let data = await importWithCifraExtension(url).catch((e: unknown) => {
+        extensionError = e;
+        return undefined;
+      });
+      if (!data) {
+        const res = await fetch(`/api/cifra/import?url=${encodeURIComponent(url)}`);
+        const body = await res.json();
+        if (!res.ok) {
+          if (body?.code === 'CIFRA_ACCESS_DENIED') {
+            if (extensionError instanceof Error) throw extensionError;
+            extensionNeeded = true;
+          }
+          throw new Error(body?.error || 'Não foi possível importar.');
+        }
+        data = body as CifraImport;
+      }
+      setCurrent(data);
+      onImport(data, { versionSwitch });
       setInput('');
       setOptions([]);
     } catch (e: any) {
-      setError(e?.message || 'Não foi possível importar.');
+      setError({
+        message: e?.message || 'Não foi possível importar.',
+        retry: { url, versionSwitch },
+        extensionNeeded,
+      });
     } finally {
       setImporting(null);
     }
@@ -256,7 +283,24 @@ export const CifraClubImport = ({ onImport, initialQuery, autoImportUrl, bare }:
 
   const errorAlert = error && (
     <Alert severity='error' sx={{ mt: 1.5 }} onClose={() => setError(null)}>
-      {error}
+      {error.message}
+      {error.extensionNeeded && (
+        <Typography variant='body2' sx={{ mt: 0.5 }}>
+          Instale a extensão Meu Repertório no Chrome para computador e tente novamente.
+        </Typography>
+      )}
+      {error.retry && (
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
+          {error.extensionNeeded && cifraExtensionInstallUrl && (
+            <Button size='small' href={cifraExtensionInstallUrl} target='_blank' rel='noopener noreferrer'>
+              Instalar extensão
+            </Button>
+          )}
+          <Button size='small' onClick={() => error.retry && importUrl(error.retry.url, error.retry.versionSwitch)}>
+            Tentar novamente
+          </Button>
+        </Box>
+      )}
     </Alert>
   );
 

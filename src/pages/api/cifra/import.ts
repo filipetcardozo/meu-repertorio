@@ -15,6 +15,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json(data);
   } catch (e) {
     const status = e instanceof CifraError ? e.status : 500;
-    return res.status(status).json({ error: e instanceof Error ? e.message : 'Erro ao importar.' });
+    return res.status(status).json({
+      error: e instanceof Error ? e.message : 'Erro ao importar.',
+      code: e instanceof CifraError ? e.code : undefined,
+    });
   }
 }

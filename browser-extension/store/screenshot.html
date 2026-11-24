@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1280px; height: 800px; }
+  body {
+    background: radial-gradient(circle at 20% 10%, #2a1d3d 0%, #121016 60%);
+    color: #ece8f3; font-family: "Segoe UI", system-ui, sans-serif;
+    display: flex; align-items: center; gap: 56px; padding: 0 72px;
+  }
+  .intro { width: 400px; }
+  .intro img { width: 72px; height: 72px; border-radius: 16px; }
+  .intro h1 { font-size: 40px; line-height: 1.15; margin: 24px 0 16px; font-weight: 700; }
+  .intro p { font-size: 20px; line-height: 1.5; color: #b9b2c6; }
+  .steps { margin-top: 28px; display: grid; gap: 12px; font-size: 18px; color: #d8d2e3; }
+  .steps span { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%;
+    background: #7b5cff; color: #fff; font-weight: 700; font-size: 15px; margin-right: 10px; }
+  .dialog { flex: 1; background: #1d1a23; border-radius: 20px; padding: 32px; box-shadow: 0 30px 80px #0008; border: 1px solid #2f2a38; }
+  .dialog h2 { font-size: 26px; margin-bottom: 20px; }
+  .search { border: 1px solid #3a3446; border-radius: 999px; padding: 14px 22px; font-size: 18px; color: #ddd; }
+  .card { margin-top: 20px; display: flex; gap: 16px; align-items: center; background: #26222e; border-radius: 14px; padding: 16px; }
+  .cover { width: 64px; height: 64px; border-radius: 10px; background: linear-gradient(135deg,#7b5cff,#e0559b); }
+  .card b { font-size: 19px; display: block; }
+  .card small { color: #a59eb3; font-size: 15px; }
+  .tags { margin-left: auto; display: flex; gap: 8px; }
+  .tag { background: #332d3f; border-radius: 999px; padding: 6px 12px; font-size: 14px; color: #cfc6e0; }
+  pre { margin-top: 18px; background: #141218; border-radius: 12px; padding: 18px 22px; font: 16px/1.5 Consolas, monospace; color: #e8e4ef; }
+  pre b { color: #b58cff; font-weight: 600; }
+  .actions { margin-top: 20px; display: flex; justify-content: flex-end; gap: 12px; }
+  .btn { border-radius: 999px; padding: 12px 24px; font-size: 16px; font-weight: 600; }
+  .ghost { color: #ddd; }
+  .primary { background: #7b5cff; color: #fff; }
+</style>
+</head>
+<body>
+  <div class="intro">
+    <img src="../icon-128.png" alt="">
+    <h1>Importe cifras direto para o seu repertório</h1>
+    <p>Escolha a música no Meu Repertório e a extensão traz a cifra, o tom e os acordes para você revisar e salvar.</p>
+    <div class="steps">
+      <div><span>1</span>Busque a música no app</div>
+      <div><span>2</span>Confira a prévia da cifra</div>
+      <div><span>3</span>Salve no seu repertório</div>
+    </div>
+  </div>
+  <div class="dialog">
+    <h2>Importar cifra</h2>
+    <div class="search">🔍&nbsp; Minha música - Meu artista</div>
+    <div class="card">
+      <div class="cover"></div>
+      <div><b>Minha música</b><small>Meu artista</small></div>
+      <div class="tags"><span class="tag">Tom: C</span><span class="tag">Capo 2</span><span class="tag">96 BPM</span></div>
+    </div>
+<pre><b>C</b>              <b>G</b>
+Primeira linha da canção
+<b>Am</b>            <b>F</b>
+Segunda linha da canção
+<b>C</b>        <b>G</b>         <b>F</b>
+Refrão que todo mundo canta</pre>
+    <div class="actions"><span class="btn ghost">Cancelar</span><span class="btn primary">Importar música</span></div>
+  </div>
+</body>
+</html>
