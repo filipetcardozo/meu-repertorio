@@ -10,6 +10,8 @@
   "host_permissions": ["https://www.cifraclub.com.br/*"],
   "externally_connectable": {
     "matches": [
+      "https://tocamaisuma.com.br/*",
+      "https://www.tocamaisuma.com.br/*",
       "https://easy-show-next.vercel.app/*",
       "https://www.meurepertorio.com/*",
       "https://meurepertorio.com/*",

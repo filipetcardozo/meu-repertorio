@@ -25,8 +25,8 @@ Requer o Chrome para computador e uma conta no Toca Mais Uma.
 **Language:** Português (Brasil)
 **Store icon:** browser-extension/icon-128.png
 **Screenshot:** browser-extension/store/screenshot-1280x800.png
-**Official URL / Homepage:** https://easy-show-next.vercel.app
-**Support URL:** https://easy-show-next.vercel.app
+**Official URL / Homepage:** https://tocamaisuma.com.br
+**Support URL:** https://tocamaisuma.com.br
 
 ## Privacy
 
@@ -49,7 +49,7 @@ Necessária para abrir e ler a página da música selecionada no Cifra Club. A e
 - I do not use or transfer user data for purposes that are unrelated to my item's single purpose
 - I do not use or transfer user data to determine creditworthiness or for lending purposes
 
-**Privacy policy URL:** https://easy-show-next.vercel.app/privacidade-extensao.html (só funciona depois do deploy)
+**Privacy policy URL:** https://tocamaisuma.com.br/privacidade-extensao.html (só funciona depois do deploy)
 
 ## Distribution
 

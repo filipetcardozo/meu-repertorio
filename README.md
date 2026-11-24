@@ -1,7 +1,7 @@
 # Toca Mais Uma
 
 Toca Mais Uma is a platform that allows the creation and management of sheet music quickly, among other diverse features, making the musician's life much happier.
-Access the platform at this link: [Toca Mais Uma](https://www.meurepertorio.com)
+Access the platform at this link: [Toca Mais Uma](https://tocamaisuma.com.br)
 
 ## Installation
 
