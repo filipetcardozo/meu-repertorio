@@ -3,8 +3,9 @@ import { AiError, activeProvider } from '../../../lib/ai/provider';
 import { improveCifra, MAX_CIFRA_CHARS } from '../../../lib/ai/improveCifra';
 import { consumeDailyQuota, HttpError, requireUser } from '../../../lib/firebaseAdmin';
 
-// A IA pode levar mais de um minuto numa cifra longa (e há uma segunda tentativa se a conferência falhar).
-export const config = { maxDuration: 300 };
+// A IA pode levar mais de um minuto numa cifra longa (e há uma segunda tentativa se a conferência falhar),
+// mas o plano Hobby da Vercel recusa o deploy com mais de 60s. Para subir este limite, troque de plano ou ative o Fluid Compute.
+export const config = { maxDuration: 60 };
 
 const DAILY_LIMIT = Number(process.env.AI_DAILY_LIMIT) || 20;
 const str = (v: unknown, max = 200) => (typeof v === 'string' ? v.slice(0, max) : undefined);

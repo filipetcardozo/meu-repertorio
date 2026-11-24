@@ -4,9 +4,9 @@
 
 **Description**
 
-Importe cifras do Cifra Club direto para o Meu Repertório.
+Importe cifras do Cifra Club direto para o Toca Mais Uma.
 
-Ao buscar uma música no Meu Repertório (ou atualizar uma música que já tem link salvo), o app pede à extensão a cifra daquela página. A extensão abre a música no Cifra Club em uma aba em segundo plano, lê a cifra, o tom e os dados da música, devolve tudo ao app para você revisar e fecha a aba.
+Ao buscar uma música no Toca Mais Uma (ou atualizar uma música que já tem link salvo), o app pede à extensão a cifra daquela página. A extensão abre a música no Cifra Club em uma aba em segundo plano, lê a cifra, o tom e os dados da música, devolve tudo ao app para você revisar e fecha a aba.
 
 O que é importado:
 • Cifra com acordes e tablaturas
@@ -15,11 +15,11 @@ O que é importado:
 • Ritmo/BPM e versões da cifra, quando a página informa
 
 Privacidade:
-• Só funciona quando o Meu Repertório pede a importação de uma música
+• Só funciona quando o Toca Mais Uma pede a importação de uma música
 • Só acessa páginas de música em www.cifraclub.com.br
 • Não lê senhas, histórico nem outras abas e não guarda nenhum dado
 
-Requer o Chrome para computador e uma conta no Meu Repertório.
+Requer o Chrome para computador e uma conta no Toca Mais Uma.
 
 **Category:** Productivity → Tools (ou "Ferramentas")
 **Language:** Português (Brasil)
@@ -32,11 +32,11 @@ Requer o Chrome para computador e uma conta no Meu Repertório.
 
 **Single purpose**
 
-Importar para o Meu Repertório a cifra da música que o usuário seleciona no app, lendo a página dessa música no Cifra Club.
+Importar para o Toca Mais Uma a cifra da música que o usuário seleciona no app, lendo a página dessa música no Cifra Club.
 
 **Justificativa — scripting**
 
-Usada para ler a cifra, o tom e os dados da música na página do Cifra Club que a extensão abre a pedido do Meu Repertório. O script roda só nessa aba, que é fechada logo após a leitura.
+Usada para ler a cifra, o tom e os dados da música na página do Cifra Club que a extensão abre a pedido do Toca Mais Uma. O script roda só nessa aba, que é fechada logo após a leitura.
 
 **Justificativa — host permission (https://www.cifraclub.com.br/*)**
 

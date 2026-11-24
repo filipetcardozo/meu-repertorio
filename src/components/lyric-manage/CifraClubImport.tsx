@@ -286,7 +286,7 @@ export const CifraClubImport = ({ onImport, initialQuery, autoImportUrl, bare }:
       {error.message}
       {error.extensionNeeded && (
         <Typography variant='body2' sx={{ mt: 0.5 }}>
-          Instale a extensão Meu Repertório no Chrome para computador e tente novamente.
+          Instale a extensão Toca Mais Uma no Chrome para computador e tente novamente.
         </Typography>
       )}
       {error.retry && (

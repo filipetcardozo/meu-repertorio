@@ -1,11 +1,11 @@
-# Meu Repertório
+# Toca Mais Uma
 
-Meu Repertório is a platform that allows the creation and management of sheet music quickly, among other diverse features, making the musician's life much happier.
-Access the platform at this link: [Meu Repetório](https://www.meurepertorio.com)
+Toca Mais Uma is a platform that allows the creation and management of sheet music quickly, among other diverse features, making the musician's life much happier.
+Access the platform at this link: [Toca Mais Uma](https://www.meurepertorio.com)
 
 ## Installation
 
-Use the package manager [yarn](https://classic.yarnpkg.com/lang/en/docs/) to install Meu Repertório.
+Use the package manager [yarn](https://classic.yarnpkg.com/lang/en/docs/) to install Toca Mais Uma.
 
 ```node
 yarn install
@@ -35,7 +35,7 @@ Para testar no Chrome desktop, abra `chrome://extensions`, ative o **Modo do des
 
 1. Gere o ZIP com `powershell -File scripts/package-cifra-extension.ps1`. O pacote em `build/` tem o manifesto na raiz e usa apenas as origens HTTPS do app. A chave pública do manifesto original mantém o ID fixo da instalação descompactada.
 2. Crie um item no [Chrome Developer Dashboard](https://chrome.google.com/webstore/devconsole) e envie o ZIP. Use `browser-extension/icon-128.png` como ícone da loja e adicione uma captura de 1280 × 800 mostrando a prévia de importação.
-3. Na seção de privacidade, descreva a finalidade da extensão como importar a cifra da música selecionada para cadastro ou atualização no Meu Repertório. A permissão `scripting` lê a página carregada e a permissão de host se limita a `www.cifraclub.com.br`. Informe a URL `/privacidade-extensao.html` no domínio público do app, após publicar a página. Se a tela de importação exigir login para a revisão, inclua instruções de acesso e uma conta de teste no campo privado do painel.
+3. Na seção de privacidade, descreva a finalidade da extensão como importar a cifra da música selecionada para cadastro ou atualização no Toca Mais Uma. A permissão `scripting` lê a página carregada e a permissão de host se limita a `www.cifraclub.com.br`. Informe a URL `/privacidade-extensao.html` no domínio público do app, após publicar a página. Se a tela de importação exigir login para a revisão, inclua instruções de acesso e uma conta de teste no campo privado do painel.
 4. Em **Distribuição**, selecione **Não listado** para disponibilizar a instalação pelo link do app. Envie o item para revisão. Configure `NEXT_PUBLIC_CIFRA_EXTENSION_ID` na Vercel com o ID do item da loja e gere um novo deploy. Após a publicação, o link **Instalar extensão** estará disponível no alerta de importação.
 
 ## Contributing

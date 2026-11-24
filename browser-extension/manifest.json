@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Meu Repertório — Importar cifra",
-  "version": "0.1.0",
-  "description": "Importa a cifra da música selecionada no Meu Repertório pelo navegador.",
+  "name": "Toca Mais Uma — Importar cifra",
+  "version": "0.2.0",
+  "description": "Importa a cifra da música selecionada no Toca Mais Uma pelo navegador.",
   "icons": { "128": "icon-128.png" },
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqj0fi5ywx5H4ueTI9v2dft2DvRJo0EAax1myMeTcfsiETpIRGjOXuSr6d7JNzbv2qc0wcep9+ZpFXeGdEJ1RyOngi3VE2ed7IzVVlyZ7fIRpGNPv9YsPJhs+SupXkNlF9EQtLwdjSnwGjEUV2hym1dtS9yn0NNF9bRb4g7utSzId4iDf8ALPspIWZlT66s0NpjWAHTrAItjqx4kvrxKx4bZSJVmkV5QD7yN278mkulcUzaymTc861lVoHWlIdKbFRKyDVx9WSR4PPY7nuFJZLJwI/D0Qg+CRaQp6pvzrRZaJMf/1dbKgLNTbqnS6BzgFNkNfFG67MCjKCOwlvVglSwIDAQAB",
   "background": { "service_worker": "background.js" },
