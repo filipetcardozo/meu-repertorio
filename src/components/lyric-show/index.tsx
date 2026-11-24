@@ -14,6 +14,7 @@ import Tooltip from '@mui/material/Tooltip';
 import { alpha } from '@mui/material/styles';
 import EditIcon from '@mui/icons-material/Edit';
 import { UpdateFromCifraClubButton } from './UpdateFromCifraClub';
+import { ImproveCifraWithAiButton } from './ImproveCifraWithAi';
 import { ArtistAvatar } from '../ArtistAvatar';
 import UnfoldLessRoundedIcon from '@mui/icons-material/UnfoldLessRounded';
 import UnfoldMoreRoundedIcon from '@mui/icons-material/UnfoldMoreRounded';
@@ -377,6 +378,14 @@ export const LyricShowComponent = ({
             {FontControls()}
             {CompactToggleButton()}
             {TabsToggleButton()}
+            {lyricToShow.lyricId ? (
+              <ImproveCifraWithAiButton
+                lyricId={lyricToShow.lyricId}
+                hasUnsavedOffset={!!offsetPendingSave}
+                saveOffset={() => updateOffset()}
+                size={isMobile ? 'small' : 'medium'}
+              />
+            ) : null}
             {lyricToShow.lyricId ? (
               <UpdateFromCifraClubButton
                 lyricId={lyricToShow.lyricId}
