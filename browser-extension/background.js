@@ -3,10 +3,6 @@ const cifraOrigin = 'https://www.cifraclub.com.br';
 const songPath = /^\/[a-z0-9-]+\/[a-z0-9-]+\/(?:(?:u\/)?[a-z0-9-]+\.html)?$/i;
 const appOrigins = new Set([
   'https://tocamaisuma.com.br',
-  'https://www.tocamaisuma.com.br',
-  'https://easy-show-next.vercel.app',
-  'https://www.meurepertorio.com',
-  'https://meurepertorio.com',
   'http://localhost:3000',
   'http://127.0.0.1:3000',
 ]);
