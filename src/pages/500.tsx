@@ -12,7 +12,7 @@ const Custom500 = () => {
   if (isLogged != true) {
     return <Layout activeMenu={1}>
       <Head>
-        <title>Meu Repertório</title>
+        <title>Toca Mais Uma</title>
         <meta name="viewport" content="initial-scale=1.0, width=device-width" />
       </Head>
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
@@ -23,7 +23,7 @@ const Custom500 = () => {
 
   return <Layout activeMenu={4}>
     <Head>
-      <title>Meu Repertório</title>
+      <title>Toca Mais Uma</title>
       <meta name="viewport" content="initial-scale=1.0, width=device-width" />
     </Head>
     Ops... tivemos algum problema.

@@ -28,7 +28,8 @@ export type JsonRequest = {
 
 const DEFAULT_MODELS: Record<AiProvider, string> = {
   anthropic: 'claude-opus-5-5',
-  openai: 'gpt-5',
+  // Equilíbrio entre qualidade e custo na família GPT-6 (gpt-6.2-astra é o topo, gpt-6.1-terra o econômico).
+  openai: 'gpt-6.2-sol',
 };
 
 export function activeProvider(): { provider: AiProvider; model: string } | null {
@@ -82,19 +83,21 @@ async function callAnthropic(model: string, req: JsonRequest): Promise<string> {
 async function callOpenAI(model: string, req: JsonRequest): Promise<string> {
   openai ??= new OpenAI();
   try {
-    const completion = await openai.chat.completions.create({
+    const response = await openai.responses.create({
       model,
-      max_completion_tokens: req.maxTokens ?? 16000,
-      messages: [
-        { role: 'system', content: req.system },
-        { role: 'user', content: req.user },
-      ],
-      response_format: { type: 'json_schema', json_schema: { name: req.schemaName, schema: req.schema, strict: true } },
+      instructions: req.system,
+      input: req.user,
+      max_output_tokens: req.maxTokens ?? 16000,
+      text: { format: { type: 'json_schema', name: req.schemaName, schema: req.schema, strict: true } },
     });
-    const choice = completion.choices[0];
-    if (choice?.message.refusal) throw new AiError('A IA recusou este pedido.', 422);
-    if (choice?.finish_reason === 'length') throw new AiError('A cifra é longa demais para a IA processar de uma vez.', 413);
-    return choice?.message.content ?? '';
+    const refused = response.output.some(
+      (item) => item.type === 'message' && item.content.some((c) => c.type === 'refusal'),
+    );
+    if (refused) throw new AiError('A IA recusou este pedido.', 422);
+    if (response.incomplete_details?.reason === 'max_output_tokens') {
+      throw new AiError('A cifra é longa demais para a IA processar de uma vez.', 413);
+    }
+    return response.output_text ?? '';
   } catch (e) {
     if (e instanceof AiError) throw e;
     throw providerError(e);

@@ -23,7 +23,7 @@ const HomePage = () => {
 
   return <Layout activeMenu={0}>
     <Head>
-      <title>Home - Meu Repertório</title>
+      <title>Home - Toca Mais Uma</title>
       <meta name="viewport" content="initial-scale=1.0, width=device-width" />
     </Head>
     <InstantSearch searchClient={searchClient} indexName={ALGOLIA_LYRICS_INDEX}>

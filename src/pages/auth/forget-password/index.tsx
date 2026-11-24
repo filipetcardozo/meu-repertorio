@@ -8,7 +8,7 @@ const ForgetPassword = () => {
 
   return <>
     <Head>
-      <title>Recuperar senha - Meu Repertório</title>
+      <title>Recuperar senha - Toca Mais Uma</title>
       <meta name="viewport" content="initial-scale=1.0, width=device-width" />
     </Head>
     <ForgotPassword />

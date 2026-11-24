@@ -8,7 +8,7 @@ const Login = () => {
 
   return <>
     <Head>
-      <title>Entrar - Meu Repertório</title>
+      <title>Entrar - Toca Mais Uma</title>
       <meta name="viewport" content="initial-scale=1.0, width=device-width" />
     </Head>
     <LoginComponent />

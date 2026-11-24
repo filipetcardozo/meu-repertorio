@@ -13,7 +13,7 @@ const LyricShow = () => {
   if (isLogged != true) {
     return <Layout activeMenu={2}>
       <Head>
-        <title>Meu Repertório</title>
+        <title>Toca Mais Uma</title>
         <meta name="viewport" content="initial-scale=1.0, width=device-width" />
       </Head>
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
@@ -24,7 +24,7 @@ const LyricShow = () => {
 
   return <Layout>
     <Head>
-      <title>Meu Repertório</title>
+      <title>Toca Mais Uma</title>
       <meta name="viewport" content="initial-scale=1.0, width=device-width" />
     </Head>
     <LyricShowPage />

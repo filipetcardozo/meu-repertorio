@@ -16,7 +16,7 @@ const ManageSheetMusic = () => {
   if (isLogged != true) {
     return <Layout activeMenu={2}>
       <Head>
-        <title>Alterar repertório - Meu Repertório</title>
+        <title>Alterar repertório - Toca Mais Uma</title>
         <meta name="viewport" content="initial-scale=1.0, width=device-width" />
       </Head>
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
@@ -27,7 +27,7 @@ const ManageSheetMusic = () => {
 
   return <Layout activeMenu={2}>
     <Head>
-      <title>Alterar repertório - Meu Repertório</title>
+      <title>Alterar repertório - Toca Mais Uma</title>
       <meta name="viewport" content="initial-scale=1.0, width=device-width" />
     </Head>
     <ManageSheetMusicComponent sheetMusicId={id ? id[0] : undefined} />

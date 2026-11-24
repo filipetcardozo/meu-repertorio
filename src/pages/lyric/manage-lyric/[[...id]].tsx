@@ -18,7 +18,7 @@ const ManageLyric = () => {
   if (isLogged != true) {
     return <Layout activeMenu={2}>
       <Head>
-        <title>Meu Repertório</title>
+        <title>Toca Mais Uma</title>
         <meta name="viewport" content="initial-scale=1.0, width=device-width" />
       </Head>
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
@@ -29,7 +29,7 @@ const ManageLyric = () => {
 
   return <Layout activeMenu={4}>
     <Head>
-      <title>Meu Repertório</title>
+      <title>Toca Mais Uma</title>
       <meta name="viewport" content="initial-scale=1.0, width=device-width" />
     </Head>
     <LyricManage idLyric={id ? id[0] : undefined} />

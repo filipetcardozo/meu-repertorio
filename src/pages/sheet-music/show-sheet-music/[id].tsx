@@ -16,7 +16,7 @@ const ShowSheetMusic = () => {
   if (isLogged != true) {
     return <Layout activeMenu={1}>
       <Head>
-        <title>On The Show - Meu Repertório</title>
+        <title>On The Show - Toca Mais Uma</title>
         <meta name="viewport" content="initial-scale=1.0, width=device-width" />
       </Head>
       <SkeletonComponent />
@@ -25,7 +25,7 @@ const ShowSheetMusic = () => {
 
   return <Layout activeMenu={1}>
     <Head>
-      <title>On The Show - Meu Repertório</title>
+      <title>On The Show - Toca Mais Uma</title>
       <meta name="viewport" content="initial-scale=1.0, width=device-width" />
     </Head>
     <SheetMusicShow sheetMusicId={id as string ?? ''} />

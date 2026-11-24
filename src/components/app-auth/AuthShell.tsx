@@ -5,11 +5,12 @@ import Button from '@mui/material/Button';
 import Divider from '@mui/material/Divider';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
-import LibraryMusicIcon from '@mui/icons-material/LibraryMusic';
 import { alpha } from '@mui/material/styles';
 import { displayFontFamily } from '../../theme/createAppTheme';
 import { fieldSx } from '../lyric-manage/formUi';
 import { Copyright } from './Copyright';
+import { BrandLogo } from '../app-layout/BrandLogo';
+import { BrandName } from '../app-layout/BrandWordmark';
 
 /** Campo de texto das telas de autenticação: mesmo visual dos formulários do app. */
 export const authFieldSx = fieldSx;
@@ -40,21 +41,8 @@ export const AuthShell = ({
     })}
   >
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 3 }}>
-      <Box
-        sx={(theme) => ({
-          width: 40,
-          height: 40,
-          borderRadius: '12px',
-          display: 'grid',
-          placeItems: 'center',
-          backgroundImage: theme.brand.gradient,
-          color: theme.palette.primary.contrastText,
-          boxShadow: theme.brand.glow,
-        })}
-      >
-        <LibraryMusicIcon fontSize='small' />
-      </Box>
-      <Typography sx={{ fontFamily: displayFontFamily, fontWeight: 700, fontSize: 22 }}>Meu Repertório</Typography>
+      <BrandLogo size={48} title='Toca Mais Uma' />
+      <BrandName fontSize={26} />
     </Box>
 
     <Paper
