@@ -59,13 +59,18 @@ service cloud.firestore {
     }
 
     // Playbacks (mp3 sincronizado com a cifra): privados do dono.
-    // O app cria e renomeia; status/linha do tempo são gravados pela Cloud Function (Admin SDK).
+    // O app cria e renomeia; status/linha do tempo/cifra gerada são gravados pela Cloud Function (Admin SDK).
+    // Playback enviado na tela de adicionar música nasce sem música (lyricId '') e é ligado a ela uma vez, ao salvar.
     match /playbacks/{playbackId} {
       allow read, delete: if isOwner(resource.data.userId);
       allow create: if isOwner(request.resource.data.userId)
-        && request.resource.data.status == 'uploading';
+        && request.resource.data.status == 'uploading'
+        && !('generated' in request.resource.data);
       allow update: if isOwner(resource.data.userId)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['label', 'updatedAt']);
+        && (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['label', 'updatedAt'])
+          || (resource.data.lyricId == ''
+            && request.resource.data.lyricId is string && request.resource.data.lyricId != ''
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lyricId', 'updatedAt'])));
     }
 
     // Qualquer outra coleção fica fechada.

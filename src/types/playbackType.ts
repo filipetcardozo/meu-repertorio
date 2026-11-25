@@ -43,8 +43,27 @@ export type PlaybackStems = {
   durationSec?: number;
 };
 
+/**
+ * Cifra gerada pela plataforma a partir do áudio (acordes reconhecidos + letra da voz), gravada pelo
+ * servidor em `playbacks/{id}.generated`. É um rascunho: a pessoa revisa e salva na música.
+ */
+export type PlaybackGenerated = {
+  status: 'ready' | 'error';
+  error?: string | null;
+  /** HTML no formato da cifra salva (`<pre>` com acordes em `<b>`). */
+  lyric?: string;
+  tone?: string;
+  bpm?: number;
+  /** Linhas de letra e palavras reconhecidas (0 = só acordes, playback sem voz). */
+  lines?: number;
+  words?: number;
+  model?: string | null;
+  createdAt?: unknown;
+};
+
 export type PlaybackType = {
   id?: string;
+  /** '' = enviado na tela de adicionar música, antes de a música existir (ligado ao salvar). */
   lyricId: string;
   userId: string;
   label: string;
@@ -69,6 +88,9 @@ export type PlaybackType = {
   /** Quantas palavras da voz entraram no alinhamento (0 = só pelos acordes). */
   voiceWords?: number;
   stems?: PlaybackStems | null;
+  /** Pediu a cifra gerada pela plataforma (o processamento grava `generated` no fim). */
+  generate?: boolean;
+  generated?: PlaybackGenerated | null;
   createdAt?: unknown;
   updatedAt?: unknown;
 };

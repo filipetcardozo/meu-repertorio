@@ -7,7 +7,10 @@ Disparado pela Function `analyze_playback` quando o áudio chega no Storage (ou 
 1. separa o áudio em 6 faixas (Demucs htdemucs_6s) e grava em `playbacks/{uid}/stems/{id}/{faixa}.mp3`;
 2. reconhece a letra na faixa de voz (faster-whisper), com o tempo de cada palavra;
 3. analisa a harmonia do áudio original e alinha com a cifra usando acordes + letra;
-4. grava a linha do tempo, a análise e as palavras (para re-sincronizar quando a cifra mudar).
+4. grava a linha do tempo, a análise e as palavras (para re-sincronizar quando a cifra mudar);
+5. com `generate: true` no documento, gera também uma cifra a partir do áudio (acordes + letra
+   reconhecida, playback_sync/generate.py) e grava em `generated`. Se a música ainda não tem cifra
+   (ou o playback não tem música, criado na tela de adicionar música), a sincronia usa essa cifra.
 
 O documento `playbacks/{id}` mostra o andamento ao app:
 
@@ -98,9 +101,18 @@ def main(playback_id: str) -> int:
     try:
         from playback_sync.align import align
         from playback_sync.features import analyze
+        from playback_sync.cifra import parse_cifra
         from playback_sync.pipeline import analysis_bytes, load_cifra, result_fields, words_bytes
 
-        cifra, html = load_cifra(db, data["lyricId"])  # sem cifra não adianta processar o resto
+        want_generate = bool(data.get("generate"))
+        cifra = html = None
+        try:
+            cifra, html = load_cifra(db, data["lyricId"]) if data.get("lyricId") else (None, None)
+        except ValueError:
+            if not want_generate:
+                raise
+        if cifra is None and not want_generate:
+            raise ValueError("Música sem cifra")  # sem cifra não adianta processar o resto
         with tempfile.TemporaryDirectory() as tmp:
             src = os.path.join(tmp, os.path.basename(data["storagePath"]))
             bucket.blob(data["storagePath"]).download_to_filename(src)
@@ -155,6 +167,24 @@ def main(playback_id: str) -> int:
             # 3. harmonia + alinhamento
             stage("syncing", P_TRANSCRIBE[1])
             a = analyze(src)
+
+        # 4. cifra gerada pela plataforma
+        generated_field = None
+        if want_generate:
+            from playback_sync.generate import generate, generated_fields
+
+            try:
+                g = generate(a, words or None)
+                generated_field = {**generated_fields(g, model_name), "status": "ready", "error": None,
+                                   "createdAt": firestore.SERVER_TIMESTAMP}
+                print(f"cifra gerada: tom {g.tone}, {g.lines} linhas, {len(g.chords)} acordes")
+                if cifra is None:
+                    cifra, html = parse_cifra(g.html), g.html
+            except Exception as exc:  # noqa: BLE001
+                traceback.print_exc()
+                generated_field = {"status": "error", "error": f"Não foi possível gerar a cifra: {exc}"[:300]}
+        if cifra is None or not any(e.chords for e in cifra.events):
+            raise ValueError("Não foi possível reconhecer os acordes deste áudio")
         res_align = align(cifra, a, words=words or None)
 
         analysis_path = f"playbacks/{uid}/analysis/{playback_id}.npz"
@@ -176,6 +206,7 @@ def main(playback_id: str) -> int:
             "stage": None, "progress": 1.0,
             "analysisPath": analysis_path, "wordsPath": words_path, "voiceWords": len(words),
             "stems": stems_field,
+            **({"generated": generated_field} if generated_field else {}),
         })
         print(f"pronto em {time.monotonic() - t0:.1f}s")
         return 0

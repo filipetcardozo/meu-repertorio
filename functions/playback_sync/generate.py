@@ -1,0 +1,533 @@
+"""
+Gera uma cifra a partir do áudio, no formato que o app salva (`<pre>` com acordes em `<b>` na linha
+de cima e a letra embaixo), para músicas que ainda não têm cifra ou para criar uma versão feita pela
+plataforma.
+
+Entradas: a análise do áudio (features.analyze: croma, baixo, batidas) e as palavras reconhecidas na
+faixa de voz (worker/transcribe.py: {start, end, word, p, seg}). Etapas:
+
+1. tom: perfil de Krumhansl sobre o croma da música toda (agudos + graves);
+2. acordes: Viterbi sobre a grade de meio-tempos com um vocabulário pequeno (maior, menor, sétima e
+   maior com a terça no baixo, como D/F#), preferindo os acordes do tom e trocas na cabeça do compasso;
+3. letra: as palavras viram linhas (quebra nas pausas e nos trechos que o reconhecedor separou) e as
+   linhas viram estrofes (quebra nas pausas longas);
+4. cada troca de acorde vai em cima da palavra cantada naquele instante;
+5. trechos sem voz viram linhas só de acordes ([Intro], [Solo], [Final]) e a estrofe que mais se
+   repete vira [Refrão].
+
+É um rascunho para a pessoa revisar: tríades maiores e menores costumam sair certas; extensões
+(7M, 9, 11), acordes diminutos e baixos invertidos fora do padrão, não.
+"""
+from __future__ import annotations
+
+import html as htmllib
+import re
+import unicodedata
+from dataclasses import dataclass, field
+
+import numpy as np
+
+from .align import bar_position
+from .cifra import parse_chord
+from .features import Analysis
+
+SHARP = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+FLAT = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"]
+# tons escritos com bemol (maiores; os menores relativos seguem o maior)
+FLAT_MAJOR_KEYS = {5, 10, 3, 8, 1, 6}  # F Bb Eb Ab Db Gb
+
+# perfis de Krumhansl-Kessler (maior e menor), a partir da tônica
+KK_MAJOR = np.array([6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88])
+KK_MINOR = np.array([6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17])
+
+BETA = 14.0
+W_BASS = 0.25
+GAP_MARGIN = 0.3  # "sem acorde" = mediana da semelhança - margem
+# custo extra de cada tipo de acorde (os simples ganham no empate)
+KIND_COST = {"": 0.0, "m": 0.0, "7": 0.9, "/3": 1.2}
+W_KEY = 0.9  # acorde fora do tom
+W_KEY_NEAR = 0.35  # empréstimos comuns (bVII, dominantes secundárias)
+C_CHANGE = 3.0  # trocar de acorde
+POS_COST = {0: 0.0, 4: 0.4, 2: 1.0, 6: 1.0}  # cabeça do compasso, meio, tempos 2 e 4; contratempo
+POS_OFFBEAT = 1.8
+MIN_UNITS = 2  # acorde com menos que isso (1 tempo) é absorvido pelo vizinho
+
+MIN_WORD_P = 0.12  # palavra com probabilidade menor é descartada
+LINE_GAP_S = 0.65  # pausa que quebra a linha
+LINE_MAX_CHARS = 44
+LINE_SOFT_CHARS = 30  # passou disso, quebra na primeira pausa curta
+BLOCK_GAP_BARS = 2.5  # pausa (em compassos) que separa estrofes
+INSTR_MIN_BARS = 2.0  # trecho sem voz com pelo menos isso (e troca de acorde) vira linha só de acordes
+SOLO_MIN_BARS = 4
+CHORDS_PER_LINE = 8
+REFRAO_SIM = 0.5
+
+HALLUCINATIONS = ("amara.org", "legenda", "inscreva", "obrigado por assistir")
+
+
+@dataclass
+class ChordSeg:
+    root: int | None  # None = sem acorde
+    kind: str
+    t0: float
+    t1: float
+    name: str = ""
+
+
+@dataclass
+class Line:
+    words: list[dict]
+    t0: float
+    t1: float
+    text: str = ""
+    starts: list[int] = field(default_factory=list)  # coluna de início de cada palavra
+
+
+@dataclass
+class Generated:
+    html: str
+    tone: str
+    bpm: float
+    key_root: int
+    key_minor: bool
+    chords: list[ChordSeg]
+    lines: int
+    words: int
+
+
+# ---------------------------------------------------------------- tom
+
+
+def estimate_key(a: Analysis) -> tuple[int, bool]:
+    w = np.maximum(a.energy, 0.05)[:, None]
+    prof = (a.chroma * w).sum(axis=0) + 0.6 * (a.bass * w).sum(axis=0)
+    prof = (prof - prof.mean()) / (prof.std() + 1e-9)
+    best, arg = -np.inf, (0, False)
+    for minor, kk in ((False, KK_MAJOR), (True, KK_MINOR)):
+        z = (kk - kk.mean()) / kk.std()
+        for r in range(12):
+            s = float(np.dot(prof, np.roll(z, r)))
+            if s > best:
+                best, arg = s, (r, minor)
+    return arg
+
+
+def _key_cost(root: int, kind: str, key_root: int, key_minor: bool) -> float:
+    tonic = (key_root + 3) % 12 if key_minor else key_root  # trabalha no maior relativo
+    iv = (root - tonic) % 12
+    triad_minor = kind == "m"
+    diatonic = {0: False, 2: True, 4: True, 5: False, 7: False, 9: True}  # grau -> é menor?
+    if iv in diatonic and diatonic[iv] == triad_minor:
+        if kind == "7" and iv != 7:
+            return W_KEY_NEAR
+        return 0.0
+    if key_minor and not triad_minor and iv == 4:  # V maior do menor (E em Am)
+        return 0.0
+    if not triad_minor and iv in (10, 2, 4, 9):  # bVII, II (V/V), III (V/vi), VI (V/ii)
+        return W_KEY_NEAR
+    return W_KEY
+
+
+# ---------------------------------------------------------------- acordes
+
+
+def _vocab():
+    out = []  # (root, kind, bass, template)
+    for r in range(12):
+        for kind in ("", "m", "7", "/3"):
+            nm = SHARP[r] + ("" if kind == "/3" else kind)
+            bass = r
+            if kind == "/3":
+                bass = (r + 4) % 12
+                nm += "/" + SHARP[bass]
+            c = parse_chord(nm)
+            t = c.template(harmonics=True)
+            out.append((r, kind, bass, t / np.linalg.norm(t)))
+    return out
+
+
+def recognize_chords(a: Analysis, key_root: int, key_minor: bool) -> list[ChordSeg]:
+    vocab = _vocab()
+    T = np.array([v[3] for v in vocab])
+    basses = [v[2] for v in vocab]
+    sim = (1 - W_BASS) * (a.chroma @ T.T) + W_BASS * a.bass[:, basses]
+    sim[a.energy < 0.12] *= 0.6
+    gap_sim = float(np.median(sim.max(axis=1))) - GAP_MARGIN
+    logits = BETA * np.concatenate([sim, np.full((sim.shape[0], 1), gap_sim)], axis=1)
+    logits -= logits.max(axis=1, keepdims=True)
+    cost = -(logits - np.log(np.exp(logits).sum(axis=1, keepdims=True)))
+    prior = np.array([KIND_COST[k] + _key_cost(r, "" if k == "/3" else k, key_root, key_minor)
+                      for r, k, _, _ in vocab] + [0.5])
+    cost = cost + prior[None, :]
+
+    U, S = cost.shape
+    pos = bar_position(a)
+    change = np.array([C_CHANGE + POS_COST.get(int(p), POS_OFFBEAT) for p in pos])
+    D = np.zeros((U, S))
+    back = np.zeros((U, S), dtype=np.int32)
+    D[0] = cost[0]
+    for t in range(1, U):
+        j = int(np.argmin(D[t - 1]))
+        switch = D[t - 1, j] + change[t]
+        stay = D[t - 1]
+        take = switch < stay
+        D[t] = np.where(take, switch, stay) + cost[t]
+        back[t] = np.where(take, j, np.arange(S))
+    path = np.zeros(U, dtype=np.int32)
+    path[-1] = int(np.argmin(D[-1]))
+    for t in range(U - 1, 0, -1):
+        path[t - 1] = back[t, path[t]]
+
+    # segmentos + absorve os curtos
+    segs: list[list[int]] = []  # [estado, u0, u1]
+    for u, s in enumerate(path):
+        if segs and segs[-1][0] == s:
+            segs[-1][2] = u + 1
+        else:
+            segs.append([int(s), u, u + 1])
+    changed = True
+    while changed and len(segs) > 1:
+        changed = False
+        for i, sg in enumerate(segs):
+            if sg[2] - sg[1] >= MIN_UNITS:
+                continue
+            if i == 0:
+                segs[1][1] = sg[1]
+            elif i == len(segs) - 1:
+                segs[i - 1][2] = sg[2]
+            else:
+                prev, nxt = segs[i - 1], segs[i + 1]
+                cp = cost[sg[1]:sg[2], prev[0]].sum()
+                cn = cost[sg[1]:sg[2], nxt[0]].sum()
+                if cp <= cn:
+                    prev[2] = sg[2]
+                else:
+                    nxt[1] = sg[1]
+            del segs[i]
+            # junta vizinhos iguais
+            k = 1
+            while k < len(segs):
+                if segs[k][0] == segs[k - 1][0]:
+                    segs[k - 1][2] = segs[k][2]
+                    del segs[k]
+                else:
+                    k += 1
+            changed = True
+            break
+
+    flat = (key_root if not key_minor else (key_root + 3) % 12) in FLAT_MAJOR_KEYS
+    names = FLAT if flat else SHARP
+    out = []
+    for s, u0, u1 in segs:
+        t0, t1 = float(a.units[u0]), float(a.units[min(u1, len(a.units) - 1)])
+        if s == len(vocab):
+            out.append(ChordSeg(None, "", t0, t1, ""))
+            continue
+        r, kind, bass, _ = vocab[s]
+        nm = names[r] + ("m" if kind == "m" else "7" if kind == "7" else "")
+        if kind == "/3":
+            nm += "/" + names[bass]
+        out.append(ChordSeg(r, kind, t0, t1, nm))
+    return out
+
+
+def tone_name(key_root: int, key_minor: bool) -> str:
+    rel = (key_root + 3) % 12 if key_minor else key_root
+    names = FLAT if rel in FLAT_MAJOR_KEYS else SHARP
+    return names[key_root] + ("m" if key_minor else "")
+
+
+# ---------------------------------------------------------------- letra
+
+
+def _norm(s: str) -> str:
+    return unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode().lower()
+
+
+def _clean_word(w: str) -> str:
+    w = w.strip()
+    w = re.sub(r"^[\"'“”«(\[]+|[\"'“”»)\]]+$", "", w)
+    w = re.sub(r"[.,;:…]+$", "", w)
+    return w
+
+
+def build_lines(words: list[dict]) -> list[Line]:
+    ws = []
+    for w in sorted(words or [], key=lambda x: x["start"]):
+        txt = _clean_word(str(w.get("word", "")))
+        if not txt or float(w.get("p", 1)) < MIN_WORD_P:
+            continue
+        ws.append({**w, "word": txt, "end": min(float(w["end"]), float(w["start"]) + 1.2)})
+    lines: list[Line] = []
+    cur: list[dict] = []
+
+    def flush():
+        if cur:
+            lines.append(Line(words=list(cur), t0=cur[0]["start"], t1=cur[-1]["end"]))
+            cur.clear()
+
+    for w in ws:
+        if cur:
+            gap = w["start"] - cur[-1]["end"]
+            chars = sum(len(x["word"]) + 1 for x in cur)
+            new_seg = w.get("seg") is not None and w.get("seg") != cur[-1].get("seg") and len(cur) >= 3
+            if gap >= LINE_GAP_S or chars + len(w["word"]) > LINE_MAX_CHARS or new_seg \
+                    or (chars >= LINE_SOFT_CHARS and gap >= 0.25):
+                flush()
+        cur.append(w)
+    flush()
+
+    good = []
+    for ln in lines:
+        txt = " ".join(w["word"] for w in ln.words)
+        mean_p = float(np.mean([float(w.get("p", 1)) for w in ln.words]))
+        if any(h in _norm(txt) for h in HALLUCINATIONS) or (mean_p < 0.3 and len(ln.words) <= 2):
+            continue
+        col, starts = 0, []
+        for w in ln.words:
+            starts.append(col)
+            col += len(w["word"]) + 1
+        ln.text = txt[:1].upper() + txt[1:]
+        ln.starts = starts
+        good.append(ln)
+    return good
+
+
+# ---------------------------------------------------------------- montagem
+
+
+def _chord_row(items: list[tuple[int, str]]) -> tuple[str, int]:
+    """Linha de acordes (com <b>) a partir de [(coluna, nome)]; devolve (html, largura)."""
+    out, col = [], 0
+    for c, nm in sorted(items):
+        c = max(c, col + (1 if col else 0))
+        out.append(" " * (c - col))
+        out.append(f"<b>{htmllib.escape(nm)}</b>")
+        col = c + len(nm)
+    return "".join(out), col
+
+
+def _chord_list(names: list[str]) -> list[str]:
+    """Sequência de acordes de um trecho sem voz, sem repetições seguidas e com "(Nx)" se o trecho
+    todo for um padrão repetido. Linhas de até CHORDS_PER_LINE acordes."""
+    seq = [n for i, n in enumerate(names) if n and (i == 0 or n != names[i - 1])]
+    if not seq:
+        return []
+    for p in range(1, len(seq) // 2 + 1):
+        if len(seq) % p == 0 and seq == seq[:p] * (len(seq) // p):
+            reps = len(seq) // p
+            body = seq[:p]
+            rows = [body[i:i + CHORDS_PER_LINE] for i in range(0, len(body), CHORDS_PER_LINE)]
+            txt = ["  ".join(f"<b>{htmllib.escape(n)}</b>" for n in r) for r in rows]
+            if reps > 1:
+                txt[-1] += f"  ({reps}x)"
+            return txt
+    rows = [seq[i:i + CHORDS_PER_LINE] for i in range(0, len(seq), CHORDS_PER_LINE)]
+    return ["  ".join(f"<b>{htmllib.escape(n)}</b>" for n in r) for r in rows]
+
+
+def _tokens(lines: list[Line]) -> set[str]:
+    return {t for ln in lines for t in re.split(r"[^a-z0-9]+", _norm(ln.text)) if len(t) > 2}
+
+
+def _chords_in(chords: list[ChordSeg], t0: float, t1: float, include_active: bool) -> list[ChordSeg]:
+    out = []
+    for c in chords:
+        if not c.name:
+            continue
+        if t0 <= c.t0 < t1 or (include_active and c.t0 < t0 < c.t1 and c.t1 - t0 >= 0.5):
+            out.append(c)
+    return out
+
+
+MAX_BLOCK_LINES = 6
+REPEAT_LINE_SIM = 0.6
+
+
+def _sim(a: set[str], b: set[str]) -> float:
+    return len(a & b) / len(a | b) if a and b else 0.0
+
+
+def split_blocks(lines: list[Line], bar: float) -> list[list[Line]]:
+    """Estrofes: quebra nas pausas longas e onde a letra passa de "repetida na música" (refrão) para
+    "única" (verso) e vice-versa; estrofe comprida é dividida na maior pausa, perto do meio."""
+    n = len(lines)
+    toks = [_tokens([ln]) for ln in lines]
+    rep = [any(j != i and _sim(toks[i], toks[j]) >= REPEAT_LINE_SIM for j in range(n)) for i in range(n)]
+    for i in range(1, n - 1):  # linha isolada (verso com uma frase igual ao refrão) segue os vizinhos
+        if rep[i - 1] == rep[i + 1] != rep[i]:
+            rep[i] = rep[i - 1]
+    gaps = [lines[i + 1].t0 - lines[i].t1 for i in range(n - 1)]
+
+    runs: list[list[int]] = [[0]]
+    for i in range(1, n):
+        if gaps[i - 1] >= BLOCK_GAP_BARS * bar or rep[i] != rep[i - 1]:
+            runs.append([i])
+        else:
+            runs[-1].append(i)
+
+    def split(run: list[int]) -> list[list[int]]:
+        if len(run) <= MAX_BLOCK_LINES:
+            return [run]
+        mid = (len(run) - 1) / 2
+        best = max(range(1, len(run) - 1), key=lambda k: gaps[run[k] - 1] - 0.02 * bar * abs(k - mid - 0.5))
+        return split(run[:best]) + split(run[best:])
+
+    return [[lines[i] for i in part] for run in runs for part in split(run)]
+
+
+def assemble(chords: list[ChordSeg], lines: list[Line], a: Analysis) -> tuple[str, int]:
+    beat = 60.0 / max(a.bpm, 1.0)
+    bar = 4 * beat
+    tol = 0.35 * beat
+    duration = a.duration
+
+    out: list[str] = []
+    n_lines = 0
+
+    def instrumental(t0: float, t1: float, title: str | None, include_active: bool = False):
+        names = [c.name for c in _chords_in(chords, t0, t1, include_active=include_active)]
+        rows = _chord_list(names)
+        if not rows:
+            return
+        if title:
+            rows[0] = f"[{title}] {rows[0]}"
+        if out and out[-1] != "":
+            out.append("")
+        out.extend(rows)
+        out.append("")
+
+    if not lines:  # playback sem voz: só os acordes, uma linha a cada 4 compassos, estrofes de 4 linhas
+        named = [c for c in chords if c.name]
+        if not named:
+            return "<pre>\n</pre>", 0
+        rows: list[list[str]] = []
+        for c in named:
+            k = int((c.t0 - named[0].t0) // (4 * bar))
+            while len(rows) <= k:
+                rows.append([])
+            if not rows[k] or rows[k][-1] != c.name:
+                rows[k].append(c.name)
+        rows = [r for r in rows if r]
+        for i, r in enumerate(rows):
+            if i and i % 4 == 0:
+                out.append("")
+            out.append("  ".join(f"<b>{htmllib.escape(nm)}</b>" for nm in r))
+        return "<pre>" + "\n".join(out) + "\n</pre>", 0
+
+    blocks = split_blocks(lines, bar)
+
+    # refrão: a estrofe que mais se repete (por palavras em comum)
+    toks = [_tokens(b) for b in blocks]
+    groups: list[list[int]] = []
+    for i, t in enumerate(toks):
+        for g in groups:
+            r = toks[g[0]]
+            if t and r and len(t & r) / len(t | r) >= REFRAO_SIM:
+                g.append(i)
+                break
+        else:
+            groups.append([i])
+    refrao: set[int] = set()
+    rep = [g for g in groups if len(g) >= 2]
+    if rep:
+        best = max(rep, key=lambda g: (len(g), sum(len(blocks[i]) for i in g)))
+        refrao = set(best)
+
+    last_printed: str | None = None
+    printed_until = 0.0  # até onde as trocas de acorde já foram escritas
+    for bi, block in enumerate(blocks):
+        start = block[0].t0
+        prev_end = blocks[bi - 1][-1].t1 if bi else 0.0
+        gap = start - prev_end
+        if bi == 0:
+            if start >= bar:
+                instrumental(0.0, start - tol, "Intro", include_active=True)
+        elif gap >= INSTR_MIN_BARS * bar and _chords_in(chords, printed_until, start - tol, False):
+            title = "Solo" if gap >= SOLO_MIN_BARS * bar else None
+            instrumental(printed_until, start - tol, title)
+            last_printed = None
+        if out and out[-1] != "":
+            out.append("")
+        if bi in refrao:
+            out.append("[Refrão]")
+        for li, ln in enumerate(block):
+            nxt = block[li + 1].t0 if li + 1 < len(block) else (blocks[bi + 1][0].t0 if bi + 1 < len(blocks) else duration)
+            # troca entre o fim da linha e a próxima: até a metade da pausa fica nesta linha,
+            # depois é da próxima (vai no começo dela)
+            end = min(nxt - tol, ln.t1 + 0.5 * max(0.0, nxt - ln.t1), ln.t1 + bar)
+            items: list[tuple[int, str]] = []
+            active = _chords_in(chords, ln.t0 - tol, ln.t0 - tol + 1e-3, include_active=True)
+            head = active[0] if active else None
+            if head and (li == 0 or head.name != last_printed):
+                items.append((0, head.name))
+                last_printed = head.name
+            for c in _chords_in(chords, ln.t0 - tol + 1e-3, end, include_active=False):
+                wi = 0
+                for k, w in enumerate(ln.words):
+                    if w["start"] <= c.t0 + tol:
+                        wi = k
+                if c.t0 > ln.t1 + tol:  # troca depois da última palavra: fim da linha
+                    col = len(ln.text) + 1
+                else:
+                    col = ln.starts[wi]
+                if items and items[-1][1] == c.name:
+                    continue
+                items.append((col, c.name))
+                last_printed = c.name
+            printed_until = max(printed_until, end)
+            row, _ = _chord_row(items)
+            if row:
+                out.append(row)
+            out.append(htmllib.escape(ln.text))
+            n_lines += 1
+
+    if duration - printed_until >= bar:
+        instrumental(printed_until, duration, "Final")
+    while out and out[-1] == "":
+        out.pop()
+    return "<pre>" + "\n".join(out) + "\n</pre>", n_lines
+
+
+def _major_or_minor(chords: list[ChordSeg], key_root: int, key_minor: bool) -> tuple[int, bool]:
+    """O perfil confunde o tom com o relativo (G e Em): decide pelo tempo de cada tônica e pelos
+    acordes do começo e do fim."""
+    major = (key_root + 3) % 12 if key_minor else key_root
+    minor = (major + 9) % 12
+    named = [c for c in chords if c.root is not None]
+    if not named:
+        return key_root, key_minor
+
+    def score(root, is_minor):
+        s = sum(c.t1 - c.t0 for c in named if c.root == root and (c.kind == "m") == is_minor)
+        first, last = named[0], named[-1]
+        tot = sum(c.t1 - c.t0 for c in named)
+        for c in (first, last):
+            if c.root == root and (c.kind == "m") == is_minor:
+                s += 0.08 * tot
+        return s
+
+    return (minor, True) if score(minor, True) > score(major, False) else (major, False)
+
+
+def generate(a: Analysis, words: list[dict] | None) -> Generated:
+    key_root, key_minor = estimate_key(a)
+    chords = recognize_chords(a, key_root, key_minor)
+    key_root, key_minor = _major_or_minor(chords, key_root, key_minor)
+    lines = build_lines(words or [])
+    html, n_lines = assemble(chords, lines, a)
+    return Generated(html=html, tone=tone_name(key_root, key_minor), bpm=round(a.bpm, 1),
+                     key_root=key_root, key_minor=key_minor, chords=chords, lines=n_lines,
+                     words=sum(len(ln.words) for ln in lines))
+
+
+def generated_fields(g: Generated, model: str | None = None) -> dict:
+    """Campo `generated` do documento do playback."""
+    return {
+        "lyric": g.html,
+        "tone": g.tone,
+        "bpm": int(round(g.bpm)),
+        "lines": g.lines,
+        "words": g.words,
+        "model": model,
+    }

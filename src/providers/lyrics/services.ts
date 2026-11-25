@@ -16,7 +16,7 @@ function withoutUndefined<T extends Record<string, any>>(obj: T): Partial<T> {
 
 const LYRIC_META_FIELDS = [
     'composerImage', 'coverImage', 'songwriters', 'capo', 'tuning', 'bpm',
-    'beatsPerBar', 'strummings', 'youtubeId', 'sourceUrl',
+    'beatsPerBar', 'strummings', 'youtubeId', 'sourceUrl', 'generatedFromAudio',
 ] as const
 
 // Get specific lyric

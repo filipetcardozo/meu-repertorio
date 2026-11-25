@@ -224,4 +224,6 @@ def render(cifra: Cifra, plan: Plan, out_path: str) -> dict:
     buf += plan.noise * rng.standard_normal(len(buf)).astype(np.float32)
     buf /= np.abs(buf).max() + 1e-9
     sf.write(out_path, (0.9 * buf).astype(np.float32), SR, format="MP3")
-    return {"truth": truth, "duration": len(buf) / SR, "bpm": plan.bpm, "transpose": plan.transpose}
+    chords = [{"root": (f["ch"].root + sh) % 12, "minor": 3 in f["ch"].weights and 4 not in f["ch"].weights,
+               "bass": (f["ch"].bass + sh) % 12, "t0": t_of(f["b0"]), "t1": t_of(f["b1"])} for f in flat]
+    return {"truth": truth, "chords": chords, "duration": len(buf) / SR, "bpm": plan.bpm, "transpose": plan.transpose}

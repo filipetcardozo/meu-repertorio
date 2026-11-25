@@ -39,15 +39,33 @@ export type UploadHandle = {
   cancel: () => void;
 };
 
-/** Cria o playback e envia o arquivo. `onProgress` recebe 0..1. */
+/** Acompanha (ao vivo) um playback. Devolve a função que para de ouvir. */
+export function watchPlayback(
+  id: string,
+  onChange: (p: PlaybackType | null) => void,
+  onError?: (e: Error) => void,
+): () => void {
+  return onSnapshot(
+    doc(database, COL, id),
+    (snap) => onChange(snap.exists() ? { ...(snap.data() as PlaybackType), id: snap.id } : null),
+    (e) => onError?.(e),
+  );
+}
+
+/**
+ * Cria o playback e envia o arquivo. `onProgress` recebe 0..1.
+ * `generate`: o processamento também gera a cifra pelo áudio (`generated`). `lyricId` vazio = música
+ * ainda não salva (tela de adicionar música); ligue depois com `attachPlayback`.
+ */
 export async function uploadPlayback(opts: {
   lyricId: string;
   uid: string;
   file: File;
   label: string;
+  generate?: boolean;
   onProgress?: (fraction: number) => void;
 }): Promise<UploadHandle> {
-  const { lyricId, uid, file, label, onProgress } = opts;
+  const { lyricId, uid, file, label, generate, onProgress } = opts;
   if (file.size > MAX_PLAYBACK_BYTES) throw new Error('O arquivo passa de 30 MB.');
   if (file.type && !file.type.startsWith('audio/')) throw new Error('Escolha um arquivo de áudio (mp3, m4a, wav).');
 
@@ -61,6 +79,7 @@ export async function uploadPlayback(opts: {
     fileName: file.name,
     storagePath,
     status: 'uploading',
+    ...(generate ? { generate: true } : {}),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
@@ -109,6 +128,24 @@ export async function playbackUrl(storagePath: string): Promise<string> {
   const url = await getDownloadURL(sref(await getAppStorage(), storagePath));
   urlCache.set(storagePath, url);
   return url;
+}
+
+/** Liga à música (recém-salva) um playback enviado na tela de adicionar música. */
+export async function attachPlayback(id: string, lyricId: string) {
+  await updateDoc(doc(database, COL, id), { lyricId, updatedAt: serverTimestamp() });
+}
+
+/**
+ * Gera a cifra pelo áudio (acordes + letra reconhecida) e grava em `generated`. Com o playback já
+ * processado leva segundos; senão o processamento roda de novo e gera no fim (acompanhe pelo watch).
+ */
+export async function generateCifra(id: string) {
+  const { httpsCallable } = await import('firebase/functions');
+  const call = httpsCallable<{ playbackId: string }, { ok: boolean; status: 'ready' | 'processing' }>(
+    await getAppFunctions(FUNCTIONS_REGION),
+    'generate_cifra',
+  );
+  return (await call({ playbackId: id })).data;
 }
 
 /** Refaz só o alinhamento (sem reprocessar o áudio), usando a cifra atual da música. */

@@ -18,6 +18,8 @@ export type lyricType = {
     strummings?: lyricStrummingType[];
     youtubeId?: string;
     sourceUrl?: string;
+    /** Cifra gerada pela plataforma a partir do áudio (rascunho revisado pela pessoa) */
+    generatedFromAudio?: boolean;
     /** Modo compacto no show (resume repetições) */
     compactView?: boolean;
 }

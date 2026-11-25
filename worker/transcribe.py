@@ -40,7 +40,7 @@ def to_16k_mono(wav: np.ndarray, sr: int = SR_IN) -> np.ndarray:
 
 
 def transcribe(vocals: np.ndarray, on_progress: Callable[[float], None] | None = None) -> list[dict]:
-    """Palavras ({start, end, word, p}) da faixa de voz [2, n] a 44,1 kHz."""
+    """Palavras ({start, end, word, p, seg}) da faixa de voz [2, n] a 44,1 kHz."""
     y = to_16k_mono(vocals)
     dur = len(y) / SR_ASR
     if dur < 1:
@@ -48,10 +48,11 @@ def transcribe(vocals: np.ndarray, on_progress: Callable[[float], None] | None =
     segs, _ = get_model().transcribe(y, language="pt", word_timestamps=True, vad_filter=True,
                                      condition_on_previous_text=False, beam_size=5)
     words: list[dict] = []
-    for s in segs:
+    for i, s in enumerate(segs):
         for w in s.words or []:
+            # seg: trecho do reconhecedor (a geração de cifra quebra as linhas da letra nele)
             words.append({"start": round(float(w.start), 2), "end": round(float(w.end), 2),
-                          "word": w.word.strip(), "p": round(float(w.probability), 3)})
+                          "word": w.word.strip(), "p": round(float(w.probability), 3), "seg": i})
         if on_progress:
             on_progress(min(1.0, float(s.end) / dur))
     return words

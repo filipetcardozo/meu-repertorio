@@ -379,7 +379,7 @@ const STAGE_TEXT: Record<string, string> = {
   syncing: 'Sincronizando com a cifra…',
 };
 
-function processingText(p: PlaybackType): string {
+export function processingText(p: PlaybackType): string {
   const base = STAGE_TEXT[p.stage ?? 'queued'] ?? 'Processando…';
   return p.stage && p.stage !== 'queued' ? `${base} ${Math.round((p.progress ?? 0) * 100)}%` : base;
 }

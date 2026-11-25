@@ -7,6 +7,11 @@ a sincronia definitiva: não existe versão provisória.
 2. **Letra**: reconhece o que é cantado na faixa de voz (faster-whisper `small`, CPU), com o tempo de cada palavra.
 3. **Sincronia**: analisa a harmonia do áudio original e alinha com a cifra usando acordes + letra
    (`functions/playback_sync`, o mesmo código das Functions).
+4. **Cifra pelo áudio** (só com `generate: true` no playback): monta uma cifra com os acordes
+   reconhecidos e a letra da voz (`functions/playback_sync/generate.py`) e grava em `generated`.
+   Música sem cifra (ou playback enviado em "Criar pelo mp3", ainda sem música) é sincronizada com
+   essa cifra. Para um playback já processado, a Function `generate_cifra` gera em segundos com a
+   análise e as palavras guardadas. Banco de testes: `prototype/playback-sync/gen_bench.py`.
 
 ```
 app ── envia o áudio (Storage playbacks/{uid}/{id}.mp3)

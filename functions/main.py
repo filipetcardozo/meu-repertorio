@@ -10,6 +10,9 @@ analyze_playback: quando o áudio chega em Storage playbacks/{uid}/{id}.{ext}, m
 reprocess_playback (chamável): processa de novo um playback (antigo, com erro ou parado no meio).
 resync_playback (chamável): refaz só o alinhamento com a cifra atual, usando a análise e as palavras
   guardadas pelo job (rápido, sem reprocessar o áudio).
+generate_cifra (chamável): gera uma cifra a partir do áudio (acordes + letra reconhecida na voz) e
+  grava em `generated` no playback. Usa a análise e as palavras guardadas (segundos); playback ainda
+  sem análise é processado de novo pelo job, que gera a cifra no fim.
 cleanup_playback: quando o playback é apagado, apaga a análise, as palavras e as faixas separadas.
 """
 from __future__ import annotations
@@ -128,6 +131,46 @@ def resync_playback(req: https_fn.CallableRequest) -> dict:
     res = align(cifra, a, words=words or None)
     ref.update({**result_fields(cifra, html, a, res), "updatedAt": firestore.SERVER_TIMESTAMP})
     return {"ok": True}
+
+
+@https_fn.on_call(region=REGION, memory=options.MemoryOption.GB_1, timeout_sec=120)
+def generate_cifra(req: https_fn.CallableRequest) -> dict:
+    playback_id, ref, data = _owned(req)
+    st = data.get("status")
+    if st == "uploading":
+        raise https_fn.HttpsError(https_fn.FunctionsErrorCode.FAILED_PRECONDITION, "Espere o áudio terminar de subir.")
+    if not data.get("analysisPath") or (not data.get("wordsPath") and not data.get("stems")):
+        # sem análise (ou de antes das faixas, sem a letra reconhecida): o job processa e gera no fim
+        if st == "processing":
+            ref.update({"generate": True, "updatedAt": firestore.SERVER_TIMESTAMP})
+            return {"ok": True, "status": "processing"}
+        ref.update({"generate": True})
+        try:
+            _queue(ref, playback_id)
+        except Exception:  # noqa: BLE001
+            raise https_fn.HttpsError(https_fn.FunctionsErrorCode.UNAVAILABLE, "Não foi possível iniciar o processamento.")
+        return {"ok": True, "status": "processing"}
+
+    from playback_sync.generate import generate, generated_fields
+    from playback_sync.pipeline import analysis_from_bytes, words_from_bytes
+
+    bucket = storage.bucket()
+    a = analysis_from_bytes(bucket.blob(data["analysisPath"]).download_as_bytes())
+    words, model = [], None
+    if data.get("wordsPath"):  # sem palavras = playback sem voz: sai só com os acordes
+        import json
+
+        raw_words = bucket.blob(data["wordsPath"]).download_as_bytes()
+        words = words_from_bytes(raw_words)
+        model = json.loads(raw_words.decode("utf-8")).get("model")
+    g = generate(a, words or None)
+    ref.update({
+        "generate": True,
+        "generated": {**generated_fields(g, model), "status": "ready", "error": None,
+                      "createdAt": firestore.SERVER_TIMESTAMP},
+        "updatedAt": firestore.SERVER_TIMESTAMP,
+    })
+    return {"ok": True, "status": "ready"}
 
 
 @firestore_fn.on_document_deleted(document="playbacks/{playbackId}", region=REGION)

@@ -38,6 +38,10 @@ import { decorateSectionTitles } from '../../utils/sectionTitles';
 import { chordSheetMarksSx } from '../lyric-show/chordSheetStyles';
 
 import { CifraClubImport, CifraImportInfo } from './CifraClubImport';
+import { GenerateFromAudio } from './GenerateFromAudio';
+import { useAuth } from '../../hooks/useAuth';
+import { attachPlayback, resyncPlayback } from '../../providers/playbacks/services';
+import type { PlaybackGenerated } from '../../types/playbackType';
 import type { CifraImport } from '../../lib/cifraClub';
 import { SOURCE_LABEL, sourceOfUrl } from '../../lib/cifraSources';
 
@@ -60,6 +64,9 @@ export const LyricManage = ({ idLyric }: { idLyric: string | undefined }) => {
   const [matchedComposerId, setMatchedComposerId] = useState<string | null>(null)
   const [duplicates, setDuplicates] = useState<lyricType[]>([])
   const [lyricView, setLyricView] = useState<'edit' | 'preview'>('edit')
+  // Playback enviado em "Criar pelo mp3": ligado à música (e re-sincronizado) ao salvar
+  const [audioPlaybackId, setAudioPlaybackId] = useState<string | null>(null)
+  const { uid } = useAuth()
   const router = useRouter();
 
   const handleAddMusic = (prop: keyof any) => (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -121,6 +128,7 @@ export const LyricManage = ({ idLyric }: { idLyric: string | undefined }) => {
       strummings: data.strummings,
       youtubeId: data.youtubeId,
       sourceUrl: data.url,
+      generatedFromAudio: undefined,
     }
 
     const composer = findComposer(data)
@@ -157,6 +165,30 @@ export const LyricManage = ({ idLyric }: { idLyric: string | undefined }) => {
         )
       })
       .catch(() => { /* o aviso é opcional */ })
+  }
+
+  const handleGenerated = (g: PlaybackGenerated) => {
+    if (musicToAdd.lyric?.trim() && !window.confirm('A cifra pelo áudio ficou pronta. Substituir a cifra que já está no formulário?')) return
+    setMusicToAdd((cur: any) => ({
+      ...cur,
+      lyric: g.lyric,
+      originalTone: g.tone || cur.originalTone,
+      bpm: cur.bpm ?? g.bpm,
+      generatedFromAudio: true,
+    }))
+    setLyricView('preview')
+  }
+
+  /** Depois de salvar: liga o playback do "Criar pelo mp3" à música e refaz a sincronia com a cifra salva. */
+  const linkAudioPlayback = async (lyricId: string) => {
+    if (!audioPlaybackId) return
+    try {
+      if (!idLyric) await attachPlayback(audioPlaybackId, lyricId)
+      await resyncPlayback(audioPlaybackId)
+    } catch (e) {
+      console.error('Error linking PLAYBACK: ', e)
+    }
+    setAudioPlaybackId(null)
   }
 
   /**
@@ -202,10 +234,12 @@ export const LyricManage = ({ idLyric }: { idLyric: string | undefined }) => {
 
       if (idLyric) {
         await updateLyric(idLyric, lyric)
+        await linkAudioPlayback(idLyric)
         setOpenAlertAddMusic(true)
       } else {
         const id = await putLyric(lyric)
         if (!id) throw new Error('Não foi possível salvar a música.')
+        await linkAudioPlayback(id)
         setOpenAlertAddMusic(true)
         router.push(`/lyric/lyric-show/${id}`)
       }
@@ -260,6 +294,12 @@ export const LyricManage = ({ idLyric }: { idLyric: string | undefined }) => {
     return (
       <>
         <CifraClubImport onImport={handleCifraImport} />
+        <GenerateFromAudio
+          uid={uid}
+          lyricId={idLyric ?? ''}
+          onGenerated={handleGenerated}
+          onPlayback={setAudioPlaybackId}
+        />
         {importedFrom && (
           <MuiAlert
             severity='success'
