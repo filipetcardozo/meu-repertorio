@@ -61,6 +61,69 @@ def fake_words(cifra, truth_lines, chords_truth):
     return words
 
 
+def lyrics_of(cifra, truth_lines):
+    """Letra "da internet", na ordem cantada (com as repetições): estrofe nova a cada troca de seção."""
+    out, cur, sec, last = [], [], None, -1
+    for tl in truth_lines:
+        e = cifra.events[tl["event"]]
+        if not e.text:
+            continue
+        if sec is not None and (e.section != sec or e.idx <= last):
+            out.append(cur)
+            cur = []
+        cur.append(e.text)
+        sec, last = e.section, e.idx
+    if cur:
+        out.append(cur)
+    return "\n\n".join("\n".join(b) for b in out)
+
+
+def noisy(words, seed=1):
+    """Voz reconhecida ruim: some 35% das palavras, 20% saem erradas e entram palavras inventadas."""
+    rng = np.random.default_rng(seed)
+    out = []
+    for w in words:
+        r = rng.random()
+        if r < 0.35:
+            continue
+        if r < 0.55:
+            w = {**w, "word": "xyz" + w["word"][::-1]}
+        out.append(w)
+        if rng.random() < 0.1:
+            out.append({**w, "word": "inventada", "start": w["start"] + 0.1})
+    return out
+
+
+def run_lyrics(only=None, show=False):
+    """Letra informada + voz ruidosa: a linha deve começar perto de quando é cantada."""
+    errs_all = []
+    for name, cifra, plan in bench.cases():
+        if only and name != only:
+            continue
+        mp3 = os.path.join(OUT, name + ".mp3")
+        truth = render(cifra, plan, mp3)
+        a = analyze(mp3)
+        clean = fake_words(cifra, truth["truth"], truth["chords"])
+        g = generate(a, noisy(clean), lyrics=lyrics_of(cifra, truth["truth"]))
+        # erro de início de linha: cada linha cantada x a primeira palavra dela na voz limpa
+        from playback_sync.generate import align_lyrics
+        blocks = align_lyrics(lyrics_of(cifra, truth["truth"]), noisy(clean), [], a)
+        got = [ln.t0 for b in blocks for ln in b]
+        seg_first = {}
+        for w in clean:
+            seg_first.setdefault(w["seg"], w["start"])
+        ref = [seg_first[k] for k in sorted(seg_first)]
+        n = min(len(got), len(ref))
+        errs = [abs(got[i] - ref[i]) for i in range(n)]
+        errs_all += errs
+        print(f"{name:28s} acordes {acc(g, truth['chords']):5.1%}  linhas {len(got)}/{len(ref)}  "
+              f"erro início de linha: mediana {np.median(errs):.2f}s, >1s em {np.mean(np.array(errs) > 1):.0%}")
+        if show:
+            print(g.html)
+    if errs_all:
+        print(f"{'média':28s} erro mediano {np.median(errs_all):.2f}s, >1s em {np.mean(np.array(errs_all) > 1):.0%}")
+
+
 def run_synth(only=None, show=False):
     res = []
     for name, cifra, plan in bench.cases():
@@ -113,6 +176,8 @@ if __name__ == "__main__":
     arg = sys.argv[1] if len(sys.argv) > 1 else None
     if arg == "refem":
         run_refem(show=True)
+    elif arg == "letra" or (arg or "").startswith("letra:"):
+        run_lyrics(arg.split(":", 1)[1] if ":" in arg else None, show=":" in arg)
     else:
         run_synth(arg, show=bool(arg))
         if not arg:

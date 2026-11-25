@@ -26,6 +26,7 @@ import {
   MAX_PLAYBACK_BYTES, generateCifra, processingStale, resyncPlayback, uploadPlayback, watchPlaybacks,
 } from '../../providers/playbacks/services';
 import { GeneratedCifraPreview } from '../generate-cifra/GeneratedCifraPreview';
+import { LyricsPicker, type LyricsChoice } from '../generate-cifra/LyricsPicker';
 import { processingText } from './Playback';
 import { displayFontFamily } from '../../theme/createAppTheme';
 
@@ -65,6 +66,9 @@ const GenerateDialog = ({ lyricId, uid, hasUnsavedOffset, saveOffset, onClose }:
   const [error, setError] = useState<string | null>(null);
   const [upload, setUpload] = useState<{ name: string; progress: number; cancel: () => void } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [lyricsChoice, setLyricsChoice] = useState<LyricsChoice | null>(null);
+  const [showLyrics, setShowLyrics] = useState(true);
+  const input = lyricsChoice ? { lyrics: lyricsChoice.lyrics, synced: lyricsChoice.synced, source: lyricsChoice.source } : null;
 
   useEffect(() => {
     getLyric(lyricId)
@@ -87,7 +91,8 @@ const GenerateDialog = ({ lyricId, uid, hasUnsavedOffset, saveOffset, onClose }:
     setRequesting(true);
     setError(null);
     try {
-      await generateCifra(p.id);
+      await generateCifra(p.id, input);
+      setShowLyrics(false);
     } catch (e) {
       setError((e as Error).message || 'Não foi possível gerar a cifra.');
     } finally {
@@ -105,7 +110,7 @@ const GenerateDialog = ({ lyricId, uid, hasUnsavedOffset, saveOffset, onClose }:
     setUpload({ name: file.name, progress: 0, cancel: () => undefined });
     try {
       const h = await uploadPlayback({
-        lyricId, uid, file, label: '', generate: true,
+        lyricId, uid, file, label: '', generate: true, generateInput: input,
         onProgress: (p) => setUpload((u) => (u ? { ...u, progress: p } : u)),
       });
       setUpload((u) => (u ? { ...u, cancel: h.cancel } : u));
@@ -171,8 +176,8 @@ const GenerateDialog = ({ lyricId, uid, hasUnsavedOffset, saveOffset, onClose }:
       </DialogTitle>
       <DialogContent sx={{ pt: '12px !important' }}>
         <Typography variant='body2' sx={{ color: 'text.secondary', mb: 2 }}>
-          A plataforma ouve o áudio, reconhece os acordes e a letra cantada e monta uma cifra. Você vê o resultado
-          antes e escolhe: salvar como uma nova versão da música ou substituir a cifra atual.
+          A plataforma ouve o áudio e reconhece os acordes; a letra vem da internet (ou você cola) e é encaixada
+          no tempo em que é cantada. Você vê o resultado antes e escolhe: salvar como nova versão ou substituir a cifra.
         </Typography>
 
         {list === null ? (
@@ -245,6 +250,29 @@ const GenerateDialog = ({ lyricId, uid, hasUnsavedOffset, saveOffset, onClose }:
               <Alert severity='error' sx={{ mb: 1.5 }}>{picked.error || 'O processamento deste áudio falhou.'}</Alert>
             )}
 
+            {lyric && (showLyrics || !generated) && !waiting && (
+              <Box sx={{ mb: 2 }}>
+                <LyricsPicker
+                  song={lyric.lyricName}
+                  artist={lyric.composerName}
+                  duration={picked?.durationSec}
+                  value={lyricsChoice}
+                  onChange={setLyricsChoice}
+                  autoSearch
+                  disabled={busy || requesting}
+                />
+              </Box>
+            )}
+            {generated && !waiting && !showLyrics && (
+              <Button size='small' color='inherit' onClick={() => setShowLyrics(true)} sx={{ mb: 1 }}>
+                Trocar a letra e gerar de novo
+              </Button>
+            )}
+            {generated && !waiting && generated.lyricsSource === 'voice' && (
+              <Alert severity='warning' sx={{ mb: 1.5 }}>
+                Esta versão usou a letra reconhecida na voz, que costuma ter erros. Busque a letra acima e gere de novo.
+              </Alert>
+            )}
             {generated && !waiting && <GeneratedCifraPreview generated={generated} />}
           </>
         )}
@@ -255,9 +283,9 @@ const GenerateDialog = ({ lyricId, uid, hasUnsavedOffset, saveOffset, onClose }:
         <Button onClick={onClose} disabled={busy} color='inherit' sx={{ mr: 'auto' }}>
           Fechar
         </Button>
-        {picked && !waiting && !generated && (picked.status === 'ready' || picked.status === 'error') && (
-          <Button variant='contained' onClick={() => request(picked)} loading={requesting} disabled={busy}>
-            Gerar cifra
+        {picked && !waiting && (!generated || showLyrics) && (picked.status === 'ready' || picked.status === 'error') && (
+          <Button variant={generated ? 'outlined' : 'contained'} onClick={() => request(picked)} loading={requesting} disabled={busy}>
+            {generated ? 'Gerar de novo' : 'Gerar cifra'}
           </Button>
         )}
         {generated && !waiting && (

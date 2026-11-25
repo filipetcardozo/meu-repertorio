@@ -133,18 +133,34 @@ def resync_playback(req: https_fn.CallableRequest) -> dict:
     return {"ok": True}
 
 
+def _generate_input(req: https_fn.CallableRequest) -> dict:
+    """Letra informada pelo app (internet ou digitada) e, se houver, as linhas sincronizadas (LRC)."""
+    body = req.data or {}
+    lyrics = str(body.get("lyrics") or "")[:20000]
+    synced = []
+    for x in (body.get("synced") or [])[:600]:
+        try:
+            synced.append({"t": float(x["t"]), "text": str(x.get("text") or "")[:300]})
+        except (KeyError, TypeError, ValueError):
+            continue
+    source = str(body.get("lyricsSource") or "")[:40] or None
+    return {"lyrics": lyrics, "synced": synced, "source": source}
+
+
 @https_fn.on_call(region=REGION, memory=options.MemoryOption.GB_1, timeout_sec=120)
 def generate_cifra(req: https_fn.CallableRequest) -> dict:
     playback_id, ref, data = _owned(req)
+    gin = _generate_input(req)
     st = data.get("status")
     if st == "uploading":
         raise https_fn.HttpsError(https_fn.FunctionsErrorCode.FAILED_PRECONDITION, "Espere o áudio terminar de subir.")
     if not data.get("analysisPath") or (not data.get("wordsPath") and not data.get("stems")):
         # sem análise (ou de antes das faixas, sem a letra reconhecida): o job processa e gera no fim
+        # o job lê a letra informada no fim do processamento
         if st == "processing":
-            ref.update({"generate": True, "updatedAt": firestore.SERVER_TIMESTAMP})
+            ref.update({"generate": True, "generateInput": gin, "updatedAt": firestore.SERVER_TIMESTAMP})
             return {"ok": True, "status": "processing"}
-        ref.update({"generate": True})
+        ref.update({"generate": True, "generateInput": gin})
         try:
             _queue(ref, playback_id)
         except Exception:  # noqa: BLE001
@@ -163,11 +179,12 @@ def generate_cifra(req: https_fn.CallableRequest) -> dict:
         raw_words = bucket.blob(data["wordsPath"]).download_as_bytes()
         words = words_from_bytes(raw_words)
         model = json.loads(raw_words.decode("utf-8")).get("model")
-    g = generate(a, words or None)
+    g = generate(a, words or None, lyrics=gin["lyrics"] or None, synced=gin["synced"] or None)
     ref.update({
         "generate": True,
-        "generated": {**generated_fields(g, model), "status": "ready", "error": None,
-                      "createdAt": firestore.SERVER_TIMESTAMP},
+        "generateInput": gin,
+        "generated": {**generated_fields(g, model), "lyricsFrom": gin["source"] if gin["lyrics"] else None,
+                      "status": "ready", "error": None, "createdAt": firestore.SERVER_TIMESTAMP},
         "updatedAt": firestore.SERVER_TIMESTAMP,
     })
     return {"ok": True, "status": "ready"}

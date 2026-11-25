@@ -57,8 +57,19 @@ export type PlaybackGenerated = {
   /** Linhas de letra e palavras reconhecidas (0 = só acordes, playback sem voz). */
   lines?: number;
   words?: number;
+  /** 'lyrics' = letra informada (internet/digitada) sincronizada pela voz; 'voice' = letra reconhecida na voz. */
+  lyricsSource?: 'lyrics' | 'voice';
+  /** De onde veio a letra informada ('lrclib', 'manual'). */
+  lyricsFrom?: string | null;
   model?: string | null;
   createdAt?: unknown;
+};
+
+/** Letra informada para gerar a cifra (o servidor usa no fim do processamento). */
+export type GenerateInput = {
+  lyrics: string;
+  synced: { t: number; text: string }[] | null;
+  source: string | null;
 };
 
 export type PlaybackType = {
@@ -90,6 +101,7 @@ export type PlaybackType = {
   stems?: PlaybackStems | null;
   /** Pediu a cifra gerada pela plataforma (o processamento grava `generated` no fim). */
   generate?: boolean;
+  generateInput?: GenerateInput | null;
   generated?: PlaybackGenerated | null;
   createdAt?: unknown;
   updatedAt?: unknown;

@@ -93,6 +93,7 @@ class Generated:
     chords: list[ChordSeg]
     lines: int
     words: int
+    source: str = "voice"  # "lyrics" (letra informada, sincronizada pela voz) | "voice" (letra reconhecida)
 
 
 # ---------------------------------------------------------------- tom
@@ -293,6 +294,214 @@ def build_lines(words: list[dict]) -> list[Line]:
     return good
 
 
+# ---------------------------------------------------------------- letra informada (internet / digitada)
+
+M_MATCH, M_CLOSE, M_MISS, M_GAP = 2.0, 1.2, -1.0, -0.45
+
+
+def _word_tokens(w: str) -> list[str]:
+    return [t for t in re.split(r"[^a-z0-9]+", _norm(w)) if t]
+
+
+def _match_score(a: str, b: str) -> float:
+    if a == b:
+        return M_MATCH
+    if min(len(a), len(b)) >= 4 and abs(len(a) - len(b)) <= 1:
+        # distância de edição <= 1 (erros comuns do reconhecedor)
+        if len(a) == len(b):
+            if sum(x != y for x, y in zip(a, b)) <= 1:
+                return M_CLOSE
+        else:
+            s, lg = (a, b) if len(a) < len(b) else (b, a)
+            for i in range(len(lg)):
+                if lg[:i] + lg[i + 1:] == s:
+                    return M_CLOSE
+    return M_MISS
+
+
+def _dp_align(lt: list[str], wt: list[str]) -> list[int | None]:
+    """Alinha os tokens da letra (lt) com os ouvidos (wt), na ordem (Needleman-Wunsch com as pontas da
+    voz livres). Devolve, para cada token da letra, o índice do token ouvido casado (ou None)."""
+    n, m = len(lt), len(wt)
+    if not n or not m:
+        return [None] * n
+    S = np.zeros((n + 1, m + 1))
+    B = np.zeros((n + 1, m + 1), dtype=np.int8)  # 0 diagonal, 1 pula letra, 2 pula voz
+    S[1:, 0] = M_GAP * np.arange(1, n + 1)
+    B[1:, 0] = 1
+    B[0, 1:] = 2  # começo da voz livre (fala na introdução, alucinação)
+    for i in range(1, n + 1):
+        a = lt[i - 1]
+        row_prev, row = S[i - 1], S[i]
+        for j in range(1, m + 1):
+            d = row_prev[j - 1] + _match_score(a, wt[j - 1])
+            u = row_prev[j] + M_GAP
+            le = row[j - 1] + (0.0 if i == n else M_GAP)  # fim da voz livre
+            if d >= u and d >= le:
+                row[j], B[i, j] = d, 0
+            elif u >= le:
+                row[j], B[i, j] = u, 1
+            else:
+                row[j], B[i, j] = le, 2
+    out: list[int | None] = [None] * n
+    i, j = n, m
+    while i > 0 and j > 0:
+        b = B[i, j]
+        if b == 0:
+            if _match_score(lt[i - 1], wt[j - 1]) > 0:
+                out[i - 1] = j - 1
+            i, j = i - 1, j - 1
+        elif b == 1:
+            i -= 1
+        else:
+            j -= 1
+    return out
+
+
+def _parse_lyrics(text: str) -> list[list[str]]:
+    """Estrofes (separadas por linha em branco) e suas linhas."""
+    text = re.sub(r"<br\s*/?>", "\n", text, flags=re.I)
+    text = re.sub(r"<[^>]+>", "", text)
+    text = htmllib.unescape(text)
+    blocks: list[list[str]] = [[]]
+    for raw in text.replace("\r", "").split("\n"):
+        ln = re.sub(r"\s+", " ", raw).strip()
+        if not ln or re.fullmatch(r"\[.*\]", ln):  # título de seção da fonte: a geração marca de novo
+            if blocks[-1]:
+                blocks.append([])
+            continue
+        blocks[-1].append(ln)
+    return [b for b in blocks if b]
+
+
+def _map_synced(lines_txt: list[str], synced: list[dict]) -> list[float | None]:
+    """Tempo de cada linha da letra pelas linhas do LRC (casadas pelo texto, na ordem)."""
+    sy = [(float(x["t"]), set(_word_tokens(str(x.get("text", ""))))) for x in synced
+          if str(x.get("text", "")).strip()]
+    out: list[float | None] = [None] * len(lines_txt)
+    j = 0
+    for i, ln in enumerate(lines_txt):
+        a = set(_word_tokens(ln))
+        for k in range(j, min(len(sy), j + 4)):  # procura logo à frente (o LRC pode pular linha)
+            b = sy[k][1]
+            if a and b and len(a & b) / len(a | b) >= 0.6:
+                out[i] = sy[k][0]
+                j = k + 1
+                break
+    return out
+
+
+def align_lyrics(lyrics: str, words: list[dict], synced: list[dict], a: Analysis) -> list[list[Line]]:
+    """Estrofes da letra informada, com o tempo de cada palavra: pela voz reconhecida; o que a voz não
+    pegou vem das linhas sincronizadas (LRC, com o deslocamento medido) ou é interpolado."""
+    blocks_txt = _parse_lyrics(lyrics)
+    lines_txt = [ln for b in blocks_txt for ln in b]
+    if not lines_txt:
+        return []
+
+    # palavras da letra (com a coluna na linha) e seus tokens
+    lw: list[list[dict]] = []
+    lt: list[str] = []
+    owner: list[tuple[int, int]] = []  # token -> (linha, palavra)
+    for li, ln in enumerate(lines_txt):
+        ws = []
+        for m in re.finditer(r"\S+", ln):
+            ws.append({"word": m.group(0), "col": m.start(), "start": None, "end": None})
+            for t in _word_tokens(m.group(0)):
+                lt.append(t)
+                owner.append((li, len(ws) - 1))
+        lw.append(ws)
+
+    heard = []
+    for w in sorted(words or [], key=lambda x: x["start"]):
+        for t in _word_tokens(str(w.get("word", ""))):
+            heard.append((t, float(w["start"]), float(w["end"])))
+    match = _dp_align(lt, [h[0] for h in heard])
+    for k, j in enumerate(match):
+        if j is None:
+            continue
+        li, wi = owner[k]
+        w = lw[li][wi]
+        if w["start"] is None:
+            w["start"], w["end"] = heard[j][1], heard[j][2]
+
+    # início de cada linha: pela voz; senão pelo LRC; senão interpolado entre as vizinhas
+    n = len(lines_txt)
+    # tempo por palavra: medido nas linhas com várias palavras casadas (vale para a música toda)
+    rates = []
+    for ws in lw:
+        known = [(k, w["start"]) for k, w in enumerate(ws) if w["start"] is not None]
+        if len(known) >= 2 and known[-1][0] > known[0][0] and known[-1][1] > known[0][1]:
+            rates.append((known[-1][1] - known[0][1]) / (known[-1][0] - known[0][0]))
+    g_rate = float(np.clip(np.median(rates), 0.15, 1.2)) if rates else 0.3
+    t_line: list[float | None] = []
+    for ws in lw:
+        known = [(k, w["start"]) for k, w in enumerate(ws) if w["start"] is not None]
+        if known and len(known) >= max(1, len(ws) // 3):
+            k, t = known[0]
+            rate = g_rate
+            if len(known) >= 2 and known[-1][0] > k and known[-1][1] > t:
+                rate = float(np.clip((known[-1][1] - t) / (known[-1][0] - k), 0.12, 1.5))
+            t_line.append(max(0.0, t - rate * k))  # palavras antes da primeira casada
+        else:
+            t_line.append(None)
+    if synced:
+        sy = _map_synced(lines_txt, synced)
+        diffs = [t_line[i] - sy[i] for i in range(n) if t_line[i] is not None and sy[i] is not None]
+        off = float(np.median(diffs)) if diffs else 0.0
+        for i in range(n):
+            if t_line[i] is None and sy[i] is not None:
+                t_line[i] = max(0.0, sy[i] + off)
+    known_i = [i for i in range(n) if t_line[i] is not None]
+    if not known_i:  # nada para ancorar: espalha a letra pelo trecho com harmonia
+        on = np.where(a.energy > 0.2)[0]
+        t0 = float(a.units[on[0]]) if len(on) else 0.0
+        t1 = float(a.units[on[-1]]) if len(on) else a.duration
+        t_line = [t0 + (t1 - t0) * i / n for i in range(n)]
+    else:
+        for i in range(n):
+            if t_line[i] is not None:
+                continue
+            prev = max((k for k in known_i if k < i), default=None)
+            nxt = min((k for k in known_i if k > i), default=None)
+            if prev is not None and nxt is not None:
+                t_line[i] = t_line[prev] + (t_line[nxt] - t_line[prev]) * (i - prev) / (nxt - prev)
+            elif prev is not None:
+                t_line[i] = t_line[prev] + 3.0 * (i - prev)
+            else:
+                t_line[i] = max(0.0, t_line[nxt] - 3.0 * (nxt - i))
+    for i in range(1, n):  # sempre em ordem
+        t_line[i] = max(t_line[i], t_line[i - 1] + 0.3)
+
+    # tempo de cada palavra: as casadas pela voz; as outras interpoladas dentro da linha
+    lines: list[Line] = []
+    for i, ws in enumerate(lw):
+        start = t_line[i]
+        nxt = t_line[i + 1] if i + 1 < n else min(a.duration, start + 6.0)
+        inside = [w for w in ws if w["start"] is not None and start - 0.5 <= w["start"] < nxt]
+        last_known = max((w["end"] for w in inside), default=None)
+        end = min(nxt, last_known if last_known and last_known > start else start + max(1.0, 0.32 * len(ws)))
+        ids = {id(w) for w in inside}
+        pts = [(-1, start)] + [(k, w["start"]) for k, w in enumerate(ws) if id(w) in ids] + [(len(ws), end)]
+        out_w = []
+        for k, w in enumerate(ws):
+            if id(w) in ids:
+                t = w["start"]
+            else:
+                lo = max((p for p in pts if p[0] < k), key=lambda p: p[0])
+                hi = min((p for p in pts if p[0] > k), key=lambda p: p[0])
+                t = lo[1] + (hi[1] - lo[1]) * (k - lo[0]) / max(1, hi[0] - lo[0])
+            out_w.append({"word": w["word"], "start": float(t), "end": float(t) + 0.25})
+        lines.append(Line(words=out_w, t0=start, t1=max(end, out_w[-1]["start"] + 0.25),
+                          text=lines_txt[i], starts=[w["col"] for w in ws]))
+
+    out_blocks, k = [], 0
+    for b in blocks_txt:
+        out_blocks.append(lines[k:k + len(b)])
+        k += len(b)
+    return out_blocks
+
+
 # ---------------------------------------------------------------- montagem
 
 
@@ -376,7 +585,8 @@ def split_blocks(lines: list[Line], bar: float) -> list[list[Line]]:
     return [[lines[i] for i in part] for run in runs for part in split(run)]
 
 
-def assemble(chords: list[ChordSeg], lines: list[Line], a: Analysis) -> tuple[str, int]:
+def assemble(chords: list[ChordSeg], lines: list[Line], a: Analysis,
+             blocks: list[list[Line]] | None = None) -> tuple[str, int]:
     beat = 60.0 / max(a.bpm, 1.0)
     bar = 4 * beat
     tol = 0.35 * beat
@@ -415,7 +625,8 @@ def assemble(chords: list[ChordSeg], lines: list[Line], a: Analysis) -> tuple[st
             out.append("  ".join(f"<b>{htmllib.escape(nm)}</b>" for nm in r))
         return "<pre>" + "\n".join(out) + "\n</pre>", 0
 
-    blocks = split_blocks(lines, bar)
+    if blocks is None:
+        blocks = split_blocks(lines, bar)
 
     # refrão: a estrofe que mais se repete (por palavras em comum)
     toks = [_tokens(b) for b in blocks]
@@ -510,15 +721,26 @@ def _major_or_minor(chords: list[ChordSeg], key_root: int, key_minor: bool) -> t
     return (minor, True) if score(minor, True) > score(major, False) else (major, False)
 
 
-def generate(a: Analysis, words: list[dict] | None) -> Generated:
+def generate(a: Analysis, words: list[dict] | None, lyrics: str | None = None,
+             synced: list[dict] | None = None) -> Generated:
+    """`lyrics`: a letra certa (da internet ou digitada; estrofes separadas por linha em branco). Com ela,
+    a voz reconhecida só dá o tempo de cada palavra. `synced`: [{t, text}] (LRC), ajuda nas linhas que a
+    voz não pegou. Sem `lyrics`, a letra é a reconhecida na voz (rascunho bem pior)."""
     key_root, key_minor = estimate_key(a)
     chords = recognize_chords(a, key_root, key_minor)
     key_root, key_minor = _major_or_minor(chords, key_root, key_minor)
-    lines = build_lines(words or [])
-    html, n_lines = assemble(chords, lines, a)
+    blocks = None
+    if lyrics and lyrics.strip():
+        blocks = align_lyrics(lyrics, words or [], synced or [], a)
+        lines = [ln for b in blocks for ln in b]
+        source = "lyrics"
+    else:
+        lines = build_lines(words or [])
+        source = "voice"
+    html, n_lines = assemble(chords, lines, a, blocks)
     return Generated(html=html, tone=tone_name(key_root, key_minor), bpm=round(a.bpm, 1),
                      key_root=key_root, key_minor=key_minor, chords=chords, lines=n_lines,
-                     words=sum(len(ln.words) for ln in lines))
+                     words=sum(len(ln.words) for ln in lines), source=source)
 
 
 def generated_fields(g: Generated, model: str | None = None) -> dict:
@@ -529,5 +751,6 @@ def generated_fields(g: Generated, model: str | None = None) -> dict:
         "bpm": int(round(g.bpm)),
         "lines": g.lines,
         "words": g.words,
+        "lyricsSource": g.source,
         "model": model,
     }

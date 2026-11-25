@@ -6,7 +6,7 @@ import {
   collection, deleteDoc, doc, onSnapshot, query, serverTimestamp, setDoc, updateDoc, where,
 } from 'firebase/firestore';
 import { database, getAppFunctions, getAppStorage } from '../../../firebaseConfig';
-import type { PlaybackType } from '../../types/playbackType';
+import type { GenerateInput, PlaybackType } from '../../types/playbackType';
 
 const COL = 'playbacks';
 export const MAX_PLAYBACK_BYTES = 30 * 1024 * 1024;
@@ -63,9 +63,11 @@ export async function uploadPlayback(opts: {
   file: File;
   label: string;
   generate?: boolean;
+  /** Letra para a cifra gerada (sem ela, usa a letra reconhecida na voz). */
+  generateInput?: GenerateInput | null;
   onProgress?: (fraction: number) => void;
 }): Promise<UploadHandle> {
-  const { lyricId, uid, file, label, generate, onProgress } = opts;
+  const { lyricId, uid, file, label, generate, generateInput, onProgress } = opts;
   if (file.size > MAX_PLAYBACK_BYTES) throw new Error('O arquivo passa de 30 MB.');
   if (file.type && !file.type.startsWith('audio/')) throw new Error('Escolha um arquivo de áudio (mp3, m4a, wav).');
 
@@ -80,6 +82,7 @@ export async function uploadPlayback(opts: {
     storagePath,
     status: 'uploading',
     ...(generate ? { generate: true } : {}),
+    ...(generate && generateInput ? { generateInput } : {}),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
@@ -139,13 +142,17 @@ export async function attachPlayback(id: string, lyricId: string) {
  * Gera a cifra pelo áudio (acordes + letra reconhecida) e grava em `generated`. Com o playback já
  * processado leva segundos; senão o processamento roda de novo e gera no fim (acompanhe pelo watch).
  */
-export async function generateCifra(id: string) {
+export async function generateCifra(id: string, input?: GenerateInput | null) {
   const { httpsCallable } = await import('firebase/functions');
-  const call = httpsCallable<{ playbackId: string }, { ok: boolean; status: 'ready' | 'processing' }>(
+  type Req = { playbackId: string; lyrics?: string; synced?: GenerateInput['synced']; lyricsSource?: string | null };
+  const call = httpsCallable<Req, { ok: boolean; status: 'ready' | 'processing' }>(
     await getAppFunctions(FUNCTIONS_REGION),
     'generate_cifra',
   );
-  return (await call({ playbackId: id })).data;
+  return (await call({
+    playbackId: id,
+    ...(input?.lyrics ? { lyrics: input.lyrics, synced: input.synced, lyricsSource: input.source } : {}),
+  })).data;
 }
 
 /** Refaz só o alinhamento (sem reprocessar o áudio), usando a cifra atual da música. */

@@ -168,7 +168,9 @@ export const LyricManage = ({ idLyric }: { idLyric: string | undefined }) => {
   }
 
   const handleGenerated = (g: PlaybackGenerated) => {
-    if (musicToAdd.lyric?.trim() && !window.confirm('A cifra pelo áudio ficou pronta. Substituir a cifra que já está no formulário?')) return
+    // substitui sem perguntar se o que está no formulário também veio do áudio (gerou de novo)
+    if (musicToAdd.lyric?.trim() && !musicToAdd.generatedFromAudio
+      && !window.confirm('A cifra pelo áudio ficou pronta. Substituir a cifra que já está no formulário?')) return
     setMusicToAdd((cur: any) => ({
       ...cur,
       lyric: g.lyric,
@@ -297,6 +299,8 @@ export const LyricManage = ({ idLyric }: { idLyric: string | undefined }) => {
         <GenerateFromAudio
           uid={uid}
           lyricId={idLyric ?? ''}
+          lyricName={musicToAdd.lyricName ?? ''}
+          artistName={musicToAdd.composerName ?? ''}
           onGenerated={handleGenerated}
           onPlayback={setAudioPlaybackId}
         />

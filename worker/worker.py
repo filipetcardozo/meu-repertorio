@@ -174,9 +174,14 @@ def main(playback_id: str) -> int:
             from playback_sync.generate import generate, generated_fields
 
             try:
-                g = generate(a, words or None)
-                generated_field = {**generated_fields(g, model_name), "status": "ready", "error": None,
-                                   "createdAt": firestore.SERVER_TIMESTAMP}
+                # a letra informada pode ter chegado durante o processamento (generate_cifra)
+                fresh = ref.get()
+                gin = (fresh.to_dict() or {}).get("generateInput") if fresh.exists else None
+                gin = gin or data.get("generateInput") or {}
+                g = generate(a, words or None, lyrics=gin.get("lyrics") or None, synced=gin.get("synced") or None)
+                generated_field = {**generated_fields(g, model_name),
+                                   "lyricsFrom": gin.get("source") if gin.get("lyrics") else None,
+                                   "status": "ready", "error": None, "createdAt": firestore.SERVER_TIMESTAMP}
                 print(f"cifra gerada: tom {g.tone}, {g.lines} linhas, {len(g.chords)} acordes")
                 if cifra is None:
                     cifra, html = parse_cifra(g.html), g.html
