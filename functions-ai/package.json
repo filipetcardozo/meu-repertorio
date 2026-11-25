@@ -1,0 +1,22 @@
+{
+  "name": "toca-mais-uma-ai-functions",
+  "private": true,
+  "description": "Cloud Functions (Node) da cifra gerada pelo áudio: busca de letra e junção com IA.",
+  "main": "lib/index.js",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "build": "node copy-shared.mjs && tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.13.0",
+    "firebase-admin": "^14.5.1",
+    "firebase-functions": "^7.4.0",
+    "openai": "^7.63.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "typescript": "^5.9.3"
+  }
+}

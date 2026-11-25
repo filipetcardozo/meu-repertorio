@@ -34,7 +34,7 @@ type Props = {
 };
 
 type Change = { tipo: string; descricao: string };
-type Result = { lyric: string; tone: string; changes: Change[]; remaining: number };
+type Result = { lyric: string; tone: string; changes: Change[] };
 
 const CHANGE_LABEL: Record<string, string> = {
   alinhamento: 'Alinhamento',
@@ -258,11 +258,6 @@ const ImproveDialog = ({ lyricId, hasUnsavedOffset, saveOffset, onClose }: Props
         )}
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
-        {result && (
-          <Typography variant='caption' sx={{ color: 'text.secondary', mr: 'auto' }}>
-            {result.remaining} uso{result.remaining === 1 ? '' : 's'} restante{result.remaining === 1 ? '' : 's'} hoje
-          </Typography>
-        )}
         <Button onClick={onClose} disabled={saving || running} color='inherit'>
           {result && !nothingToDo ? 'Descartar' : 'Fechar'}
         </Button>

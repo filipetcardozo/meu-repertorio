@@ -9,6 +9,7 @@ import Typography from '@mui/material/Typography';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import type { LyricsResult, SyncedLine } from '../../lib/lyricsSearch';
 import { monoFont } from '../../theme/createAppTheme';
+import { searchLyricsOnline } from './mergeClient';
 
 /** Letra escolhida para gerar a cifra: o texto (editável) e, se veio da internet, as linhas com tempo. */
 export type LyricsChoice = {
@@ -19,13 +20,6 @@ export type LyricsChoice = {
   label: string;
 };
 
-async function fetchLyrics(song: string, artist: string, duration?: number): Promise<LyricsResult[]> {
-  const qs = new URLSearchParams({ song, artist, ...(duration ? { duration: String(Math.round(duration)) } : {}) });
-  const r = await fetch(`/api/lyrics/search?${qs.toString()}`);
-  const body = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(body?.error || 'Não foi possível buscar a letra.');
-  return (body.results ?? []) as LyricsResult[];
-}
 
 const labelOf = (r: LyricsResult) => `${r.trackName} · ${r.artistName}${r.synced ? ' (com tempo)' : ''}`;
 
@@ -54,7 +48,7 @@ export function LyricsPicker({ song, artist, duration, value, onChange, autoSear
     setLoading(true);
     setError(null);
     try {
-      const found = await fetchLyrics(song.trim(), artist.trim(), duration);
+      const found = await searchLyricsOnline(song.trim(), artist.trim(), duration);
       setResults(found);
       if (found[0]) onChange({ lyrics: found[0].lyrics, synced: found[0].synced, source: 'lrclib', label: labelOf(found[0]) });
     } catch (e) {

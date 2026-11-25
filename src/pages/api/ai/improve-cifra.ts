@@ -7,7 +7,6 @@ import { HttpError } from '../../../lib/httpError';
 // mas o plano Hobby da Vercel recusa o deploy com mais de 60s. Para subir este limite, troque de plano ou ative o Fluid Compute.
 export const config = { maxDuration: 60 };
 
-const DAILY_LIMIT = Number(process.env.AI_DAILY_LIMIT) || 20;
 const str = (v: unknown, max = 200) => (typeof v === 'string' ? v.slice(0, max) : undefined);
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -23,21 +22,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     if (!activeProvider()) throw new AiError('A IA ainda não foi configurada no servidor.', 503);
     // Firebase Admin é pesado: só carrega quando a IA é usada de fato.
-    const { consumeDailyQuota, requireUser } = await import('../../../lib/firebaseAdmin');
-    const { uid } = await requireUser(req);
+    const { requireUser } = await import('../../../lib/firebaseAdmin');
+    await requireUser(req);
 
     const lyric = req.body?.lyric;
     if (typeof lyric !== 'string' || !lyric.trim()) throw new HttpError('Envie a cifra.', 400);
     if (lyric.length > MAX_CIFRA_CHARS * 3) throw new HttpError('A cifra é longa demais para a IA.', 413);
 
-    const { remaining } = await consumeDailyQuota(uid, 'improveCifra', DAILY_LIMIT);
     const result = await improveCifra({
       lyric,
       lyricName: str(req.body?.lyricName),
       composerName: str(req.body?.composerName),
       originalTone: str(req.body?.originalTone, 10),
     });
-    return res.status(200).json({ ...result, remaining });
+    return res.status(200).json(result);
   } catch (e) {
     const status = e instanceof HttpError || e instanceof AiError ? e.status : 500;
     if (status === 500) console.error('improve-cifra:', e);
