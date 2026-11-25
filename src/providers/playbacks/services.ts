@@ -121,6 +121,38 @@ export async function resyncPlayback(id: string) {
   await call({ playbackId: id });
 }
 
+/** Pede a separação de instrumentos (roda em segundo plano; o progresso chega pelo `watchPlaybacks`). */
+export async function requestStems(id: string) {
+  const { httpsCallable } = await import('firebase/functions');
+  const call = httpsCallable<{ playbackId: string }, { ok: boolean; status: string }>(
+    await getAppFunctions(FUNCTIONS_REGION),
+    'separate_stems',
+  );
+  return (await call({ playbackId: id })).data;
+}
+
+/** Separação parada há muito tempo (o worker morreu): o app deixa pedir de novo. */
+export const STEMS_STALE_MS = 20 * 60 * 1000;
+export function stemsStale(p: PlaybackType): boolean {
+  const s = p.stems;
+  if (!s || (s.status !== 'queued' && s.status !== 'processing')) return false;
+  const ms = (s.updatedAt as { toMillis?: () => number } | undefined)?.toMillis?.();
+  return ms != null && Date.now() - ms > STEMS_STALE_MS;
+}
+
+/** Faixas ligadas/desligadas/solo de cada playback (no aparelho). */
+export type StemMix = Record<string, { on: boolean; solo: boolean }>;
+const mixKey = (playbackId: string) => `playback:stems:${playbackId}`;
+export function loadStemPrefs(playbackId: string): { mix: StemMix; useStems: boolean } | null {
+  try {
+    const raw = window.localStorage.getItem(mixKey(playbackId));
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+export function saveStemPrefs(playbackId: string, prefs: { mix: StemMix; useStems: boolean }) {
+  try { window.localStorage.setItem(mixKey(playbackId), JSON.stringify(prefs)); } catch { /* sem storage */ }
+}
+
 /** Mesmo hash que a Function grava em `cifraHash` (sha1 do HTML da cifra). */
 export async function cifraHash(html: string): Promise<string> {
   const buf = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(html));

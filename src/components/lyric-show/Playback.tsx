@@ -43,11 +43,13 @@ import UploadFileRoundedIcon from '@mui/icons-material/UploadFileRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import SyncRoundedIcon from '@mui/icons-material/SyncRounded';
+import CallSplitRoundedIcon from '@mui/icons-material/CallSplitRounded';
+import HeadphonesRoundedIcon from '@mui/icons-material/HeadphonesRounded';
 import { enqueueSnackbar } from 'notistack';
 import type { PlaybackSync } from '../../hooks/usePlaybackSync';
 import type { PlaybackType } from '../../types/playbackType';
 import {
-  MAX_PLAYBACK_BYTES, cifraHash, deletePlayback, renamePlayback, resyncPlayback, uploadPlayback,
+  MAX_PLAYBACK_BYTES, cifraHash, deletePlayback, renamePlayback, resyncPlayback, stemsStale, uploadPlayback,
 } from '../../providers/playbacks/services';
 
 const fmt = (t: number) => {
@@ -269,9 +271,159 @@ export function PlaybackBar({ sync, onManage }: {
               />
             )}
           </Stack>
+          <StemsSection sync={sync} />
         </>
       )}
     </Paper>
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Faixas separadas (dentro do player)
+// ---------------------------------------------------------------------------------------------
+
+export const STEM_LABELS: Record<string, string> = {
+  vocals: 'Voz', drums: 'Bateria', bass: 'Baixo', guitar: 'Guitarra', piano: 'Piano', other: 'Outros',
+};
+
+/** Limite do modelo, sempre visível junto das faixas. */
+export const STEMS_LIMIT_TEXT =
+  'A separação é por tipo de instrumento: base e solo de guitarra (e violão) ficam juntos em Guitarra. '
+  + 'Desligar Guitarra tira os dois.';
+
+function stemsStatusText(s: NonNullable<PlaybackType['stems']>, stale: boolean): string {
+  if (stale) return 'A separação parou no meio';
+  if (s.status === 'queued') return 'Separação na fila';
+  if (s.status === 'processing') return `Separando instrumentos ${Math.round((s.progress ?? 0) * 100)}%`;
+  if (s.status === 'error') return 'Separação falhou';
+  return 'Instrumentos separados';
+}
+
+function StemsSection({ sync }: { sync: PlaybackSync }) {
+  const st = sync.stems;
+  const info = st.info;
+  const [busyError, setBusyError] = React.useState<string | null>(null);
+
+  const ask = async () => {
+    setBusyError(null);
+    try {
+      await st.separate();
+    } catch (e) {
+      setBusyError((e as Error).message || 'Não foi possível iniciar a separação.');
+    }
+  };
+
+  const running = !!info && (info.status === 'queued' || info.status === 'processing') && !st.stale;
+
+  if (!info || info.status === 'error' || st.stale) {
+    return (
+      <Stack direction='row' sx={{ alignItems: 'center', gap: 1, flexWrap: 'wrap', py: 0.5, borderTop: 1, borderColor: 'divider' }}>
+        <Button
+          size='small'
+          startIcon={<CallSplitRoundedIcon fontSize='small' />}
+          onClick={ask}
+          disabled={st.requesting || !st.available}
+          sx={{ textTransform: 'none' }}
+        >
+          {info ? 'Separar de novo' : 'Separar instrumentos'}
+        </Button>
+        <Typography sx={{ fontSize: 12, color: info || busyError ? 'error.main' : 'text.secondary', flex: 1, minWidth: 160 }}>
+          {busyError
+            || (info?.status === 'error' ? (info.error || 'A separação falhou.') : null)
+            || (st.stale ? 'A separação parou no meio. Tente de novo.' : null)
+            || (!st.available
+              ? 'Este navegador não toca faixas separadas.'
+              : 'Voz, bateria, baixo, guitarra, piano e outros, em segundo plano.')}
+        </Typography>
+      </Stack>
+    );
+  }
+
+  if (running) {
+    const pct = Math.round((info.progress ?? 0) * 100);
+    return (
+      <Box sx={{ py: 0.75, borderTop: 1, borderColor: 'divider' }}>
+        <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 0.5 }}>
+          {info.status === 'queued' ? 'Separação na fila…' : `Separando instrumentos… ${pct}%`}
+          {' '}O áudio original continua tocando.
+        </Typography>
+        <LinearProgress variant={info.status === 'queued' ? 'indeterminate' : 'determinate'} value={pct} />
+      </Box>
+    );
+  }
+
+  // pronto
+  const anySolo = st.names.some((n) => st.mix[n]?.solo);
+  const changed = st.names.some((n) => st.mix[n] && (st.mix[n].solo || !st.mix[n].on));
+  const guitarOff = st.names.includes('guitar') && st.gains[st.names.indexOf('guitar')] === 0;
+  return (
+    <Box sx={{ py: 0.5, borderTop: 1, borderColor: 'divider' }}>
+      <Stack direction='row' sx={{ alignItems: 'center', gap: 1, minHeight: 30 }}>
+        <FormControlLabel
+          sx={{ mr: 0, ml: -0.5, '& .MuiFormControlLabel-label': { fontSize: 12, color: 'text.secondary' } }}
+          control={(
+            <Switch
+              size='small'
+              checked={st.useStems && st.available}
+              disabled={!st.available}
+              onChange={(e) => st.setUseStems(e.target.checked)}
+              slotProps={{ input: { 'aria-label': 'tocar com as faixas separadas' } }}
+            />
+          )}
+          label={st.available ? 'Faixas separadas' : 'Faixas separadas (este navegador não toca)'}
+        />
+        {st.loading && (
+          <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>carregando as faixas…</Typography>
+        )}
+        <Box sx={{ flex: 1 }} />
+        {st.active && changed && (
+          <Button size='small' color='inherit' onClick={st.reset} sx={{ textTransform: 'none', fontSize: 12, minWidth: 0 }}>
+            Todas
+          </Button>
+        )}
+      </Stack>
+      {st.loading && <LinearProgress sx={{ mb: 0.5 }} />}
+      {st.error && <Typography sx={{ fontSize: 12, color: 'error.main' }}>{st.error}</Typography>}
+      {st.useStems && st.available && !st.error && (
+        <>
+          <Stack direction='row' sx={{ flexWrap: 'wrap', gap: 0.75, py: 0.5 }} role='group' aria-label='faixas'>
+            {st.names.map((n, i) => {
+              const m = st.mix[n] ?? { on: true, solo: false };
+              const audible = st.gains[i] > 0;
+              const label = STEM_LABELS[n] ?? n;
+              return (
+                <Chip
+                  key={n}
+                  size='small'
+                  label={label}
+                  color={m.solo ? 'secondary' : 'primary'}
+                  variant={audible ? 'filled' : 'outlined'}
+                  disabled={!st.active}
+                  onClick={() => st.toggle(n)}
+                  onDelete={() => st.solo(n)}
+                  deleteIcon={(
+                    <Tooltip title={m.solo ? `Tirar ${label} do solo` : `Ouvir só ${label}`}>
+                      <HeadphonesRoundedIcon aria-label={m.solo ? `tirar ${label} do solo` : `ouvir só ${label}`} />
+                    </Tooltip>
+                  )}
+                  aria-pressed={audible}
+                  aria-label={`${label}: ${audible ? 'ligada' : 'desligada'}${m.solo ? ', em solo' : ''}`}
+                  sx={{
+                    fontWeight: 600,
+                    textDecoration: audible ? 'none' : 'line-through',
+                    opacity: !audible && anySolo && !m.on ? 0.6 : 1,
+                  }}
+                />
+              );
+            })}
+          </Stack>
+          <Typography sx={{ fontSize: 11.5, color: guitarOff ? 'warning.main' : 'text.secondary', lineHeight: 1.35 }}>
+            {STEMS_LIMIT_TEXT}
+            {' '}Toque para ligar/desligar; <HeadphonesRoundedIcon sx={{ fontSize: 12, verticalAlign: '-2px' }} /> ouve só a faixa.
+          </Typography>
+        </>
+      )}
+    </Box>
   );
 }
 
@@ -404,6 +556,11 @@ export function PlaybackManagerDialog({ open, onClose, sync, lyricId, uid, lyric
                         )}
                         {changed && (
                           <Typography sx={{ fontSize: 12, color: 'warning.main' }}>A cifra mudou depois da sincronia</Typography>
+                        )}
+                        {p.stems && (
+                          <Typography sx={{ fontSize: 12, color: p.stems.status === 'error' || stemsStale(p) ? 'error.main' : 'text.secondary' }}>
+                            {stemsStatusText(p.stems, stemsStale(p))}
+                          </Typography>
                         )}
                       </Stack>
                     </Box>

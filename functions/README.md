@@ -6,7 +6,8 @@ Funções em Python (2ª geração), região `us-central1` (mesma do projeto Fir
 |---|---|---|
 | `analyze_playback` | arquivo novo em Storage `playbacks/{uid}/{id}.mp3` | lê a cifra da música, analisa o áudio (andamento, batidas, acordes, tom), alinha e grava a linha do tempo em `playbacks/{id}` |
 | `resync_playback` | chamada do app | refaz só o alinhamento com a cifra atual, usando a análise guardada (`playbacks/{uid}/analysis/{id}.npz`) |
-| `cleanup_playback` | `playbacks/{id}` apagado | apaga a análise guardada |
+| `separate_stems` | chamada do app | pede a separação de instrumentos: marca `stems.status='queued'` e executa o Cloud Run Job `separate-stems` (ver `stems/README.md`) |
+| `cleanup_playback` | `playbacks/{id}` apagado | apaga a análise guardada e as faixas separadas |
 
 O código da sincronia (`playback_sync/`) é o mesmo do protótipo em `prototype/playback-sync`
 (lá ficam o banco de testes e as ferramentas de inspeção).

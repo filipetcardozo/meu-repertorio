@@ -10,6 +10,12 @@ service firebase.storage {
         && request.resource.contentType.matches('audio/.*');
     }
 
+    // Faixas separadas (voz, bateria...): gravadas só pelo worker da separação (Admin SDK).
+    match /playbacks/{uid}/stems/{playbackId}/{fileName} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+
     match /{allPaths=**} {
       allow read, write: if false;
     }

@@ -5,7 +5,8 @@ analyze_playback: quando um mp3 chega em Storage playbacks/{uid}/{id}.{ext}, lê
   analisa o áudio (andamento, batidas, acordes, tom), alinha com a cifra e grava a linha do tempo
   em Firestore playbacks/{id}.
 resync_playback (chamável): refaz só o alinhamento com a cifra atual, usando a análise guardada.
-cleanup_playback: quando o playback é apagado, apaga a análise guardada.
+separate_stems (chamável): pede a separação de instrumentos (Cloud Run Job `separate-stems`, pasta stems/).
+cleanup_playback: quando o playback é apagado, apaga a análise guardada e as faixas separadas.
 """
 from __future__ import annotations
 
@@ -143,11 +144,87 @@ def resync_playback(req: https_fn.CallableRequest) -> dict:
     return {"ok": True}
 
 
+# ---------------------------------------------------------------------------------------------
+# Separação de instrumentos (Demucs htdemucs_6s). O trabalho pesado roda no Cloud Run Job
+# `separate-stems` (pasta stems/); esta função só valida o pedido, marca a fila e dispara o job.
+# ---------------------------------------------------------------------------------------------
+
+# Pedido parado há mais que isso (job morto, sem memória...) pode ser refeito.
+STEMS_STALE_SEC = 20 * 60
+
+
+def _dispatch_stems(playback_id: str) -> None:
+    """Produção: executa o Cloud Run Job. Emulador: roda o comando local de STEMS_LOCAL_CMD."""
+    local_cmd = os.environ.get("STEMS_LOCAL_CMD")
+    if local_cmd:
+        import shlex
+        import subprocess
+
+        subprocess.Popen(shlex.split(local_cmd.replace("{playbackId}", playback_id), posix=os.name != "nt"))
+        return
+    import google.auth
+    from google.auth.transport.requests import AuthorizedSession
+
+    creds, project = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+    job = os.environ.get("STEMS_JOB") or f"projects/{project}/locations/{REGION}/jobs/separate-stems"
+    body = {"overrides": {"containerOverrides": [{"env": [{"name": "PLAYBACK_ID", "value": playback_id}]}]}}
+    r = AuthorizedSession(creds).post(f"https://run.googleapis.com/v2/{job}:run", json=body, timeout=30)
+    if r.status_code >= 300:
+        raise RuntimeError(f"Cloud Run {r.status_code}: {r.text[:200]}")
+
+
+@https_fn.on_call(region=REGION, memory=options.MemoryOption.MB_256, timeout_sec=60)
+def separate_stems(req: https_fn.CallableRequest) -> dict:
+    if not req.auth:
+        raise https_fn.HttpsError(https_fn.FunctionsErrorCode.UNAUTHENTICATED, "Entre na sua conta.")
+    playback_id = str((req.data or {}).get("playbackId") or "")
+    db = firestore.client()
+    ref = db.collection("playbacks").document(playback_id)
+    snap = ref.get() if playback_id else None
+    if not snap or not snap.exists or snap.get("userId") != req.auth.uid:
+        raise https_fn.HttpsError(https_fn.FunctionsErrorCode.NOT_FOUND, "Playback não encontrado.")
+    data = snap.to_dict()
+    if data.get("status") == "uploading":
+        raise https_fn.HttpsError(https_fn.FunctionsErrorCode.FAILED_PRECONDITION, "Espere o áudio terminar de subir.")
+
+    import time
+
+    stems = data.get("stems") or {}
+    st = stems.get("status")
+    if st == "ready":
+        return {"ok": True, "status": "ready"}
+    if st in ("queued", "processing"):
+        upd = stems.get("updatedAt")
+        age = time.time() - upd.timestamp() if hasattr(upd, "timestamp") else 0
+        if age < STEMS_STALE_SEC:
+            return {"ok": True, "status": st}
+
+    ref.update({
+        "stems": {"status": "queued", "progress": 0, "error": None, "model": "htdemucs_6s",
+                  "requestedAt": firestore.SERVER_TIMESTAMP, "updatedAt": firestore.SERVER_TIMESTAMP},
+    })
+    try:
+        _dispatch_stems(playback_id)
+    except Exception as exc:  # noqa: BLE001
+        ref.update({"stems.status": "error", "stems.error": "Não foi possível iniciar a separação.",
+                    "stems.updatedAt": firestore.SERVER_TIMESTAMP})
+        print(f"separate_stems: falha ao disparar: {exc}")
+        raise https_fn.HttpsError(https_fn.FunctionsErrorCode.UNAVAILABLE, "Não foi possível iniciar a separação.")
+    return {"ok": True, "status": "queued"}
+
+
 @firestore_fn.on_document_deleted(document="playbacks/{playbackId}", region=REGION)
 def cleanup_playback(event: firestore_fn.Event[firestore_fn.DocumentSnapshot | None]) -> None:
     snap = event.data
-    path = snap.get("analysisPath") if snap is not None and snap.exists else None
+    if snap is None or not snap.exists:
+        return
+    bucket = storage.bucket()
+    path = snap.get("analysisPath") if "analysisPath" in (snap.to_dict() or {}) else None
     if path:
-        blob = storage.bucket().blob(path)
+        blob = bucket.blob(path)
         if blob.exists():
             blob.delete()
+    # faixas separadas
+    uid = snap.get("userId")
+    for blob in bucket.list_blobs(prefix=f"playbacks/{uid}/stems/{event.params['playbackId']}/"):
+        blob.delete()

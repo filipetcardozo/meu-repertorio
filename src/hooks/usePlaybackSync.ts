@@ -13,7 +13,8 @@ import { tokenize } from '../utils/lyricFollow/aligner';
 import type { LyricLine } from '../utils/lyricFollow/domLines';
 import type { PlaybackSyncItem, PlaybackType } from '../types/playbackType';
 import {
-  loadPickedPlayback, playbackUrl, savePickedPlayback, watchPlaybacks,
+  loadPickedPlayback, loadStemPrefs, playbackUrl, requestStems, savePickedPlayback, saveStemPrefs, stemsStale,
+  watchPlaybacks, type StemMix,
 } from '../providers/playbacks/services';
 import { createMediaEngine, createPlaybackEngine, type PlaybackEngine, type PlayerEvents } from '../utils/audio/stretchPlayer';
 
@@ -176,8 +177,51 @@ export function usePlaybackSync(opts: {
     enginePromiseRef.current = null;
   }, []);
 
+  // ---------- Faixas separadas (voz, bateria, baixo, guitarra, piano, outros) ----------
+  const stems = readyTrack?.stems ?? null;
+  const stemTracks = React.useMemo(
+    () => (stems?.status === 'ready' && stems.tracks?.length ? stems.tracks : null),
+    [stems?.status, stems?.tracks],
+  );
+  const stemNames = React.useMemo(() => stemTracks?.map((s) => s.name) ?? [], [stemTracks]);
+  const [multitrackAvailable, setMultitrackAvailable] = React.useState(true);
+  const [useStems, setUseStemsState] = React.useState(false);
+  const [mix, setMix] = React.useState<StemMix>({});
+  const [stemsLoading, setStemsLoading] = React.useState(false);
+  const [stemsError, setStemsError] = React.useState<string | null>(null);
+  const [stemsRequesting, setStemsRequesting] = React.useState(false);
+  /** O que está carregado no player agora (o original continua tocando enquanto as faixas carregam). */
+  const [loadedMode, setLoadedMode] = React.useState<'original' | 'stems' | null>(null);
+
+  // Troca de playback: lê as preferências de faixas dele (no aparelho).
+  const prefsId = readyTrack?.id ?? null;
+  const [prevPrefsId, setPrevPrefsId] = React.useState<string | null>(null);
+  if (prevPrefsId !== prefsId) {
+    setPrevPrefsId(prefsId);
+    const p = prefsId && typeof window !== 'undefined' ? loadStemPrefs(prefsId) : null;
+    setUseStemsState(p?.useStems ?? true);
+    setMix(p?.mix ?? {});
+    setStemsError(null);
+  }
+
+  const gains = React.useMemo(() => {
+    const anySolo = stemNames.some((n) => mix[n]?.solo);
+    return stemNames.map((n) => (anySolo ? (mix[n]?.solo ? 1 : 0) : (mix[n]?.on ?? true) ? 1 : 0));
+  }, [stemNames, mix]);
+  const gainsRef = React.useRef(gains);
+  const stemsGainRef = React.useRef(1);
+  React.useEffect(() => {
+    gainsRef.current = gains;
+    stemsGainRef.current = stems?.gain ?? 1;
+  });
+
+  const wantStems = !!stemTracks && useStems && multitrackAvailable && !stemsError;
+
   // Troca de faixa (ou de música): baixa e prepara o arquivo novo.
+  // Troca entre original e faixas separadas: carrega por trás e continua do mesmo ponto.
   const srcPath = readyTrack?.storagePath ?? null;
+  const stemPaths = wantStems && stemTracks ? stemTracks.map((s) => s.path) : null;
+  const sourceKey = srcPath ? `${srcPath}|${stemPaths ? stemPaths.join(',') : ''}` : null;
   const [prevSrc, setPrevSrc] = React.useState<string | null>(null);
   if (prevSrc !== srcPath) {
     setPrevSrc(srcPath);
@@ -185,27 +229,55 @@ export function usePlaybackSync(opts: {
     setDuration(0);
     setAudioError(null);
     setAudioLoading(!!srcPath);
+    setLoadedMode(null);
   }
+  const loadedSrcRef = React.useRef<string | null>(null);
   React.useEffect(() => {
-    engineRef.current?.pause();
-    if (!srcPath) return;
+    if (!srcPath || !sourceKey) {
+      engineRef.current?.pause();
+      loadedSrcRef.current = null;
+      return;
+    }
+    // mesmo playback já carregado (só mudou original ↔ faixas): mantém posição e reprodução
+    const sameTrack = loadedSrcRef.current === srcPath;
+    if (!sameTrack) engineRef.current?.pause();
+    const paths = stemPaths;
     let alive = true;
+    if (sameTrack && paths) setStemsLoading(true);
     (async () => {
-      const url = await playbackUrl(srcPath);
       let engine = await getEngine();
-      try {
-        await engine.load(url);
-      } catch (e) {
-        if (!engine.canShiftPitch) throw e;
-        // O player com troca de tom precisa baixar o arquivo (CORS do Storage); sem isso, toca sem transpor.
-        engine.destroy();
-        engine = createMediaEngine(events);
-        engineRef.current = engine;
-        enginePromiseRef.current = Promise.resolve(engine);
-        setPitchAvailable(false);
-        await engine.load(url);
+      if (paths && engine.canMultitrack) {
+        const urls = await Promise.all(paths.map((p) => playbackUrl(p)));
+        try {
+          await engine.load(urls, { keepPosition: sameTrack, gains: gainsRef.current, masterGain: stemsGainRef.current });
+          if (!alive) return;
+          setLoadedMode('stems');
+        } catch {
+          if (!alive) return;
+          // Sem as faixas, segue (ou volta) com o original.
+          setStemsError('Não foi possível carregar as faixas separadas. Tocando o áudio original.');
+          return;
+        }
+      } else {
+        const url = await playbackUrl(srcPath);
+        try {
+          await engine.load(url, { keepPosition: sameTrack, masterGain: 1 });
+        } catch (e) {
+          if (!engine.canShiftPitch) throw e;
+          // O player com troca de tom precisa baixar o arquivo (CORS do Storage); sem isso, toca sem transpor.
+          engine.destroy();
+          engine = createMediaEngine(events);
+          engineRef.current = engine;
+          enginePromiseRef.current = Promise.resolve(engine);
+          setPitchAvailable(false);
+          setMultitrackAvailable(false);
+          await engine.load(url);
+        }
+        if (!alive) return;
+        setLoadedMode('original');
       }
-      if (!alive) return;
+      loadedSrcRef.current = srcPath;
+      if (!engine.canMultitrack) setMultitrackAvailable(false);
       engine.setRate(rateRef.current);
       engine.setSemitones(semisRef.current);
       setDuration(engine.duration);
@@ -216,9 +288,65 @@ export function usePlaybackSync(opts: {
       }
     })()
       .catch(() => alive && setAudioError('Não foi possível carregar o áudio.'))
-      .finally(() => alive && setAudioLoading(false));
+      .finally(() => {
+        if (!alive) return;
+        setAudioLoading(false);
+        setStemsLoading(false);
+      });
     return () => { alive = false; };
-  }, [srcPath, getEngine, events]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `stemPaths` está resumido em `sourceKey`
+  }, [sourceKey, srcPath, getEngine, events]);
+
+  // Liga/desliga/solo: muda o volume das faixas na hora, sem parar.
+  React.useEffect(() => {
+    if (loadedMode === 'stems') engineRef.current?.setTrackGains(gains);
+  }, [gains, loadedMode]);
+
+  const persistPrefs = React.useCallback((next: { mix: StemMix; useStems: boolean }) => {
+    if (prefsId) saveStemPrefs(prefsId, next);
+  }, [prefsId]);
+
+  const setUseStems = React.useCallback((v: boolean) => {
+    setUseStemsState(v);
+    setStemsError(null);
+    persistPrefs({ mix, useStems: v });
+  }, [mix, persistPrefs]);
+
+  const updateMix = React.useCallback((fn: (m: StemMix) => StemMix) => {
+    setMix((m) => {
+      const next = fn(m);
+      persistPrefs({ mix: next, useStems });
+      return next;
+    });
+  }, [persistPrefs, useStems]);
+
+  /** Liga/desliga uma faixa. Com alguma faixa em solo, tirar o solo dela. */
+  const toggleStem = React.useCallback((name: string) => {
+    updateMix((m) => {
+      const cur = m[name] ?? { on: true, solo: false };
+      return { ...m, [name]: { ...cur, on: !cur.on } };
+    });
+  }, [updateMix]);
+
+  /** Ouvir só esta faixa (toque de novo para voltar). Dá para somar mais de uma em solo. */
+  const soloStem = React.useCallback((name: string) => {
+    updateMix((m) => {
+      const cur = m[name] ?? { on: true, solo: false };
+      return { ...m, [name]: { ...cur, solo: !cur.solo } };
+    });
+  }, [updateMix]);
+
+  const resetMix = React.useCallback(() => updateMix(() => ({})), [updateMix]);
+
+  const separate = React.useCallback(async () => {
+    if (!readyTrack?.id) return;
+    setStemsRequesting(true);
+    try {
+      await requestStems(readyTrack.id);
+    } finally {
+      setStemsRequesting(false);
+    }
+  }, [readyTrack?.id]);
 
   // Música nova sem playback pronto: não continua tocando sozinha.
   React.useEffect(() => {
@@ -378,6 +506,28 @@ export function usePlaybackSync(opts: {
     canAutoNext: !!onNext,
     audioError,
     toReview,
+    /** Faixas separadas do playback atual. */
+    stems: {
+      /** Estado da separação no servidor (null = nunca pedida). */
+      info: stems,
+      stale: readyTrack ? stemsStale(readyTrack) : false,
+      names: stemNames,
+      /** Este navegador consegue tocar as faixas juntas (precisa do player com troca de tom). */
+      available: multitrackAvailable,
+      useStems,
+      setUseStems,
+      /** O que está tocando agora. */
+      active: loadedMode === 'stems',
+      loading: stemsLoading,
+      error: stemsError,
+      requesting: stemsRequesting,
+      separate,
+      mix,
+      gains,
+      toggle: toggleStem,
+      solo: soloStem,
+      reset: resetMix,
+    },
   };
 }
 
