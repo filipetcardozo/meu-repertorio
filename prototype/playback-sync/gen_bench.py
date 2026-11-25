@@ -1,17 +1,20 @@
 """
 Banco de testes da geração de cifra (functions/playback_sync/generate.py).
 
-Sintéticos (synth.py, com gabarito de cada acorde): mede o acerto de acorde por tempo (fundamental +
-maior/menor) e o tom. Real (Refém, análise guardada em out/): compara com a sincronia conferida.
+Os acordes vêm do consonance-ACE, que roda no worker (PyTorch). Aqui eles saem do gabarito dos casos
+sintéticos (synth.py), no mesmo formato que o ACE devolve ({t0, t1, label} em Harte), e o banco mede
+o resto do caminho: encaixe na grade de tempos, nome na notação do app (sétimas, inversões, m7(b5),
+7(4)...), tom e letra.
 
-    python gen_bench.py             # todos
+    python gen_bench.py             # acordes, nomes e tom em todos os casos
     python gen_bench.py pop-reto    # um caso (e imprime a cifra gerada)
+    python gen_bench.py letra       # letra informada + voz ruidosa: erro de início de linha
 """
 from __future__ import annotations
 
-import json
+import html as htmllib
 import os
-import pickle
+import re
 import sys
 
 import numpy as np
@@ -19,32 +22,57 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "..", "functions"))
 
-from playback_sync.cifra import parse_chord  # noqa: E402
-from playback_sync.features import Analysis, analyze  # noqa: E402
-from playback_sync.generate import generate  # noqa: E402
+from playback_sync.cifra import parse_chord, parse_cifra  # noqa: E402
+from playback_sync.features import analyze  # noqa: E402
+from playback_sync.generate import align_lyrics, generate  # noqa: E402
 
 import bench  # noqa: E402  (casos sintéticos)
-from synth import render  # noqa: E402
+from synth import Plan, render  # noqa: E402
 
 OUT = os.path.join(HERE, "out")
+IV = ["1", "b2", "2", "b3", "3", "4", "b5", "5", "b6", "6", "b7", "7"]
+NOTES = "C C# D D# E F F# G G# A A# B".split()
 
 
-def acc(g, truth, step=0.1, t_end=None):
-    """Fração do tempo (com acorde no gabarito) em que fundamental e maior/menor batem."""
-    t_end = t_end or max(c["t1"] for c in truth)
-    ok = tot = 0
-    for t in np.arange(0, t_end, step):
-        tr = next((c for c in truth if c["t0"] <= t < c["t1"]), None)
-        if tr is None:
-            continue
-        gs = next((c for c in g.chords if c.t0 <= t < c.t1), None)
-        tot += 1
-        if gs and gs.root is not None and gs.root == tr["root"] and (gs.kind == "m") == tr["minor"]:
+def cases():
+    yield from bench.cases()
+    # sétimas (7M, m7, 7, m7(b5)), m6, 7(4), inversões (D/F#, G/B, D/C) e trocas de 1 e 2 tempos
+    sev = parse_cifra(open(os.path.join(HERE, "testdata", "setimas-inversoes-em-g.html"), encoding="utf-8").read())
+    C = parse_chord
+    fast = [(C("C7M"), 2), (C("D7"), 2), (C("Bm7"), 1), (C("E7"), 1), (C("Am7"), 2), (C("D7(4)"), 1),
+            (C("D7"), 1), (C("G7M"), 2), (C("G/B"), 2), (C("C7M"), 2), (C("Cm6"), 2), (C("G7M"), 8)]
+    yield "setimas-inversoes", sev, Plan(
+        order=[("section", 0), ("section", 1), ("section", 2), ("section", 1), ("section", 2), ("gap", fast)],
+        bpm=92, drift=0.02, seed=21)
+
+
+def segments_of(truth_chords: list[dict]) -> list[dict]:
+    """Gabarito -> o que o ACE devolveria: "D:(1,3,5,b7)/b7" etc."""
+    segs = []
+    for c in truth_chords:
+        lab = NOTES[c["root"]] + ":(" + ",".join(IV[i] for i in c["ivs"]) + ")"
+        if c["bass"] != c["root"]:
+            lab += "/" + IV[(c["bass"] - c["root"]) % 12]
+        segs.append({"t0": c["t0"], "t1": c["t1"], "label": lab})
+    return segs
+
+
+def score(g, truth_chords: list[dict]) -> tuple[int, list[str]]:
+    """Acordes do gabarito que saíram com nome (raiz, notas, baixo) e tempo certos; nomes errados."""
+    ok, bad = 0, []
+    for c in truth_chords:
+        mid = (c["t0"] + c["t1"]) / 2
+        est = next((x for x in g.chords if x.t0 <= mid < x.t1), None)
+        p = parse_chord(est.name) if est and est.name else None
+        if p and p.root == c["root"] and p.bass == c["bass"] \
+                and sorted(i for i, w in p.weights.items() if w >= 0.55) == c["ivs"]:
             ok += 1
-    return ok / max(tot, 1)
+        else:
+            bad.append(f"{c['t0']:.1f}s {c['name']} -> {est.name if est else None}")
+    return ok, bad
 
 
-def fake_words(cifra, truth_lines, chords_truth):
+def fake_words(cifra, truth_lines, chords_truth=None):
     """Palavras "cantadas" com o tempo do gabarito (testa a montagem sem o Whisper)."""
     words = []
     for i, tl in enumerate(truth_lines):
@@ -94,19 +122,40 @@ def noisy(words, seed=1):
     return out
 
 
-def run_lyrics(only=None, show=False):
-    """Letra informada + voz ruidosa: a linha deve começar perto de quando é cantada."""
-    errs_all = []
-    for name, cifra, plan in bench.cases():
+def run_chords(only=None, show=False) -> int:
+    fails = 0
+    for name, cifra, plan in cases():
         if only and name != only:
             continue
         mp3 = os.path.join(OUT, name + ".mp3")
         truth = render(cifra, plan, mp3)
         a = analyze(mp3)
-        clean = fake_words(cifra, truth["truth"], truth["chords"])
-        g = generate(a, noisy(clean), lyrics=lyrics_of(cifra, truth["truth"]))
-        # erro de início de linha: cada linha cantada x a primeira palavra dela na voz limpa
-        from playback_sync.generate import align_lyrics
+        g = generate(a, segments_of(truth["chords"]), fake_words(cifra, truth["truth"]),
+                     lyrics=lyrics_of(cifra, truth["truth"]))
+        ok, bad = score(g, truth["chords"])
+        written = [htmllib.unescape(x) for x in re.findall(r"<b>([^<]*)</b>", g.html)]
+        unreadable = [w for w in written if parse_chord(w) is None]
+        fails += bool(bad) + bool(unreadable)
+        print(f"{name:24s} acordes certos {ok}/{len(truth['chords'])}  tom {g.tone:4s}  linhas {g.lines:3d}  "
+              f"ilegíveis na cifra: {unreadable or 'nenhum'}")
+        for b in bad[:5]:
+            print("   ", b)
+        if show:
+            print("   na cifra:", " ".join(sorted(set(written))))
+            print(g.html)
+    return 1 if fails else 0
+
+
+def run_lyrics(only=None, show=False):
+    """Letra informada + voz ruidosa: a linha deve começar perto de quando é cantada."""
+    errs_all = []
+    for name, cifra, plan in cases():
+        if only and name != only:
+            continue
+        mp3 = os.path.join(OUT, name + ".mp3")
+        truth = render(cifra, plan, mp3)
+        a = analyze(mp3)
+        clean = fake_words(cifra, truth["truth"])
         blocks = align_lyrics(lyrics_of(cifra, truth["truth"]), noisy(clean), [], a)
         got = [ln.t0 for b in blocks for ln in b]
         seg_first = {}
@@ -116,69 +165,18 @@ def run_lyrics(only=None, show=False):
         n = min(len(got), len(ref))
         errs = [abs(got[i] - ref[i]) for i in range(n)]
         errs_all += errs
-        print(f"{name:28s} acordes {acc(g, truth['chords']):5.1%}  linhas {len(got)}/{len(ref)}  "
+        print(f"{name:24s} linhas {len(got)}/{len(ref)}  "
               f"erro início de linha: mediana {np.median(errs):.2f}s, >1s em {np.mean(np.array(errs) > 1):.0%}")
         if show:
+            g = generate(a, segments_of(truth["chords"]), noisy(clean), lyrics=lyrics_of(cifra, truth["truth"]))
             print(g.html)
     if errs_all:
-        print(f"{'média':28s} erro mediano {np.median(errs_all):.2f}s, >1s em {np.mean(np.array(errs_all) > 1):.0%}")
-
-
-def run_synth(only=None, show=False):
-    res = []
-    for name, cifra, plan in bench.cases():
-        if only and name != only:
-            continue
-        mp3 = os.path.join(OUT, name + ".mp3")
-        truth = render(cifra, plan, mp3)
-        a = analyze(mp3)
-        words = fake_words(cifra, truth["truth"], truth["chords"])
-        g = generate(a, words)
-        sc = acc(g, truth["chords"])
-        res.append(sc)
-        print(f"{name:28s} acordes {sc:5.1%}  tom {g.tone:4s}  linhas {g.lines}")
-        if show:
-            print(g.html)
-    if res:
-        print(f"{'média':28s} acordes {np.mean(res):5.1%}")
-
-
-def run_refem(show=False):
-    pkl = os.path.join(OUT, "Dilsinho - Refém.analysis.pkl")
-    js = os.path.join(OUT, "refem-sync.sync.json")
-    if not (os.path.exists(pkl) and os.path.exists(js)):
-        return
-    raw = pickle.load(open(pkl, "rb"))
-    a = Analysis(**{k: getattr(raw, k) for k in ("duration", "bpm", "beats", "units", "chroma", "bass", "energy")})
-    d = json.load(open(js, encoding="utf-8"))
-    sh = d["transpose"]
-    truth = []
-    tl = d["timeline"]
-    for i, it in enumerate(tl):
-        if not it.get("chords"):
-            continue
-        t0 = it["t"]
-        t1 = tl[i + 1]["t"] if i + 1 < len(tl) else d["duration"]
-        n = len(it["chords"])
-        for k, nm in enumerate(it["chords"]):
-            c = parse_chord(nm)
-            if c is None:
-                continue
-            truth.append({"root": (c.root + sh) % 12, "minor": 3 in c.weights and 4 not in c.weights,
-                          "t0": t0 + (t1 - t0) * k / n, "t1": t0 + (t1 - t0) * (k + 1) / n})
-    g = generate(a, None)
-    print(f"{'REAL Refém (sem voz)':28s} acordes {acc(g, truth):5.1%}  tom {g.tone:4s} (gabarito ~Cm/Eb)")
-    if show:
-        print(g.html)
+        print(f"{'média':24s} erro mediano {np.median(errs_all):.2f}s, >1s em {np.mean(np.array(errs_all) > 1):.0%}")
 
 
 if __name__ == "__main__":
     arg = sys.argv[1] if len(sys.argv) > 1 else None
-    if arg == "refem":
-        run_refem(show=True)
-    elif arg == "letra" or (arg or "").startswith("letra:"):
+    if arg == "letra" or (arg or "").startswith("letra:"):
         run_lyrics(arg.split(":", 1)[1] if ":" in arg else None, show=":" in arg)
     else:
-        run_synth(arg, show=bool(arg))
-        if not arg:
-            run_refem()
+        sys.exit(run_chords(arg, show=bool(arg)))

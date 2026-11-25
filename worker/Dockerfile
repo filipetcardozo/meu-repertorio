@@ -14,7 +14,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Pesos dos modelos embutidos na imagem (sem download a cada execução).
 RUN python -c "from demucs.pretrained import get_model; get_model('htdemucs_6s')"
 RUN python -c "from faster_whisper import WhisperModel; WhisperModel('small', device='cpu', compute_type='int8', download_root='/models/whisper')"
+# consonance-ACE (motor de acordes experimental, MIT): checkpoint do commit fixado, conferido por SHA-256.
+# Ver worker/chords_ace.py (ACE_COMMIT, CKPT_SHA256) e worker/licenses/consonance-ACE.txt.
+ARG ACE_COMMIT=d17633aea4e68e616e735d09df97b97ae3428e71
+ARG ACE_CKPT_SHA256=6ab1a314366fefb3d09e351ae7cb7f826a9e0718e94e7ff164df844ba7bcd954
+RUN python -c "import hashlib, os, sys, urllib.request; url = 'https://raw.githubusercontent.com/andreamust/consonance-ACE/${ACE_COMMIT}/ACE/checkpoints/conformer_decomposed_smooth.ckpt'; dst = '/models/ace/conformer_decomposed_smooth.ckpt'; os.makedirs(os.path.dirname(dst), exist_ok=True); urllib.request.urlretrieve(url, dst); h = hashlib.sha256(open(dst, 'rb').read()).hexdigest(); sys.exit(0 if h == '${ACE_CKPT_SHA256}' else 'checkpoint do consonance-ACE com hash inesperado: ' + h)"
 
 COPY functions/playback_sync ./playback_sync
-COPY worker/separate.py worker/transcribe.py worker/worker.py worker/validate.py ./
+COPY worker/separate.py worker/transcribe.py worker/worker.py worker/validate.py worker/chords_ace.py ./
+COPY worker/licenses ./licenses
 ENTRYPOINT ["python", "worker.py"]

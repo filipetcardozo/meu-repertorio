@@ -224,6 +224,9 @@ def render(cifra: Cifra, plan: Plan, out_path: str) -> dict:
     buf += plan.noise * rng.standard_normal(len(buf)).astype(np.float32)
     buf /= np.abs(buf).max() + 1e-9
     sf.write(out_path, (0.9 * buf).astype(np.float32), SR, format="MP3")
+    # ivs: notas que soam (as mesmas que voice() toca), em semitons a partir da raiz
     chords = [{"root": (f["ch"].root + sh) % 12, "minor": 3 in f["ch"].weights and 4 not in f["ch"].weights,
-               "bass": (f["ch"].bass + sh) % 12, "t0": t_of(f["b0"]), "t1": t_of(f["b1"])} for f in flat]
+               "bass": (f["ch"].bass + sh) % 12, "t0": t_of(f["b0"]), "t1": t_of(f["b1"]),
+               "ivs": sorted(iv for iv, w in f["ch"].weights.items() if w >= 0.55), "name": f["ch"].name}
+              for f in flat]
     return {"truth": truth, "chords": chords, "duration": len(buf) / SR, "bpm": plan.bpm, "transpose": plan.transpose}

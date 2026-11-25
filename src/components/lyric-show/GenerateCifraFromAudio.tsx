@@ -23,7 +23,8 @@ import type { lyricType } from '../../types/lyricType';
 import type { PlaybackType } from '../../types/playbackType';
 import { getLyric, putLyric, updateLyric } from '../../providers/lyrics/services';
 import {
-  MAX_PLAYBACK_BYTES, generateCifra, processingStale, resyncPlayback, uploadPlayback, watchPlaybacks,
+  MAX_PLAYBACK_BYTES, generateCifra, generatedStale, processingStale, regeneratingChords, resyncPlayback,
+  uploadPlayback, watchPlaybacks,
 } from '../../providers/playbacks/services';
 import { GeneratedCifraPreview } from '../generate-cifra/GeneratedCifraPreview';
 import { LyricsPicker, type LyricsChoice } from '../generate-cifra/LyricsPicker';
@@ -98,7 +99,9 @@ const GenerateDialog = ({ lyricId, uid, hasUnsavedOffset, saveOffset, onClose }:
     ?? list?.[0]
     ?? null;
   const generated = picked?.generated?.status === 'ready' && picked.generated.lyric ? picked.generated : null;
-  const waiting = !!picked && (picked.status === 'processing' || picked.status === 'uploading') && !processingStale(picked);
+  const regenerating = regeneratingChords(picked);
+  const waiting = !!picked
+    && (((picked.status === 'processing' || picked.status === 'uploading') && !processingStale(picked)) || regenerating);
 
   const request = async (p: PlaybackType) => {
     if (!p.id) return;
@@ -276,23 +279,31 @@ const GenerateDialog = ({ lyricId, uid, hasUnsavedOffset, saveOffset, onClose }:
             {picked && waiting && (
               <Box sx={{ py: 1 }}>
                 <Typography sx={{ fontWeight: 500, mb: 1 }}>
-                  {picked.status === 'uploading' ? 'Enviando o áudio…' : processingText(picked)}
+                  {picked.status === 'uploading' ? 'Enviando o áudio…'
+                    : regenerating ? 'Reconhecendo os acordes…'
+                      : processingText(picked)}
                 </Typography>
                 <LinearProgress
-                  variant={picked.status === 'processing' && picked.stage && picked.stage !== 'queued' ? 'determinate' : 'indeterminate'}
+                  variant={!regenerating && picked.status === 'processing' && picked.stage && picked.stage !== 'queued' ? 'determinate' : 'indeterminate'}
                   value={(picked.progress ?? 0) * 100}
                   sx={{ borderRadius: 4, height: 6 }}
                 />
                 <Typography variant='caption' sx={{ color: 'text.secondary', display: 'block', mt: 1 }}>
-                  {picked.generate
+                  {regenerating
+                    ? 'Só os acordes são refeitos (menos de um minuto); a letra e a sincronia já estão guardadas.'
+                    : picked.generate
                     ? 'A cifra fica pronta no fim do processamento (alguns minutos). Pode fechar esta janela e voltar depois.'
                     : 'Espere o processamento terminar para gerar a cifra.'}
                 </Typography>
               </Box>
             )}
 
-            {picked?.generated?.status === 'error' && !waiting && (
-              <Alert severity='error' sx={{ mb: 1.5 }}>{picked.generated.error || 'Não foi possível gerar a cifra.'}</Alert>
+            {picked && (picked.generated?.status === 'error' || generatedStale(picked)) && !waiting && (
+              <Alert severity='error' sx={{ mb: 1.5 }}>
+                {picked.generated?.status === 'error' && picked.generated.error
+                  ? picked.generated.error
+                  : 'Não foi possível gerar a cifra. Tente gerar de novo.'}
+              </Alert>
             )}
             {picked?.status === 'error' && !waiting && (
               <Alert severity='error' sx={{ mb: 1.5 }}>{picked.error || 'O processamento deste áudio falhou.'}</Alert>

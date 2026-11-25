@@ -3,3 +3,4 @@
 !worker/requirements.txt
 !worker/*.py
 !functions/playback_sync/*.py
+!worker/licenses/*.txt

@@ -8,7 +8,7 @@ a sincronia definitiva: não existe versão provisória.
 3. **Sincronia**: analisa a harmonia do áudio original e alinha com a cifra usando acordes + letra
    (`functions/playback_sync`, o mesmo código das Functions).
 4. **Cifra pelo áudio** (só com `generate: true` no playback): monta uma cifra com os acordes
-   reconhecidos e a letra da voz (`functions/playback_sync/generate.py`) e grava em `generated`.
+   reconhecidos pelo consonance-ACE e a letra da voz (`functions/playback_sync/generate.py`) e grava em `generated`.
    Música sem cifra (ou playback enviado em "Criar pelo mp3", ainda sem música) é sincronizada com
    essa cifra. Para um playback já processado, a Function `generate_cifra` gera em segundos com a
    análise e as palavras guardadas. Banco de testes: `prototype/playback-sync/gen_bench.py`.
@@ -23,6 +23,13 @@ app ── envia o áudio (Storage playbacks/{uid}/{id}.mp3)
 app ── watchPlaybacks (ao vivo) ── mostra a etapa e o progresso; quando 'ready', toca
 ```
 
+- **Acordes (consonance-ACE):** os acordes da cifra gerada vêm do
+  [consonance-ACE](https://github.com/andreamust/consonance-ACE) (ISMIR 2025, licença MIT, `chords_ace.py`),
+  que preserva sétimas, tensões e inversões (Am7, C7M, G/B, D7(4)...). Eles ficam em `chordsPath`
+  (`playbacks/{uid}/analysis/{id}.chords.json`) e a Function `generate_cifra` regenera a partir deles
+  sem PyTorch. Em playback processado antes do ACE, ela dispara o job só para os acordes (`chordsJob`,
+  menos de 1 min; não refaz faixas nem voz). A conversão do símbolo Harte para a notação do app fica em
+  `functions/playback_sync/harte.py`; `prototype/playback-sync/gen_bench.py` confere o encaixe e os nomes.
 - **Por que a voz:** os acordes sozinhos não separam partes com a mesma harmonia. Em "Falta Você"
   (verso e refrão com quase os mesmos acordes) a letra caiu no trecho certo em 4 de 47 linhas só
   com acordes e em 42 de 48 com a voz. Em playback sem voz, o resultado é o mesmo de antes.
@@ -76,6 +83,12 @@ docker run --rm --entrypoint python -v "${PWD}\public\samples:/samples:ro" -v "$
 
 # uma gravação real: energia de cada faixa a cada 5 s + as faixas em mp3 para ouvir
 docker run --rm --entrypoint python -v "C:\pasta:/in:ro" -v "${PWD}\worker\out:/out" meu-repertorio-worker validate.py file "/in/musica.mp3"
+```
+
+### Acordes de um áudio, sem o resto do processamento
+
+```powershell
+docker run --rm --entrypoint python -v "C:\pasta:/in:ro" meu-repertorio-worker chords_ace.py "/in/musica.mp3"
 ```
 
 Com os emuladores, copie `functions/.env.local.example` para `functions/.env.local`: a Function

@@ -10,7 +10,8 @@ import GraphicEqRoundedIcon from '@mui/icons-material/GraphicEqRounded';
 import UploadFileRoundedIcon from '@mui/icons-material/UploadFileRounded';
 import type { PlaybackGenerated, PlaybackType } from '../../types/playbackType';
 import {
-  MAX_PLAYBACK_BYTES, deletePlayback, generateCifra, processingStale, uploadPlayback, watchPlayback,
+  MAX_PLAYBACK_BYTES, deletePlayback, generateCifra, generatedStale, processingStale, regeneratingChords,
+  uploadPlayback, watchPlayback,
 } from '../../providers/playbacks/services';
 import { processingText } from '../lyric-show/Playback';
 import { LyricsPicker, type LyricsChoice } from '../generate-cifra/LyricsPicker';
@@ -166,9 +167,11 @@ export function GenerateFromAudio({ uid, lyricId, lyricName, artistName, referen
     if (cur?.id && !cur.lyricId) await deletePlayback(cur).catch(() => undefined);
   };
 
-  const waiting = !!pb && (pb.status === 'uploading' || pb.status === 'processing') && !processingStale(pb);
+  const regenerating = regeneratingChords(pb);
+  const waiting = !!pb && (((pb.status === 'uploading' || pb.status === 'processing') && !processingStale(pb)) || regenerating);
   const gen = pb?.generated?.status === 'ready' ? pb.generated : null;
-  const failed = pb && !waiting && (pb.status === 'error' || pb.generated?.status === 'error' || processingStale(pb));
+  const failed = pb && !waiting
+    && (pb.status === 'error' || pb.generated?.status === 'error' || processingStale(pb) || generatedStale(pb));
   // a letra escolhida agora é diferente da que foi usada (ou entregue ao servidor)
   const usedLyrics = pb?.generateInput?.lyrics ?? null;
   const lyricsChanged = !!pb && (input?.lyrics ?? null) !== usedLyrics;
@@ -204,9 +207,13 @@ export function GenerateFromAudio({ uid, lyricId, lyricName, artistName, referen
             </Box>
           ) : waiting ? (
             <Box>
-              <Typography sx={{ fontWeight: 500, mb: 1 }}>{pb.status === 'uploading' ? 'Enviando o áudio…' : processingText(pb)}</Typography>
+              <Typography sx={{ fontWeight: 500, mb: 1 }}>
+                {pb.status === 'uploading' ? 'Enviando o áudio…'
+                  : regenerating ? 'Reconhecendo os acordes…'
+                    : processingText(pb)}
+              </Typography>
               <LinearProgress
-                variant={pb.stage && pb.stage !== 'queued' ? 'determinate' : 'indeterminate'}
+                variant={!regenerating && pb.stage && pb.stage !== 'queued' ? 'determinate' : 'indeterminate'}
                 value={(pb.progress ?? 0) * 100}
                 sx={{ borderRadius: 4, height: 6 }}
               />
@@ -214,7 +221,7 @@ export function GenerateFromAudio({ uid, lyricId, lyricName, artistName, referen
                 Leva alguns minutos. Enquanto isso, confira a letra e preencha os outros campos; a cifra aparece no
                 formulário quando ficar pronta.
               </Typography>
-              {lyricsChanged && (
+              {lyricsChanged && !regenerating && (
                 <Button size='small' sx={{ mt: 1 }} onClick={regenerate} loading={requesting}>
                   Usar esta letra quando terminar
                 </Button>

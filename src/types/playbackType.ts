@@ -48,8 +48,12 @@ export type PlaybackStems = {
  * servidor em `playbacks/{id}.generated`. É um rascunho: a pessoa revisa e salva na música.
  */
 export type PlaybackGenerated = {
-  status: 'ready' | 'error';
+  /** 'processing' = reconhecendo os acordes de novo (playback processado antes do consonance-ACE). */
+  status: 'ready' | 'error' | 'processing';
   error?: string | null;
+  /** Modelo que reconheceu os acordes (ex.: "consonance-ACE conformer_decomposed_smooth@d17633a"). */
+  chordModel?: string | null;
+  requestedAt?: unknown;
   /** HTML no formato da cifra salva (`<pre>` com acordes em `<b>`). */
   lyric?: string;
   tone?: string;
@@ -103,6 +107,8 @@ export type PlaybackType = {
   generate?: boolean;
   generateInput?: GenerateInput | null;
   generated?: PlaybackGenerated | null;
+  /** Acordes reconhecidos pelo worker (consonance-ACE), para regenerar a cifra sem rodar o modelo de novo. */
+  chordsPath?: string | null;
   createdAt?: unknown;
   updatedAt?: unknown;
 };

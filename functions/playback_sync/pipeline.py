@@ -70,3 +70,32 @@ def words_bytes(words: list[dict], model: str) -> bytes:
 
 def words_from_bytes(raw: bytes) -> list[dict]:
     return json.loads(raw.decode("utf-8")).get("words") or []
+
+
+# ---------------------------------------------------------------- acordes (consonance-ACE)
+
+def chords_path(uid: str, playback_id: str) -> str:
+    """Acordes reconhecidos pelo worker (worker/chords_ace.py), guardados para regenerar sem PyTorch."""
+    return f"playbacks/{uid}/analysis/{playback_id}.chords.json"
+
+
+def chords_bytes(doc: dict) -> bytes:
+    """`doc`: {model, segments: [{t0, t1, label}], ...}."""
+    return json.dumps(doc, ensure_ascii=False).encode("utf-8")
+
+
+def chords_from_bytes(raw: bytes) -> dict:
+    return json.loads(raw.decode("utf-8"))
+
+
+def generated_from(a: Analysis, chords_doc: dict, words: list[dict] | None, gin: dict | None,
+                   model: str | None = None):
+    """Gera a cifra e monta o campo `generated` (sem os carimbos de tempo). Devolve (Generated, campos)."""
+    from .generate import generate, generated_fields
+
+    gin = gin or {}
+    g = generate(a, chords_doc["segments"], words or None, lyrics=gin.get("lyrics") or None,
+                 synced=gin.get("synced") or None)
+    return g, {**generated_fields(g, model, chords_doc.get("model")),
+               "lyricsFrom": gin.get("source") if gin.get("lyrics") else None,
+               "status": "ready", "error": None}

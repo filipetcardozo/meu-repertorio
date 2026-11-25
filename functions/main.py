@@ -10,9 +10,10 @@ analyze_playback: quando o áudio chega em Storage playbacks/{uid}/{id}.{ext}, m
 reprocess_playback (chamável): processa de novo um playback (antigo, com erro ou parado no meio).
 resync_playback (chamável): refaz só o alinhamento com a cifra atual, usando a análise e as palavras
   guardadas pelo job (rápido, sem reprocessar o áudio).
-generate_cifra (chamável): gera uma cifra a partir do áudio (acordes + letra reconhecida na voz) e
-  grava em `generated` no playback. Usa a análise e as palavras guardadas (segundos); playback ainda
-  sem análise é processado de novo pelo job, que gera a cifra no fim.
+generate_cifra (chamável): gera uma cifra a partir do áudio (acordes do consonance-ACE + letra) e
+  grava em `generated` no playback. Usa a análise, as palavras e os acordes guardados pelo job
+  (segundos, sem PyTorch); playback ainda sem análise é processado de novo pelo job, que gera a cifra no
+  fim, e playback de antes do ACE (sem `chordsPath`) dispara o job só para os acordes (`chordsJob`).
 cleanup_playback: quando o playback é apagado, apaga a análise, as palavras e as faixas separadas.
 """
 from __future__ import annotations
@@ -167,24 +168,36 @@ def generate_cifra(req: https_fn.CallableRequest) -> dict:
             raise https_fn.HttpsError(https_fn.FunctionsErrorCode.UNAVAILABLE, "Não foi possível iniciar o processamento.")
         return {"ok": True, "status": "processing"}
 
-    from playback_sync.generate import generate, generated_fields
-    from playback_sync.pipeline import analysis_from_bytes, words_from_bytes
-
+    path = data.get("chordsPath")
     bucket = storage.bucket()
+    if not path or not bucket.blob(path).exists():
+        # playback de antes do ACE: o job roda só os acordes (faixas, voz e análise já estão guardadas)
+        ref.update({"generate": True, "generateInput": gin, "chordsJob": True, "generated.status": "processing",
+                    "generated.error": None, "generated.requestedAt": firestore.SERVER_TIMESTAMP,
+                    "updatedAt": firestore.SERVER_TIMESTAMP})
+        try:
+            _dispatch(playback_id)
+        except Exception:  # noqa: BLE001
+            ref.update({"chordsJob": None, "generated.status": "error",
+                        "generated.error": "Não foi possível iniciar o reconhecimento dos acordes."})
+            raise https_fn.HttpsError(https_fn.FunctionsErrorCode.UNAVAILABLE, "Não foi possível iniciar o processamento.")
+        return {"ok": True, "status": "processing"}
+
+    import json
+
+    from playback_sync.pipeline import analysis_from_bytes, chords_from_bytes, generated_from, words_from_bytes
+
     a = analysis_from_bytes(bucket.blob(data["analysisPath"]).download_as_bytes())
     words, model = [], None
     if data.get("wordsPath"):  # sem palavras = playback sem voz: sai só com os acordes
-        import json
-
         raw_words = bucket.blob(data["wordsPath"]).download_as_bytes()
         words = words_from_bytes(raw_words)
         model = json.loads(raw_words.decode("utf-8")).get("model")
-    g = generate(a, words or None, lyrics=gin["lyrics"] or None, synced=gin["synced"] or None)
+    _, fields = generated_from(a, chords_from_bytes(bucket.blob(path).download_as_bytes()), words, gin, model)
     ref.update({
         "generate": True,
         "generateInput": gin,
-        "generated": {**generated_fields(g, model), "lyricsFrom": gin["source"] if gin["lyrics"] else None,
-                      "status": "ready", "error": None, "createdAt": firestore.SERVER_TIMESTAMP},
+        "generated": {**fields, "createdAt": firestore.SERVER_TIMESTAMP},
         "updatedAt": firestore.SERVER_TIMESTAMP,
     })
     return {"ok": True, "status": "ready"}
@@ -197,8 +210,7 @@ def cleanup_playback(event: firestore_fn.Event[firestore_fn.DocumentSnapshot | N
         return
     data = snap.to_dict() or {}
     bucket = storage.bucket()
-    for key in ("analysisPath", "wordsPath"):
-        path = data.get(key)
+    for path in (data.get("analysisPath"), data.get("wordsPath"), data.get("chordsPath")):
         if path:
             blob = bucket.blob(path)
             if blob.exists():

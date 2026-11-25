@@ -180,6 +180,18 @@ export async function reprocessPlayback(id: string) {
 
 /** Processamento parado há muito tempo (o job morreu): o app deixa pedir de novo. Igual ao STALE_SEC da Function. */
 export const PROCESSING_STALE_MS = 35 * 60 * 1000;
+/** Reconhecendo os acordes de novo e parado há muito tempo: o job morreu. */
+export function generatedStale(p: PlaybackType): boolean {
+  if (p.generated?.status !== 'processing') return false;
+  const ms = (p.generated.requestedAt as { toMillis?: () => number } | undefined)?.toMillis?.();
+  return ms != null && Date.now() - ms > PROCESSING_STALE_MS;
+}
+
+/** Os acordes estão sendo reconhecidos de novo (o playback continua pronto). */
+export function regeneratingChords(p: PlaybackType | null | undefined): boolean {
+  return !!p && p.generated?.status === 'processing' && !generatedStale(p);
+}
+
 export function processingStale(p: PlaybackType): boolean {
   if (p.status !== 'processing') return false;
   const ms = (p.updatedAt as { toMillis?: () => number } | undefined)?.toMillis?.();

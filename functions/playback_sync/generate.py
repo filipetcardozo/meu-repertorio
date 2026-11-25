@@ -3,20 +3,22 @@ Gera uma cifra a partir do áudio, no formato que o app salva (`<pre>` com acord
 de cima e a letra embaixo), para músicas que ainda não têm cifra ou para criar uma versão feita pela
 plataforma.
 
-Entradas: a análise do áudio (features.analyze: croma, baixo, batidas) e as palavras reconhecidas na
-faixa de voz (worker/transcribe.py: {start, end, word, p, seg}). Etapas:
+Entradas: a análise do áudio (features.analyze: croma, batidas), os acordes reconhecidos pelo
+consonance-ACE (worker/chords_ace.py: [{t0, t1, label}] em Harte) e as palavras reconhecidas na faixa de
+voz (worker/transcribe.py: {start, end, word, p, seg}). Etapas:
 
-1. tom: perfil de Krumhansl sobre o croma da música toda (agudos + graves);
-2. acordes: Viterbi sobre a grade de meio-tempos com um vocabulário pequeno (maior, menor, sétima e
-   maior com a terça no baixo, como D/F#), preferindo os acordes do tom e trocas na cabeça do compasso;
+1. tom: perfil de Krumhansl sobre o croma da música toda (agudos + graves), com maior x relativo menor
+   decidido pelos acordes;
+2. acordes: cada meio-tempo da grade fica com o acorde do ACE que mais o ocupa (as trocas caem nas
+   batidas) e o nome segue a notação do app (harte.py: Am7, C7M, G/B, D7(4)...), na grafia do tom;
 3. letra: as palavras viram linhas (quebra nas pausas e nos trechos que o reconhecedor separou) e as
    linhas viram estrofes (quebra nas pausas longas);
 4. cada troca de acorde vai em cima da palavra cantada naquele instante;
 5. trechos sem voz viram linhas só de acordes ([Intro], [Solo], [Final]) e a estrofe que mais se
    repete vira [Refrão].
 
-É um rascunho para a pessoa revisar: tríades maiores e menores costumam sair certas; extensões
-(7M, 9, 11), acordes diminutos e baixos invertidos fora do padrão, não.
+É um rascunho para a pessoa revisar. Só Python puro (sem PyTorch): as Functions regeneram a cifra com
+os acordes guardados pelo worker.
 """
 from __future__ import annotations
 
@@ -27,9 +29,8 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from .align import bar_position
-from .cifra import parse_chord
 from .features import Analysis
+from .harte import chord_symbol, is_minor, parse_harte
 
 SHARP = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 FLAT = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"]
@@ -40,16 +41,6 @@ FLAT_MAJOR_KEYS = {5, 10, 3, 8, 1, 6}  # F Bb Eb Ab Db Gb
 KK_MAJOR = np.array([6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88])
 KK_MINOR = np.array([6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17])
 
-BETA = 14.0
-W_BASS = 0.25
-GAP_MARGIN = 0.3  # "sem acorde" = mediana da semelhança - margem
-# custo extra de cada tipo de acorde (os simples ganham no empate)
-KIND_COST = {"": 0.0, "m": 0.0, "7": 0.9, "/3": 1.2}
-W_KEY = 0.9  # acorde fora do tom
-W_KEY_NEAR = 0.35  # empréstimos comuns (bVII, dominantes secundárias)
-C_CHANGE = 3.0  # trocar de acorde
-POS_COST = {0: 0.0, 4: 0.4, 2: 1.0, 6: 1.0}  # cabeça do compasso, meio, tempos 2 e 4; contratempo
-POS_OFFBEAT = 1.8
 MIN_UNITS = 2  # acorde com menos que isso (1 tempo) é absorvido pelo vizinho
 
 MIN_WORD_P = 0.12  # palavra com probabilidade menor é descartada
@@ -68,10 +59,11 @@ HALLUCINATIONS = ("amara.org", "legenda", "inscreva", "obrigado por assistir")
 @dataclass
 class ChordSeg:
     root: int | None  # None = sem acorde
-    kind: str
+    kind: str  # "m" (terça menor), "7" (sétima menor) ou ""
     t0: float
     t1: float
     name: str = ""
+    label: str = ""  # símbolo do ACE (Harte)
 
 
 @dataclass
@@ -113,122 +105,83 @@ def estimate_key(a: Analysis) -> tuple[int, bool]:
     return arg
 
 
-def _key_cost(root: int, kind: str, key_root: int, key_minor: bool) -> float:
-    tonic = (key_root + 3) % 12 if key_minor else key_root  # trabalha no maior relativo
-    iv = (root - tonic) % 12
-    triad_minor = kind == "m"
-    diatonic = {0: False, 2: True, 4: True, 5: False, 7: False, 9: True}  # grau -> é menor?
-    if iv in diatonic and diatonic[iv] == triad_minor:
-        if kind == "7" and iv != 7:
-            return W_KEY_NEAR
-        return 0.0
-    if key_minor and not triad_minor and iv == 4:  # V maior do menor (E em Am)
-        return 0.0
-    if not triad_minor and iv in (10, 2, 4, 9):  # bVII, II (V/V), III (V/vi), VI (V/ii)
-        return W_KEY_NEAR
-    return W_KEY
+def chords_from_segments(a: Analysis, segments: list[dict], key_root: int, key_minor: bool) -> list[ChordSeg]:
+    """Segmentos do ACE ({t0, t1, label} em Harte) -> ChordSeg na grade de meio-tempos.
 
+    Cada meio-tempo fica com o acorde que mais o ocupa (as trocas caem nas batidas); trechos de menos de
+    MIN_UNITS são absorvidos pelo vizinho mais longo. O nome segue a
+    notação do app (Am7, C7M, G/B...) com a grafia do tom; "N"/"X" = sem acorde."""
+    flat = (key_root if not key_minor else (key_root + 3) % 12) in FLAT_MAJOR_KEYS
+    segs = sorted((float(s["t0"]), float(s["t1"]), str(s.get("label") or "N")) for s in segments or []
+                  if float(s["t1"]) > float(s["t0"]))
+    U = len(a.units) - 1
+    if not segs or U <= 0:
+        return [ChordSeg(None, "", 0.0, float(a.duration), "")]
+    starts = np.array([s[0] for s in segs])
+    ends = np.array([s[1] for s in segs])
 
-# ---------------------------------------------------------------- acordes
+    parsed: dict[str, tuple] = {}
 
-
-def _vocab():
-    out = []  # (root, kind, bass, template)
-    for r in range(12):
-        for kind in ("", "m", "7", "/3"):
-            nm = SHARP[r] + ("" if kind == "/3" else kind)
-            bass = r
-            if kind == "/3":
-                bass = (r + 4) % 12
-                nm += "/" + SHARP[bass]
-            c = parse_chord(nm)
-            t = c.template(harmonics=True)
-            out.append((r, kind, bass, t / np.linalg.norm(t)))
-    return out
-
-
-def recognize_chords(a: Analysis, key_root: int, key_minor: bool) -> list[ChordSeg]:
-    vocab = _vocab()
-    T = np.array([v[3] for v in vocab])
-    basses = [v[2] for v in vocab]
-    sim = (1 - W_BASS) * (a.chroma @ T.T) + W_BASS * a.bass[:, basses]
-    sim[a.energy < 0.12] *= 0.6
-    gap_sim = float(np.median(sim.max(axis=1))) - GAP_MARGIN
-    logits = BETA * np.concatenate([sim, np.full((sim.shape[0], 1), gap_sim)], axis=1)
-    logits -= logits.max(axis=1, keepdims=True)
-    cost = -(logits - np.log(np.exp(logits).sum(axis=1, keepdims=True)))
-    prior = np.array([KIND_COST[k] + _key_cost(r, "" if k == "/3" else k, key_root, key_minor)
-                      for r, k, _, _ in vocab] + [0.5])
-    cost = cost + prior[None, :]
-
-    U, S = cost.shape
-    pos = bar_position(a)
-    change = np.array([C_CHANGE + POS_COST.get(int(p), POS_OFFBEAT) for p in pos])
-    D = np.zeros((U, S))
-    back = np.zeros((U, S), dtype=np.int32)
-    D[0] = cost[0]
-    for t in range(1, U):
-        j = int(np.argmin(D[t - 1]))
-        switch = D[t - 1, j] + change[t]
-        stay = D[t - 1]
-        take = switch < stay
-        D[t] = np.where(take, switch, stay) + cost[t]
-        back[t] = np.where(take, j, np.arange(S))
-    path = np.zeros(U, dtype=np.int32)
-    path[-1] = int(np.argmin(D[-1]))
-    for t in range(U - 1, 0, -1):
-        path[t - 1] = back[t, path[t]]
-
-    # segmentos + absorve os curtos
-    segs: list[list[int]] = []  # [estado, u0, u1]
-    for u, s in enumerate(path):
-        if segs and segs[-1][0] == s:
-            segs[-1][2] = u + 1
-        else:
-            segs.append([int(s), u, u + 1])
-    changed = True
-    while changed and len(segs) > 1:
-        changed = False
-        for i, sg in enumerate(segs):
-            if sg[2] - sg[1] >= MIN_UNITS:
-                continue
-            if i == 0:
-                segs[1][1] = sg[1]
-            elif i == len(segs) - 1:
-                segs[i - 1][2] = sg[2]
+    def info(label: str):
+        if label not in parsed:
+            c = parse_harte(label)
+            if c is None:
+                parsed[label] = (None, "", "")
             else:
-                prev, nxt = segs[i - 1], segs[i + 1]
-                cp = cost[sg[1]:sg[2], prev[0]].sum()
-                cn = cost[sg[1]:sg[2], nxt[0]].sum()
-                if cp <= cn:
-                    prev[2] = sg[2]
-                else:
-                    nxt[1] = sg[1]
-            del segs[i]
-            # junta vizinhos iguais
+                kind = "m" if is_minor(c.intervals) else "7" if 10 in c.intervals else ""
+                parsed[label] = (c.root, kind, chord_symbol(c, flat))
+        return parsed[label]
+
+    example: dict[str, str] = {}  # nome -> um rótulo Harte que o originou
+    unit_lab: list[str] = []
+    for u in range(U):
+        u0, u1 = float(a.units[u]), float(a.units[u + 1])
+        acc: dict[str, float] = {}  # soma por nome: rótulos diferentes podem dar o mesmo acorde
+        for k in range(int(np.searchsorted(ends, u0, side="right")), len(segs)):
+            if starts[k] >= u1:
+                break
+            ov = min(ends[k], u1) - max(starts[k], u0)
+            if ov > 0:
+                nm = info(segs[k][2])[2]
+                acc[nm] = acc.get(nm, 0.0) + ov
+                example.setdefault(nm, segs[k][2])
+        unit_lab.append(max(acc, key=acc.get) if acc else "")
+
+    runs: list[list] = []  # [nome, u0, u1]
+    for u, nm in enumerate(unit_lab):
+        if runs and runs[-1][0] == nm:
+            runs[-1][2] = u + 1
+        else:
+            runs.append([nm, u, u + 1])
+    changed = True
+    while changed and len(runs) > 1:
+        changed = False
+        for i, r in enumerate(runs):
+            if r[2] - r[1] >= MIN_UNITS:
+                continue
+            prev = runs[i - 1] if i > 0 else None
+            nxt = runs[i + 1] if i + 1 < len(runs) else None
+            if prev is not None and (nxt is None or prev[2] - prev[1] >= nxt[2] - nxt[1]):
+                prev[2] = r[2]
+            else:
+                nxt[1] = r[1]
+            del runs[i]
             k = 1
-            while k < len(segs):
-                if segs[k][0] == segs[k - 1][0]:
-                    segs[k - 1][2] = segs[k][2]
-                    del segs[k]
+            while k < len(runs):
+                if runs[k][0] == runs[k - 1][0]:
+                    runs[k - 1][2] = runs[k][2]
+                    del runs[k]
                 else:
                     k += 1
             changed = True
             break
 
-    flat = (key_root if not key_minor else (key_root + 3) % 12) in FLAT_MAJOR_KEYS
-    names = FLAT if flat else SHARP
     out = []
-    for s, u0, u1 in segs:
+    for nm, u0, u1 in runs:
         t0, t1 = float(a.units[u0]), float(a.units[min(u1, len(a.units) - 1)])
-        if s == len(vocab):
-            out.append(ChordSeg(None, "", t0, t1, ""))
-            continue
-        r, kind, bass, _ = vocab[s]
-        nm = names[r] + ("m" if kind == "m" else "7" if kind == "7" else "")
-        if kind == "/3":
-            nm += "/" + names[bass]
-        out.append(ChordSeg(r, kind, t0, t1, nm))
+        label = example.get(nm, "N") if nm else "N"
+        root, kind, _ = info(label)
+        out.append(ChordSeg(root, kind, t0, t1, nm, label))
     return out
 
 
@@ -721,13 +674,14 @@ def _major_or_minor(chords: list[ChordSeg], key_root: int, key_minor: bool) -> t
     return (minor, True) if score(minor, True) > score(major, False) else (major, False)
 
 
-def generate(a: Analysis, words: list[dict] | None, lyrics: str | None = None,
+def generate(a: Analysis, segments: list[dict], words: list[dict] | None, lyrics: str | None = None,
              synced: list[dict] | None = None) -> Generated:
     """`lyrics`: a letra certa (da internet ou digitada; estrofes separadas por linha em branco). Com ela,
     a voz reconhecida só dá o tempo de cada palavra. `synced`: [{t, text}] (LRC), ajuda nas linhas que a
-    voz não pegou. Sem `lyrics`, a letra é a reconhecida na voz (rascunho bem pior)."""
+    voz não pegou. Sem `lyrics`, a letra é a reconhecida na voz (rascunho bem pior).
+    `segments`: os acordes do consonance-ACE, [{t0, t1, label}] em Harte."""
     key_root, key_minor = estimate_key(a)
-    chords = recognize_chords(a, key_root, key_minor)
+    chords = chords_from_segments(a, segments, key_root, key_minor)
     key_root, key_minor = _major_or_minor(chords, key_root, key_minor)
     blocks = None
     if lyrics and lyrics.strip():
@@ -743,8 +697,8 @@ def generate(a: Analysis, words: list[dict] | None, lyrics: str | None = None,
                      words=sum(len(ln.words) for ln in lines), source=source)
 
 
-def generated_fields(g: Generated, model: str | None = None) -> dict:
-    """Campo `generated` do documento do playback."""
+def generated_fields(g: Generated, model: str | None = None, chord_model: str | None = None) -> dict:
+    """Campo `generated` do documento do playback (`model` = reconhecedor da voz; `chordModel` = dos acordes)."""
     return {
         "lyric": g.html,
         "tone": g.tone,
@@ -753,4 +707,6 @@ def generated_fields(g: Generated, model: str | None = None) -> dict:
         "words": g.words,
         "lyricsSource": g.source,
         "model": model,
+        "chordModel": chord_model,
+        "chords": len([c for c in g.chords if c.name]),
     }

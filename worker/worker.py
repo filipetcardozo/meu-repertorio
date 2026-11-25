@@ -8,9 +8,15 @@ Disparado pela Function `analyze_playback` quando o áudio chega no Storage (ou 
 2. reconhece a letra na faixa de voz (faster-whisper), com o tempo de cada palavra;
 3. analisa a harmonia do áudio original e alinha com a cifra usando acordes + letra;
 4. grava a linha do tempo, a análise e as palavras (para re-sincronizar quando a cifra mudar);
-5. com `generate: true` no documento, gera também uma cifra a partir do áudio (acordes + letra
-   reconhecida, playback_sync/generate.py) e grava em `generated`. Se a música ainda não tem cifra
-   (ou o playback não tem música, criado na tela de adicionar música), a sincronia usa essa cifra.
+5. com `generate: true` no documento, gera também uma cifra a partir do áudio e grava em `generated`:
+   os acordes vêm do consonance-ACE (chords_ace.py) e a montagem é playback_sync/generate.py. Os
+   acordes ficam em `chordsPath` (`playbacks/{uid}/analysis/{id}.chords.json`) para a Function
+   `generate_cifra` regenerar sem PyTorch. Se a música ainda não tem cifra (ou o playback não tem
+   música, criado na tela de adicionar música), a sincronia usa a cifra gerada.
+
+Só acordes (`chordsJob`, disparado por `generate_cifra` num playback processado antes do ACE): baixa o
+áudio, a análise e as palavras guardadas, roda só o ACE e grava `generated` e `chordsPath`, sem refazer
+faixas, voz nem sincronia (e sem mexer no `status` do playback).
 
 O documento `playbacks/{id}` mostra o andamento ao app:
 
@@ -65,6 +71,50 @@ def _init_firebase():
     firebase_admin.initialize_app(cred, options=opts)
 
 
+def recognize_chords(src: str, bucket, uid: str, playback_id: str) -> tuple[dict, str]:
+    """consonance-ACE no áudio original; grava os acordes no Storage. Devolve (acordes, caminho)."""
+    from chords_ace import recognize
+    from playback_sync.pipeline import chords_bytes, chords_path
+
+    doc = recognize(src)
+    path = chords_path(uid, playback_id)
+    bucket.blob(path).upload_from_string(chords_bytes(doc), content_type="application/json")
+    print(f"acordes: {len(doc['segments'])} segmentos em {doc['sec']:.1f}s ({doc['model']})")
+    return doc, path
+
+
+def chords_job(ref, data: dict, bucket, playback_id: str) -> int:
+    """Só acordes: gera `generated` com o ACE num playback já processado antes dele."""
+    import json
+
+    from playback_sync.pipeline import analysis_from_bytes, generated_from, words_from_bytes
+
+    try:
+        a = analysis_from_bytes(bucket.blob(data["analysisPath"]).download_as_bytes())
+        words, model = [], None
+        if data.get("wordsPath"):
+            raw = bucket.blob(data["wordsPath"]).download_as_bytes()
+            words, model = words_from_bytes(raw), json.loads(raw.decode("utf-8")).get("model")
+        with tempfile.TemporaryDirectory() as tmp:
+            src = os.path.join(tmp, os.path.basename(data["storagePath"]))
+            bucket.blob(data["storagePath"]).download_to_filename(src)
+            doc, path = recognize_chords(src, bucket, data["userId"], playback_id)
+        g, fields = generated_from(a, doc, words, data.get("generateInput"), model)
+        print(f"cifra gerada: tom {g.tone}, {g.lines} linhas, {len(g.chords)} acordes")
+        if ref.get().exists:
+            ref.update({"chordsJob": None, "chordsPath": path,
+                        "generated": {**fields, "createdAt": firestore.SERVER_TIMESTAMP},
+                        "updatedAt": firestore.SERVER_TIMESTAMP})
+        return 0
+    except Exception as exc:  # noqa: BLE001
+        traceback.print_exc()
+        if ref.get().exists:
+            ref.update({"chordsJob": None, "generated.status": "error",
+                        "generated.error": f"Não foi possível gerar a cifra: {exc}"[:300],
+                        "updatedAt": firestore.SERVER_TIMESTAMP})
+        return 1
+
+
 def main(playback_id: str) -> int:
     _init_firebase()
     db = firestore.client()
@@ -75,6 +125,8 @@ def main(playback_id: str) -> int:
         print(f"playback {playback_id} não existe", file=sys.stderr)
         return 0
     data = snap.to_dict()
+    if data.get("chordsJob") and data.get("analysisPath") and data.get("status") == "ready":
+        return chords_job(ref, data, bucket, playback_id)
     uid = data["userId"]
     uploaded: list[str] = []
     last = {"t": 0.0, "p": -1.0}
@@ -168,26 +220,27 @@ def main(playback_id: str) -> int:
             stage("syncing", P_TRANSCRIBE[1])
             a = analyze(src)
 
-        # 4. cifra gerada pela plataforma
-        generated_field = None
-        if want_generate:
-            from playback_sync.generate import generate, generated_fields
+            # 4. cifra gerada pela plataforma (os acordes precisam do áudio: roda antes de apagar a pasta)
+            generated_field = None
+            chords_path = None
+            if want_generate:
+                from playback_sync.pipeline import generated_from
 
-            try:
-                # a letra informada pode ter chegado durante o processamento (generate_cifra)
-                fresh = ref.get()
-                gin = (fresh.to_dict() or {}).get("generateInput") if fresh.exists else None
-                gin = gin or data.get("generateInput") or {}
-                g = generate(a, words or None, lyrics=gin.get("lyrics") or None, synced=gin.get("synced") or None)
-                generated_field = {**generated_fields(g, model_name),
-                                   "lyricsFrom": gin.get("source") if gin.get("lyrics") else None,
-                                   "status": "ready", "error": None, "createdAt": firestore.SERVER_TIMESTAMP}
-                print(f"cifra gerada: tom {g.tone}, {g.lines} linhas, {len(g.chords)} acordes")
-                if cifra is None:
-                    cifra, html = parse_cifra(g.html), g.html
-            except Exception as exc:  # noqa: BLE001
-                traceback.print_exc()
-                generated_field = {"status": "error", "error": f"Não foi possível gerar a cifra: {exc}"[:300]}
+                try:
+                    chords_doc, chords_path = recognize_chords(src, bucket, uid, playback_id)
+                    uploaded.append(chords_path)
+                    # a letra informada pode ter chegado durante o processamento (generate_cifra)
+                    fresh = ref.get()
+                    gin = (fresh.to_dict() or {}).get("generateInput") if fresh.exists else None
+                    gin = gin or data.get("generateInput") or {}
+                    g, fields = generated_from(a, chords_doc, words, gin, model_name)
+                    generated_field = {**fields, "createdAt": firestore.SERVER_TIMESTAMP}
+                    print(f"cifra gerada: tom {g.tone}, {g.lines} linhas, {len(g.chords)} acordes")
+                    if cifra is None:
+                        cifra, html = parse_cifra(g.html), g.html
+                except Exception as exc:  # noqa: BLE001
+                    traceback.print_exc()
+                    generated_field = {"status": "error", "error": f"Não foi possível gerar a cifra: {exc}"[:300]}
         if cifra is None or not any(e.chords for e in cifra.events):
             raise ValueError("Não foi possível reconhecer os acordes deste áudio")
         res_align = align(cifra, a, words=words or None)
@@ -212,6 +265,8 @@ def main(playback_id: str) -> int:
             "analysisPath": analysis_path, "wordsPath": words_path, "voiceWords": len(words),
             "stems": stems_field,
             **({"generated": generated_field} if generated_field else {}),
+            **({"chordsPath": chords_path} if chords_path else {}),
+            "chordsJob": None,
         })
         print(f"pronto em {time.monotonic() - t0:.1f}s")
         return 0

@@ -3,6 +3,8 @@ torch==2.5.1+cpu
 torchaudio==2.5.1+cpu
 demucs==4.0.1
 faster-whisper==1.2.1
+# consonance-ACE (motor de acordes experimental): CQT e leitura do áudio como no projeto original
+librosa==0.11.0
 numpy>=1.26,<3
 scipy>=1.13
 soundfile>=0.12
