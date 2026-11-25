@@ -550,7 +550,7 @@ export const LyricShowComponent = ({
         hasCurrentLine={follow.currentLine != null}
         tuner={tuner}
         extraPanel={
-          <PlaybackBar sync={playback} onManage={() => setPlaybackManagerOpen(true)} />
+          <PlaybackBar sync={playback} onManage={() => setPlaybackManagerOpen(true)} lyricHtml={lyricToShow?.lyric} />
         }
         tunerPanel={
           <TunerPanel

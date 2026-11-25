@@ -1,20 +1,22 @@
 """
 Cloud Functions (Python, 2ª geração) do Toca Mais Uma.
 
-analyze_playback: quando um mp3 chega em Storage playbacks/{uid}/{id}.{ext}, lê a cifra da música,
-  analisa o áudio (andamento, batidas, acordes, tom), alinha com a cifra e grava a linha do tempo
-  em Firestore playbacks/{id}.
-resync_playback (chamável): refaz só o alinhamento com a cifra atual, usando a análise guardada.
-separate_stems (chamável): pede a separação de instrumentos (Cloud Run Job `separate-stems`, pasta stems/).
-cleanup_playback: quando o playback é apagado, apaga a análise guardada e as faixas separadas.
+O trabalho pesado de um playback (separar as faixas, reconhecer a letra na voz, analisar a harmonia
+e alinhar com a cifra) roda no Cloud Run Job `process-playback` (pasta worker/). As funções daqui
+só disparam o job, refazem o alinhamento e limpam:
+
+analyze_playback: quando o áudio chega em Storage playbacks/{uid}/{id}.{ext}, marca o playback como
+  'processing' e dispara o job. A música só fica pronta quando o job termina (sem nada provisório).
+reprocess_playback (chamável): processa de novo um playback (antigo, com erro ou parado no meio).
+resync_playback (chamável): refaz só o alinhamento com a cifra atual, usando a análise e as palavras
+  guardadas pelo job (rápido, sem reprocessar o áudio).
+cleanup_playback: quando o playback é apagado, apaga a análise, as palavras e as faixas separadas.
 """
 from __future__ import annotations
 
-import hashlib
-import io
 import os
 import re
-import tempfile
+import time
 
 from firebase_admin import firestore, initialize_app, storage
 from firebase_functions import firestore_fn, https_fn, options, storage_fn
@@ -26,136 +28,15 @@ initialize_app()
 
 PATH_RE = re.compile(r"^playbacks/([^/]+)/([^/.]+)\.(mp3|m4a|wav|ogg|flac)$", re.I)
 REGION = "us-central1"
+JOB_NAME = "process-playback"
+# Processamento parado há mais que isso (job morto, sem memória...) pode ser refeito. O job tem
+# limite de 30 min e grava o progresso a cada poucos segundos.
+STALE_SEC = 35 * 60
 
 
-def _result_fields(cifra, html: str, a, res) -> dict:
-    timeline = []
-    for item in res.timeline:
-        e = cifra.events[item["event"]] if item["event"] is not None else None
-        timeline.append({
-            "t": round(item["t"], 3),
-            "lyricIdx": e.lyric_idx if e else None,
-            "text": e.text if e and e.text else None,
-            "chords": [c.name for c in e.chords] if e else None,
-            "section": (cifra.sections[e.section].title or None) if e else None,
-            "conf": None if item["conf"] is None else round(item["conf"], 3),
-        })
-    return {
-        "status": "ready",
-        "error": None,
-        "durationSec": round(a.duration, 2),
-        "bpm": round(a.bpm, 1),
-        "transpose": res.transpose,
-        "timeline": timeline,
-        "cifraHash": hashlib.sha1(html.encode("utf-8")).hexdigest(),
-        "updatedAt": firestore.SERVER_TIMESTAMP,
-    }
-
-
-def _cifra_of(db, lyric_id: str):
-    from playback_sync.cifra import parse_cifra
-
-    lyric = db.collection("lyrics").document(lyric_id).get()
-    html = lyric.get("lyric") if lyric.exists else None
-    if not html:
-        raise ValueError("Música sem cifra")
-    cifra = parse_cifra(html)
-    if not any(e.chords for e in cifra.events):
-        raise ValueError("A cifra não tem acordes para sincronizar")
-    return cifra, html
-
-
-@storage_fn.on_object_finalized(
-    region=REGION,
-    memory=options.MemoryOption.GB_2,
-    cpu=1,
-    timeout_sec=540,
-    max_instances=5,
-)
-def analyze_playback(event: storage_fn.CloudEvent[storage_fn.StorageObjectData]) -> None:
-    m = PATH_RE.match(event.data.name or "")
-    if not m:
-        return
-    uid, playback_id = m.group(1), m.group(2)
-    db = firestore.client()
-    ref = db.collection("playbacks").document(playback_id)
-    snap = ref.get()
-    if not snap.exists or snap.get("userId") != uid:
-        return  # arquivo sem doc correspondente (ou de outro usuário): ignora
-
-    ref.update({"status": "processing", "error": None, "updatedAt": firestore.SERVER_TIMESTAMP})
-    try:
-        import numpy as np
-
-        from playback_sync.align import align
-        from playback_sync.features import analyze
-
-        cifra, html = _cifra_of(db, snap.get("lyricId"))
-
-        bucket = storage.bucket(event.data.bucket)
-        with tempfile.TemporaryDirectory() as tmp:
-            local = os.path.join(tmp, os.path.basename(event.data.name))
-            bucket.blob(event.data.name).download_to_filename(local)
-            a = analyze(local)
-        res = align(cifra, a)
-
-        # análise guardada para re-sincronizar (quando a cifra mudar) sem reprocessar o áudio
-        buf = io.BytesIO()
-        np.savez_compressed(buf, beats=a.beats, units=a.units, chroma=a.chroma, bass=a.bass,
-                            energy=a.energy, meta=np.array([a.duration, a.bpm]))
-        analysis_path = f"playbacks/{uid}/analysis/{playback_id}.npz"
-        bucket.blob(analysis_path).upload_from_string(buf.getvalue(), content_type="application/octet-stream")
-
-        ref.update({**_result_fields(cifra, html, a, res), "analysisPath": analysis_path})
-    except Exception as exc:  # noqa: BLE001 — o erro vai para o app mostrar
-        ref.update({"status": "error", "error": str(exc)[:300], "updatedAt": firestore.SERVER_TIMESTAMP})
-        raise
-
-
-@https_fn.on_call(region=REGION, memory=options.MemoryOption.GB_1, timeout_sec=120)
-def resync_playback(req: https_fn.CallableRequest) -> dict:
-    if not req.auth:
-        raise https_fn.HttpsError(https_fn.FunctionsErrorCode.UNAUTHENTICATED, "Entre na sua conta.")
-    playback_id = str((req.data or {}).get("playbackId") or "")
-    db = firestore.client()
-    ref = db.collection("playbacks").document(playback_id)
-    snap = ref.get() if playback_id else None
-    if not snap or not snap.exists or snap.get("userId") != req.auth.uid:
-        raise https_fn.HttpsError(https_fn.FunctionsErrorCode.NOT_FOUND, "Playback não encontrado.")
-    data = snap.to_dict()
-    if not data.get("analysisPath"):
-        raise https_fn.HttpsError(https_fn.FunctionsErrorCode.FAILED_PRECONDITION, "Playback ainda não foi analisado.")
-    try:
-        cifra, html = _cifra_of(db, data["lyricId"])
-    except ValueError as exc:
-        raise https_fn.HttpsError(https_fn.FunctionsErrorCode.FAILED_PRECONDITION, str(exc))
-    import numpy as np
-
-    from playback_sync.align import align
-    from playback_sync.features import Analysis
-
-    raw = storage.bucket().blob(data["analysisPath"]).download_as_bytes()
-    z = np.load(io.BytesIO(raw))
-    duration, bpm = (float(x) for x in z["meta"])
-    a = Analysis(duration=duration, bpm=bpm, beats=z["beats"], units=z["units"], chroma=z["chroma"],
-                 bass=z["bass"], energy=z["energy"])
-    res = align(cifra, a)
-    ref.update(_result_fields(cifra, html, a, res))
-    return {"ok": True}
-
-
-# ---------------------------------------------------------------------------------------------
-# Separação de instrumentos (Demucs htdemucs_6s). O trabalho pesado roda no Cloud Run Job
-# `separate-stems` (pasta stems/); esta função só valida o pedido, marca a fila e dispara o job.
-# ---------------------------------------------------------------------------------------------
-
-# Pedido parado há mais que isso (job morto, sem memória...) pode ser refeito.
-STEMS_STALE_SEC = 20 * 60
-
-
-def _dispatch_stems(playback_id: str) -> None:
-    """Produção: executa o Cloud Run Job. Emulador: roda o comando local de STEMS_LOCAL_CMD."""
-    local_cmd = os.environ.get("STEMS_LOCAL_CMD")
+def _dispatch(playback_id: str) -> None:
+    """Produção: executa o Cloud Run Job. Emulador: roda o comando local de PROCESS_LOCAL_CMD."""
+    local_cmd = os.environ.get("PROCESS_LOCAL_CMD")
     if local_cmd:
         import shlex
         import subprocess
@@ -166,51 +47,87 @@ def _dispatch_stems(playback_id: str) -> None:
     from google.auth.transport.requests import AuthorizedSession
 
     creds, project = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
-    job = os.environ.get("STEMS_JOB") or f"projects/{project}/locations/{REGION}/jobs/separate-stems"
+    job = os.environ.get("PROCESS_JOB") or f"projects/{project}/locations/{REGION}/jobs/{JOB_NAME}"
     body = {"overrides": {"containerOverrides": [{"env": [{"name": "PLAYBACK_ID", "value": playback_id}]}]}}
     r = AuthorizedSession(creds).post(f"https://run.googleapis.com/v2/{job}:run", json=body, timeout=30)
     if r.status_code >= 300:
         raise RuntimeError(f"Cloud Run {r.status_code}: {r.text[:200]}")
 
 
-@https_fn.on_call(region=REGION, memory=options.MemoryOption.MB_256, timeout_sec=60)
-def separate_stems(req: https_fn.CallableRequest) -> dict:
+def _queue(ref, playback_id: str) -> None:
+    ref.update({"status": "processing", "stage": "queued", "progress": 0, "error": None,
+                "updatedAt": firestore.SERVER_TIMESTAMP})
+    try:
+        _dispatch(playback_id)
+    except Exception as exc:  # noqa: BLE001
+        print(f"falha ao disparar o processamento de {playback_id}: {exc}")
+        ref.update({"status": "error", "stage": None, "error": "Não foi possível iniciar o processamento.",
+                    "updatedAt": firestore.SERVER_TIMESTAMP})
+        raise
+
+
+@storage_fn.on_object_finalized(region=REGION, memory=options.MemoryOption.MB_256, timeout_sec=60, max_instances=10)
+def analyze_playback(event: storage_fn.CloudEvent[storage_fn.StorageObjectData]) -> None:
+    m = PATH_RE.match(event.data.name or "")
+    if not m:
+        return
+    uid, playback_id = m.group(1), m.group(2)
+    ref = firestore.client().collection("playbacks").document(playback_id)
+    snap = ref.get()
+    if not snap.exists or snap.get("userId") != uid:
+        return  # arquivo sem doc correspondente (ou de outro usuário): ignora
+    _queue(ref, playback_id)
+
+
+def _owned(req: https_fn.CallableRequest):
     if not req.auth:
         raise https_fn.HttpsError(https_fn.FunctionsErrorCode.UNAUTHENTICATED, "Entre na sua conta.")
     playback_id = str((req.data or {}).get("playbackId") or "")
-    db = firestore.client()
-    ref = db.collection("playbacks").document(playback_id)
+    ref = firestore.client().collection("playbacks").document(playback_id)
     snap = ref.get() if playback_id else None
     if not snap or not snap.exists or snap.get("userId") != req.auth.uid:
         raise https_fn.HttpsError(https_fn.FunctionsErrorCode.NOT_FOUND, "Playback não encontrado.")
-    data = snap.to_dict()
-    if data.get("status") == "uploading":
+    return playback_id, ref, snap.to_dict()
+
+
+@https_fn.on_call(region=REGION, memory=options.MemoryOption.MB_256, timeout_sec=60)
+def reprocess_playback(req: https_fn.CallableRequest) -> dict:
+    playback_id, ref, data = _owned(req)
+    st = data.get("status")
+    if st == "uploading":
         raise https_fn.HttpsError(https_fn.FunctionsErrorCode.FAILED_PRECONDITION, "Espere o áudio terminar de subir.")
-
-    import time
-
-    stems = data.get("stems") or {}
-    st = stems.get("status")
-    if st == "ready":
-        return {"ok": True, "status": "ready"}
-    if st in ("queued", "processing"):
-        upd = stems.get("updatedAt")
-        age = time.time() - upd.timestamp() if hasattr(upd, "timestamp") else 0
-        if age < STEMS_STALE_SEC:
-            return {"ok": True, "status": st}
-
-    ref.update({
-        "stems": {"status": "queued", "progress": 0, "error": None, "model": "htdemucs_6s",
-                  "requestedAt": firestore.SERVER_TIMESTAMP, "updatedAt": firestore.SERVER_TIMESTAMP},
-    })
+    if st == "processing":
+        upd = data.get("updatedAt")
+        age = time.time() - upd.timestamp() if hasattr(upd, "timestamp") else STALE_SEC
+        if age < STALE_SEC:
+            return {"ok": True, "status": "processing"}
     try:
-        _dispatch_stems(playback_id)
-    except Exception as exc:  # noqa: BLE001
-        ref.update({"stems.status": "error", "stems.error": "Não foi possível iniciar a separação.",
-                    "stems.updatedAt": firestore.SERVER_TIMESTAMP})
-        print(f"separate_stems: falha ao disparar: {exc}")
-        raise https_fn.HttpsError(https_fn.FunctionsErrorCode.UNAVAILABLE, "Não foi possível iniciar a separação.")
-    return {"ok": True, "status": "queued"}
+        _queue(ref, playback_id)
+    except Exception:  # noqa: BLE001
+        raise https_fn.HttpsError(https_fn.FunctionsErrorCode.UNAVAILABLE, "Não foi possível iniciar o processamento.")
+    return {"ok": True, "status": "processing"}
+
+
+@https_fn.on_call(region=REGION, memory=options.MemoryOption.GB_1, timeout_sec=120)
+def resync_playback(req: https_fn.CallableRequest) -> dict:
+    playback_id, ref, data = _owned(req)
+    if not data.get("analysisPath"):
+        raise https_fn.HttpsError(https_fn.FunctionsErrorCode.FAILED_PRECONDITION, "Playback ainda não foi analisado.")
+    from playback_sync.align import align
+    from playback_sync.pipeline import analysis_from_bytes, load_cifra, result_fields, words_from_bytes
+
+    try:
+        cifra, html = load_cifra(firestore.client(), data["lyricId"])
+    except ValueError as exc:
+        raise https_fn.HttpsError(https_fn.FunctionsErrorCode.FAILED_PRECONDITION, str(exc))
+    bucket = storage.bucket()
+    a = analysis_from_bytes(bucket.blob(data["analysisPath"]).download_as_bytes())
+    words = None
+    if data.get("wordsPath"):
+        words = words_from_bytes(bucket.blob(data["wordsPath"]).download_as_bytes())
+    res = align(cifra, a, words=words or None)
+    ref.update({**result_fields(cifra, html, a, res), "updatedAt": firestore.SERVER_TIMESTAMP})
+    return {"ok": True}
 
 
 @firestore_fn.on_document_deleted(document="playbacks/{playbackId}", region=REGION)
@@ -218,13 +135,14 @@ def cleanup_playback(event: firestore_fn.Event[firestore_fn.DocumentSnapshot | N
     snap = event.data
     if snap is None or not snap.exists:
         return
+    data = snap.to_dict() or {}
     bucket = storage.bucket()
-    path = snap.get("analysisPath") if "analysisPath" in (snap.to_dict() or {}) else None
-    if path:
-        blob = bucket.blob(path)
-        if blob.exists():
-            blob.delete()
+    for key in ("analysisPath", "wordsPath"):
+        path = data.get(key)
+        if path:
+            blob = bucket.blob(path)
+            if blob.exists():
+                blob.delete()
     # faixas separadas
-    uid = snap.get("userId")
-    for blob in bucket.list_blobs(prefix=f"playbacks/{uid}/stems/{event.params['playbackId']}/"):
+    for blob in bucket.list_blobs(prefix=f"playbacks/{data.get('userId')}/stems/{event.params['playbackId']}/"):
         blob.delete()

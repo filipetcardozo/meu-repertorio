@@ -164,14 +164,19 @@ def _dur_cost(st_dur, dur_scale, w_dur, ds):
     return w_dur * mix[None, :] + W_LINE * line + 0.4 * (ds[None, :] % 2)
 
 
-def _viterbi(cifra: Cifra, a: Analysis, shift: int, dur_scale: float, w_dur: float):
+def _viterbi(cifra: Cifra, a: Analysis, shift: int, dur_scale: float, w_dur: float, words=None):
     st_event, st_chord, st_dur, secs, first, last = _states(cifra)
     S = len(st_event)
     cost, chord_id = emission_costs(cifra, a, shift)
     U = cost.shape[0]
     sc = np.array([chord_id[cifra.events[e].chords[k].name] for e, k in zip(st_event, st_chord)])
+    state_cost = cost[:, sc]
+    if words:
+        from .lyrics import lyric_costs
+
+        state_cost = state_cost + lyric_costs(cifra, a, words, st_event)[:U]
     cum = np.zeros((S, U + 1))
-    cum[:, 1:] = np.cumsum(cost[:, sc].T, axis=1)
+    cum[:, 1:] = np.cumsum(state_cost.T, axis=1)
     gcum = np.concatenate([[0.0], np.cumsum(cost[:, -1])])
     probs = np.exp(-cost)
 
@@ -336,11 +341,13 @@ def key_candidates(cifra: Cifra, a: Analysis, top: int = 3) -> list[int]:
     return [int(k) for k in order if scores[k] >= scores[order[0]] - 0.03]
 
 
-def align(cifra: Cifra, a: Analysis, transpose: int | None = None) -> Result:
+def align(cifra: Cifra, a: Analysis, transpose: int | None = None, words: list[dict] | None = None) -> Result:
+    """`words`: palavras reconhecidas na faixa de voz ({start, end, word, p}); com elas a letra
+    também conta no alinhamento (ver lyrics.py)."""
     shifts = [transpose % 12] if transpose is not None else key_candidates(cifra, a)
     best = None
     for k in shifts:
-        cost, segs, states, probs, sc = _viterbi(cifra, a, k, 1.0, W_DUR_1)
+        cost, segs, states, probs, sc = _viterbi(cifra, a, k, 1.0, W_DUR_1, words)
         if best is None or cost < best[0]:
             best = (cost, k, segs, states)
     _, k, segs, states = best
@@ -351,7 +358,7 @@ def align(cifra: Cifra, a: Analysis, transpose: int | None = None) -> Result:
     for cand in (0.5, 1.0, 2.0):  # encaixa em dobro/metade quando estiver perto
         if abs(scale / cand - 1) < 0.2:
             scale = cand
-    cost, segs, states, probs, sc = _viterbi(cifra, a, k, scale, W_DUR_2)
+    cost, segs, states, probs, sc = _viterbi(cifra, a, k, scale, W_DUR_2, words)
 
     tl = _timeline(cifra, a, segs, states, probs, sc)
     return Result(transpose=(k + 6) % 12 - 6, cost=cost, segments=segs, timeline=tl, bar_scale=scale)

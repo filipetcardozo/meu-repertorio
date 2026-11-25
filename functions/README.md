@@ -4,10 +4,10 @@ Funções em Python (2ª geração), região `us-central1` (mesma do projeto Fir
 
 | Função | Gatilho | O que faz |
 |---|---|---|
-| `analyze_playback` | arquivo novo em Storage `playbacks/{uid}/{id}.mp3` | lê a cifra da música, analisa o áudio (andamento, batidas, acordes, tom), alinha e grava a linha do tempo em `playbacks/{id}` |
-| `resync_playback` | chamada do app | refaz só o alinhamento com a cifra atual, usando a análise guardada (`playbacks/{uid}/analysis/{id}.npz`) |
-| `separate_stems` | chamada do app | pede a separação de instrumentos: marca `stems.status='queued'` e executa o Cloud Run Job `separate-stems` (ver `stems/README.md`) |
-| `cleanup_playback` | `playbacks/{id}` apagado | apaga a análise guardada e as faixas separadas |
+| `analyze_playback` | arquivo novo em Storage `playbacks/{uid}/{id}.mp3` | marca `status='processing'` e executa o Cloud Run Job `process-playback`, que separa as faixas, reconhece a letra na voz e sincroniza com a cifra (ver `worker/README.md`) |
+| `reprocess_playback` | chamada do app | processa de novo um playback antigo, com erro ou parado no meio |
+| `resync_playback` | chamada do app | refaz só o alinhamento com a cifra atual, usando a análise e as palavras guardadas (`playbacks/{uid}/analysis/{id}.npz` e `.words.json`) |
+| `cleanup_playback` | `playbacks/{id}` apagado | apaga a análise, as palavras e as faixas separadas |
 
 O código da sincronia (`playback_sync/`) é o mesmo do protótipo em `prototype/playback-sync`
 (lá ficam o banco de testes e as ferramentas de inspeção).
@@ -26,7 +26,8 @@ firebase deploy --only firestore:rules,storage,functions
 
 - `firestore:rules` publica o `firestore.rules` do repositório (o mesmo de antes + a coleção `playbacks`).
 - No primeiro deploy de um gatilho de Storage o CLI pode pedir para liberar permissões do Eventarc.
-- Custo por música: uma execução de ~10 s com 2 GB de memória (análise) e um arquivo `.npz` pequeno.
+- O processamento pesado roda no Cloud Run Job `process-playback`: publique-o antes (ver `worker/README.md`).
+  Custo por música: ~5 min de 8 vCPU / 16 GB (≈ US$ 0,10), as 6 faixas em mp3 (~30 MB) e a análise.
 
 ## CORS do Storage (troca de tom do áudio)
 

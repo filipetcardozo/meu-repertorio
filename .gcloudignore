@@ -1,0 +1,8 @@
+# Upload para o Cloud Build da imagem do worker (worker/cloudbuild.yaml): só o que a imagem usa.
+/*
+!/worker/
+!/functions/
+/functions/*
+!/functions/playback_sync/
+**/__pycache__/
+/worker/out/

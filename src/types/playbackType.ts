@@ -1,11 +1,16 @@
 /**
- * Playback (mp3) de uma música, sincronizado com a cifra pela Cloud Function `analyze_playback`.
+ * Playback (mp3) de uma música, sincronizado com a cifra.
  *
  * Firestore: playbacks/{id} (privado do dono). Áudio: Storage playbacks/{userId}/{id}.mp3.
- * Fluxo: o app cria o doc (status 'uploading'), envia o arquivo; a Function marca 'processing',
- * analisa e grava 'ready' com a linha do tempo (ou 'error').
+ * Fluxo: o app cria o doc (status 'uploading') e envia o arquivo; a Function `analyze_playback`
+ * marca 'processing' e dispara o job do Cloud Run (worker/), que separa as faixas, reconhece a letra
+ * na voz, alinha com a cifra e grava 'ready' com a linha do tempo (ou 'error'). Nada provisório:
+ * a música só fica pronta no fim.
  */
 export type PlaybackStatus = 'uploading' | 'processing' | 'ready' | 'error';
+
+/** Etapa do processamento (com `progress` 0..1 no documento). */
+export type PlaybackStage = 'queued' | 'separating' | 'transcribing' | 'syncing';
 
 /** Um ponto da linha do tempo, na ordem tocada. `text` null = trecho fora da cifra (intro/solo não escritos). */
 export type PlaybackSyncItem = {
@@ -24,21 +29,18 @@ export type PlaybackSyncItem = {
 export type StemName = 'vocals' | 'drums' | 'bass' | 'guitar' | 'piano' | 'other';
 
 /**
- * Separação de instrumentos (Demucs, worker `stems/`): `playbacks/{id}.stems`, gravado só pelo servidor.
- * As faixas ficam em Storage `playbacks/{userId}/stems/{id}/{faixa}.mp3` e são reaproveitadas.
+ * Faixas separadas (Demucs, parte do processamento do worker): `playbacks/{id}.stems`, gravado só pelo
+ * servidor. As faixas ficam em Storage `playbacks/{userId}/stems/{id}/{faixa}.mp3`. Se a separação
+ * falhar, o playback fica pronto mesmo assim (só com o áudio original) e `status` = 'error'.
  */
 export type PlaybackStems = {
-  status: 'queued' | 'processing' | 'ready' | 'error';
-  /** 0..1 */
-  progress?: number;
+  status: 'ready' | 'error';
   model?: string;
   error?: string | null;
   tracks?: { name: StemName | string; path: string }[];
   /** Ganho para a soma das faixas voltar ao volume do original (as faixas são gravadas com folga). */
   gain?: number;
   durationSec?: number;
-  requestedAt?: unknown;
-  updatedAt?: unknown;
 };
 
 export type PlaybackType = {
@@ -49,6 +51,9 @@ export type PlaybackType = {
   fileName: string;
   storagePath: string;
   status: PlaybackStatus;
+  /** Durante 'processing': etapa atual e andamento 0..1. */
+  stage?: PlaybackStage | null;
+  progress?: number;
   error?: string | null;
   durationSec?: number;
   bpm?: number;
@@ -59,6 +64,10 @@ export type PlaybackType = {
   cifraHash?: string;
   /** Análise do áudio guardada no Storage (re-sincronizar sem reprocessar o áudio). */
   analysisPath?: string;
+  /** Palavras reconhecidas na voz (re-sincronizar também usa a letra). */
+  wordsPath?: string | null;
+  /** Quantas palavras da voz entraram no alinhamento (0 = só pelos acordes). */
+  voiceWords?: number;
   stems?: PlaybackStems | null;
   createdAt?: unknown;
   updatedAt?: unknown;

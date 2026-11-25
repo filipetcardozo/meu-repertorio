@@ -4,8 +4,9 @@
  * - Lista (ao vivo) os playbacks do usuário para a música e lembra o escolhido no aparelho.
  * - Toca o mp3 (com troca de tom e velocidade: utils/audio/stretchPlayer); a cada quadro acha o ponto da linha do tempo (gerada pela Cloud Function) e manda o
  *   `useLyricFollow` destacar a linha e rolar até ela.
- * - As linhas são localizadas na tela pelo TEXTO (não pela posição), então funciona com a quebra de
- *   linha do celular, com o modo compacto e com tablaturas escondidas.
+ * - As linhas são localizadas na tela pelo TEXTO, na ordem (como um diff), e não pelo número da linha:
+ *   funciona com a quebra de linha do celular, com o modo compacto, com tablaturas escondidas e com
+ *   refrões idênticos repetidos.
  * - Toque numa linha pula o áudio para ela. Ao terminar, pode passar para a próxima música do repertório.
  */
 import React from 'react';
@@ -13,7 +14,8 @@ import { tokenize } from '../utils/lyricFollow/aligner';
 import type { LyricLine } from '../utils/lyricFollow/domLines';
 import type { PlaybackSyncItem, PlaybackType } from '../types/playbackType';
 import {
-  loadPickedPlayback, loadStemPrefs, playbackUrl, requestStems, savePickedPlayback, saveStemPrefs, stemsStale,
+  loadPickedPlayback, loadStemPrefs, needsReprocess, playbackUrl, processingStale, reprocessPlayback,
+  savePickedPlayback, saveStemPrefs,
   watchPlaybacks, type StemMix,
 } from '../providers/playbacks/services';
 import { createMediaEngine, createPlaybackEngine, type PlaybackEngine, type PlayerEvents } from '../utils/audio/stretchPlayer';
@@ -45,8 +47,72 @@ function overlap(a: string[], b: Set<string>): number {
   return inter / (sa.size + b.size - inter);
 }
 
+const MIN_MATCH = 0.45;
+
+/**
+ * Liga as linhas da cifra (lyricIdx, na ordem) às linhas da tela, também na ordem, como um diff:
+ * máxima semelhança somada sem cruzar. O número da linha não serve direto porque a tela pode ter
+ * linhas a menos ou a mais que o servidor (tablaturas escondidas, quebra de linha do celular...), e
+ * numa música com refrões idênticos o "mais perto do número" escolhe a cópia errada.
+ */
+function mapByOrder(timeline: PlaybackSyncItem[], lines: LyricLine[]): Map<number, number> {
+  const byIdx = new Map<number, string[]>();
+  timeline.forEach((it) => {
+    if (it.text && it.lyricIdx != null && !byIdx.has(it.lyricIdx)) byIdx.set(it.lyricIdx, tokenize(it.text));
+  });
+  const idxs = [...byIdx.keys()].sort((x, y) => x - y);
+  const A = idxs.map((i) => byIdx.get(i)!);
+  const sets = lines.map((l) => new Set(l.tokens));
+  const joined = sets.map((s, j) => (j ? new Set([...sets[j - 1], ...s]) : s)); // linha j-1 + j
+  const n = A.length;
+  const m = lines.length;
+  if (!n || !m) return new Map();
+  const W = m + 1;
+  const GAP = 0.001; // pular uma linha custa quase nada: só desempata a favor de blocos contínuos
+  const score = new Float64Array((n + 1) * W);
+  const move = new Uint8Array((n + 1) * W); // 1 pula cifra, 2 pula tela, 3 casa 1, 4 casa 2 (linha quebrada)
+  for (let i = 0; i <= n; i++) {
+    for (let j = 0; j <= m; j++) {
+      if (!i && !j) continue;
+      let best = -Infinity;
+      let mv = 0;
+      if (i && score[(i - 1) * W + j] - GAP > best) { best = score[(i - 1) * W + j] - GAP; mv = 1; }
+      if (j && score[i * W + j - 1] - GAP > best) { best = score[i * W + j - 1] - GAP; mv = 2; }
+      if (i && j) {
+        const s = overlap(A[i - 1], sets[j - 1]);
+        if (s > MIN_MATCH && score[(i - 1) * W + j - 1] + s > best) { best = score[(i - 1) * W + j - 1] + s; mv = 3; }
+        if (j > 1) {
+          const s2 = overlap(A[i - 1], joined[j - 1]) - 0.02;
+          if (s2 > MIN_MATCH && s2 > s && score[(i - 1) * W + j - 2] + s2 > best) { best = score[(i - 1) * W + j - 2] + s2; mv = 4; }
+        }
+      }
+      score[i * W + j] = best;
+      move[i * W + j] = mv;
+    }
+  }
+  const out = new Map<number, number>();
+  let i = n;
+  let j = m;
+  while (i > 0 || j > 0) {
+    const mv = move[i * W + j];
+    if (mv === 1) i--;
+    else if (mv === 2) j--;
+    else if (mv === 3) { out.set(idxs[i - 1], j - 1); i--; j--; }
+    else if (mv === 4) { out.set(idxs[i - 1], j - 2); i--; j -= 2; }
+    else break;
+  }
+  return out;
+}
+
 /** Para cada item da linha do tempo, a linha da tela (ou null). */
 function mapTimeline(timeline: PlaybackSyncItem[], lines: LyricLine[]): (number | null)[] {
+  const ordered = mapByOrder(timeline, lines);
+  const rest = mapByText(timeline, lines);
+  return timeline.map((it, k) => (it.lyricIdx != null && ordered.has(it.lyricIdx) ? ordered.get(it.lyricIdx)! : rest[k]));
+}
+
+/** Sem lyricIdx (ou sem par na ordem): a linha de texto mais parecida, perto do número da linha. */
+function mapByText(timeline: PlaybackSyncItem[], lines: LyricLine[]): (number | null)[] {
   const sets = lines.map((l) => new Set(l.tokens));
   const cache = new Map<string, number | null>();
   return timeline.map((it) => {
@@ -55,7 +121,7 @@ function mapTimeline(timeline: PlaybackSyncItem[], lines: LyricLine[]): (number 
     if (cache.has(key)) return cache.get(key)!;
     const tokens = tokenize(it.text);
     let best: number | null = null;
-    let bestScore = 0.45;
+    let bestScore = MIN_MATCH;
     for (let i = 0; i < lines.length; i++) {
       // uma linha da cifra pode ter virado duas na tela (quebra de linha do celular)
       const joined = i + 1 < lines.length ? new Set([...sets[i], ...sets[i + 1]]) : sets[i];
@@ -338,15 +404,16 @@ export function usePlaybackSync(opts: {
 
   const resetMix = React.useCallback(() => updateMix(() => ({})), [updateMix]);
 
-  const separate = React.useCallback(async () => {
-    if (!readyTrack?.id) return;
+  /** Processa o playback atual de novo (faixas, voz e sincronia). */
+  const reprocess = React.useCallback(async () => {
+    if (!track?.id) return;
     setStemsRequesting(true);
     try {
-      await requestStems(readyTrack.id);
+      await reprocessPlayback(track.id);
     } finally {
       setStemsRequesting(false);
     }
-  }, [readyTrack?.id]);
+  }, [track?.id]);
 
   // Música nova sem playback pronto: não continua tocando sozinha.
   React.useEffect(() => {
@@ -507,10 +574,16 @@ export function usePlaybackSync(opts: {
     audioError,
     toReview,
     /** Faixas separadas do playback atual. */
+    /** Processar o playback atual de novo (antigo, com erro ou parado no meio). */
+    reprocess,
+    reprocessing: stemsRequesting,
+    /** Processamento parado há muito tempo (o job morreu). */
+    stale: track ? processingStale(track) : false,
+    /** Feito antes do processamento com faixas e voz. */
+    canUpgrade: track ? needsReprocess(track) : false,
     stems: {
-      /** Estado da separação no servidor (null = nunca pedida). */
+      /** Faixas no servidor (null = playback antigo, sem separação). */
       info: stems,
-      stale: readyTrack ? stemsStale(readyTrack) : false,
       names: stemNames,
       /** Este navegador consegue tocar as faixas juntas (precisa do player com troca de tom). */
       available: multitrackAvailable,
@@ -520,8 +593,6 @@ export function usePlaybackSync(opts: {
       active: loadedMode === 'stems',
       loading: stemsLoading,
       error: stemsError,
-      requesting: stemsRequesting,
-      separate,
       mix,
       gains,
       toggle: toggleStem,

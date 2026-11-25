@@ -121,23 +121,30 @@ export async function resyncPlayback(id: string) {
   await call({ playbackId: id });
 }
 
-/** Pede a separação de instrumentos (roda em segundo plano; o progresso chega pelo `watchPlaybacks`). */
-export async function requestStems(id: string) {
+/**
+ * Processa o playback de novo (faixas, voz e sincronia): para playbacks antigos, com erro ou parados.
+ * Roda em segundo plano; o andamento chega pelo `watchPlaybacks`.
+ */
+export async function reprocessPlayback(id: string) {
   const { httpsCallable } = await import('firebase/functions');
   const call = httpsCallable<{ playbackId: string }, { ok: boolean; status: string }>(
     await getAppFunctions(FUNCTIONS_REGION),
-    'separate_stems',
+    'reprocess_playback',
   );
   return (await call({ playbackId: id })).data;
 }
 
-/** Separação parada há muito tempo (o worker morreu): o app deixa pedir de novo. */
-export const STEMS_STALE_MS = 20 * 60 * 1000;
-export function stemsStale(p: PlaybackType): boolean {
-  const s = p.stems;
-  if (!s || (s.status !== 'queued' && s.status !== 'processing')) return false;
-  const ms = (s.updatedAt as { toMillis?: () => number } | undefined)?.toMillis?.();
-  return ms != null && Date.now() - ms > STEMS_STALE_MS;
+/** Processamento parado há muito tempo (o job morreu): o app deixa pedir de novo. Igual ao STALE_SEC da Function. */
+export const PROCESSING_STALE_MS = 35 * 60 * 1000;
+export function processingStale(p: PlaybackType): boolean {
+  if (p.status !== 'processing') return false;
+  const ms = (p.updatedAt as { toMillis?: () => number } | undefined)?.toMillis?.();
+  return ms != null && Date.now() - ms > PROCESSING_STALE_MS;
+}
+
+/** Feito antes do processamento com faixas e voz (só sincronia pelos acordes): vale processar de novo. */
+export function needsReprocess(p: PlaybackType): boolean {
+  return p.status === 'ready' && !p.stems;
 }
 
 /** Faixas ligadas/desligadas/solo de cada playback (no aparelho). */

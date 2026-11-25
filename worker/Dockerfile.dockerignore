@@ -1,0 +1,5 @@
+# contexto = raiz do repositório: só o que a imagem usa
+*
+!worker/requirements.txt
+!worker/*.py
+!functions/playback_sync/*.py

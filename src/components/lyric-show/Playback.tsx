@@ -29,6 +29,7 @@ import Switch from '@mui/material/Switch';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Badge from '@mui/material/Badge';
 import Alert from '@mui/material/Alert';
+import CircularProgress from '@mui/material/CircularProgress';
 import { alpha } from '@mui/material/styles';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import PauseRoundedIcon from '@mui/icons-material/PauseRounded';
@@ -49,7 +50,7 @@ import { enqueueSnackbar } from 'notistack';
 import type { PlaybackSync } from '../../hooks/usePlaybackSync';
 import type { PlaybackType } from '../../types/playbackType';
 import {
-  MAX_PLAYBACK_BYTES, cifraHash, deletePlayback, renamePlayback, resyncPlayback, stemsStale, uploadPlayback,
+  MAX_PLAYBACK_BYTES, cifraHash, deletePlayback, processingStale, renamePlayback, resyncPlayback, uploadPlayback,
 } from '../../providers/playbacks/services';
 
 const fmt = (t: number) => {
@@ -64,7 +65,7 @@ const NATURAL_SHIFT = 4;
 function statusChip(p: PlaybackType) {
   switch (p.status) {
     case 'uploading': return <Chip size='small' label='Enviando' />;
-    case 'processing': return <Chip size='small' color='info' label='Sincronizando' />;
+    case 'processing': return <Chip size='small' color='info' label='Processando' />;
     case 'error': return <Chip size='small' color='error' label='Erro' />;
     default: return <Chip size='small' color='success' variant='outlined' label='Pronto' />;
   }
@@ -102,17 +103,54 @@ export function PlaybackButton({ sync, onManage, size }: {
 // Player flutuante
 // ---------------------------------------------------------------------------------------------
 
-export function PlaybackBar({ sync, onManage }: {
+/** sha1 da cifra salva, calculado no navegador (mesmo hash que a Function grava em `cifraHash`). */
+function useCifraHash(lyricHtml: string | undefined, enabled: boolean): string | null {
+  const [hash, setHash] = React.useState<{ html: string; hash: string } | null>(null);
+  React.useEffect(() => {
+    if (!enabled || !lyricHtml) return;
+    let alive = true;
+    cifraHash(lyricHtml).then((h) => alive && setHash({ html: lyricHtml, hash: h })).catch(() => undefined);
+    return () => { alive = false; };
+  }, [enabled, lyricHtml]);
+  return hash && hash.html === lyricHtml ? hash.hash : null;
+}
+
+/** A cifra mudou depois que este playback foi sincronizado (e dá para refazer só o alinhamento). */
+function cifraChanged(p: PlaybackType | null | undefined, currentHash: string | null): boolean {
+  return !!(p && p.status === 'ready' && p.analysisPath && currentHash && p.cifraHash && p.cifraHash !== currentHash);
+}
+
+async function resyncWithFeedback(id: string) {
+  try {
+    await resyncPlayback(id);
+    enqueueSnackbar('Playback sincronizado de novo com a cifra atual.', { variant: 'success' });
+  } catch (e) {
+    enqueueSnackbar((e as Error).message || 'Não foi possível re-sincronizar.', { variant: 'error' });
+  }
+}
+
+export function PlaybackBar({ sync, onManage, lyricHtml }: {
   sync: PlaybackSync;
   onManage: () => void;
+  /** Cifra salva: se mudou desde a sincronia, o player oferece sincronizar de novo. */
+  lyricHtml?: string;
 }) {
   const [menuEl, setMenuEl] = React.useState<HTMLElement | null>(null);
   const [rateEl, setRateEl] = React.useState<HTMLElement | null>(null);
   const [dragging, setDragging] = React.useState<number | null>(null);
+  const [resyncing, setResyncing] = React.useState<string | null>(null);
+  const currentHash = useCifraHash(lyricHtml, sync.open);
   const t = sync.track;
   if (!sync.open || !t) return null;
 
   const ready = sync.readyTrack;
+  const outdated = cifraChanged(ready, currentHash);
+  const doResync = async () => {
+    if (!ready?.id) return;
+    setResyncing(ready.id);
+    await resyncWithFeedback(ready.id);
+    setResyncing(null);
+  };
   const wanted = sync.wantedSemitones;
   const keyLabel = wanted === 0
     ? 'Áudio no tom da cifra'
@@ -170,16 +208,59 @@ export function PlaybackBar({ sync, onManage }: {
         </MenuItem>
       </Menu>
 
-      {t.status === 'uploading' || t.status === 'processing' ? (
+      {outdated && t.status === 'ready' && (
+        <Alert
+          severity='warning'
+          icon={<SyncRoundedIcon fontSize='small' />}
+          sx={{ my: 0.5, py: 0, alignItems: 'center', '& .MuiAlert-message': { fontSize: 12.5 } }}
+          action={(
+            <Button
+              color='inherit'
+              size='small'
+              disabled={resyncing === ready?.id}
+              startIcon={resyncing === ready?.id ? <CircularProgress size={14} color='inherit' /> : null}
+              onClick={doResync}
+              sx={{ whiteSpace: 'nowrap' }}
+            >
+              {resyncing === ready?.id ? 'Sincronizando…' : 'Sincronizar de novo'}
+            </Button>
+          )}
+        >
+          A cifra mudou depois da sincronia deste playback.
+        </Alert>
+      )}
+
+      {sync.stale ? (
+        <Alert
+          severity='error'
+          sx={{ my: 1 }}
+          action={<ReprocessButton sync={sync} label='Processar de novo' />}
+        >
+          O processamento parou no meio.
+        </Alert>
+      ) : t.status === 'uploading' || t.status === 'processing' ? (
         <Box sx={{ py: 1 }}>
           <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 1 }}>
-            {t.status === 'uploading' ? 'Enviando o áudio…' : 'Sincronizando com a cifra… (leva menos de um minuto)'}
+            {t.status === 'uploading' ? 'Enviando o áudio…' : processingText(t)}
           </Typography>
-          <LinearProgress />
+          <LinearProgress
+            variant={t.status === 'processing' && t.stage && t.stage !== 'queued' ? 'determinate' : 'indeterminate'}
+            value={Math.round((t.progress ?? 0) * 100)}
+          />
+          {t.status === 'processing' && (
+            <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.75 }}>
+              Separa os instrumentos, reconhece a letra na voz e sincroniza com a cifra. Leva alguns minutos;
+              pode fechar e voltar depois.
+            </Typography>
+          )}
         </Box>
       ) : t.status === 'error' ? (
-        <Alert severity='error' sx={{ my: 1 }} action={<Button color='inherit' size='small' onClick={onManage}>Ver</Button>}>
-          {t.error || 'Não foi possível sincronizar este playback.'}
+        <Alert
+          severity='error'
+          sx={{ my: 1 }}
+          action={<ReprocessButton sync={sync} label='Tentar de novo' />}
+        >
+          {t.error || 'Não foi possível processar este playback.'}
         </Alert>
       ) : sync.audioLoading ? (
         <Box sx={{ py: 1 }}>
@@ -291,64 +372,63 @@ export const STEMS_LIMIT_TEXT =
   'A separação é por tipo de instrumento: base e solo de guitarra (e violão) ficam juntos em Guitarra. '
   + 'Desligar Guitarra tira os dois.';
 
-function stemsStatusText(s: NonNullable<PlaybackType['stems']>, stale: boolean): string {
-  if (stale) return 'A separação parou no meio';
-  if (s.status === 'queued') return 'Separação na fila';
-  if (s.status === 'processing') return `Separando instrumentos ${Math.round((s.progress ?? 0) * 100)}%`;
-  if (s.status === 'error') return 'Separação falhou';
-  return 'Instrumentos separados';
+const STAGE_TEXT: Record<string, string> = {
+  queued: 'Na fila para processar…',
+  separating: 'Separando os instrumentos…',
+  transcribing: 'Reconhecendo a letra na voz…',
+  syncing: 'Sincronizando com a cifra…',
+};
+
+function processingText(p: PlaybackType): string {
+  const base = STAGE_TEXT[p.stage ?? 'queued'] ?? 'Processando…';
+  return p.stage && p.stage !== 'queued' ? `${base} ${Math.round((p.progress ?? 0) * 100)}%` : base;
+}
+
+/** Processa o playback atual de novo (faixas, voz e sincronia). */
+function ReprocessButton({ sync, label, variant }: { sync: PlaybackSync; label: string; variant?: 'text' | 'outlined' }) {
+  const ask = async () => {
+    try {
+      await sync.reprocess();
+    } catch (e) {
+      enqueueSnackbar((e as Error).message || 'Não foi possível iniciar o processamento.', { variant: 'error' });
+    }
+  };
+  return (
+    <Button
+      color='inherit'
+      size='small'
+      variant={variant}
+      startIcon={sync.reprocessing ? <CircularProgress size={14} color='inherit' /> : <CallSplitRoundedIcon fontSize='small' />}
+      disabled={sync.reprocessing}
+      onClick={ask}
+      sx={{ whiteSpace: 'nowrap', textTransform: 'none' }}
+    >
+      {label}
+    </Button>
+  );
+}
+
+function stemsStatusText(p: PlaybackType): string | null {
+  if (p.status !== 'ready') return null;
+  if (!p.stems) return 'Sem faixas separadas (processado antes da voz)';
+  if (p.stems.status === 'error') return 'Não foi possível separar os instrumentos';
+  return p.voiceWords ? 'Instrumentos separados · sincronizado pela letra' : 'Instrumentos separados';
 }
 
 function StemsSection({ sync }: { sync: PlaybackSync }) {
   const st = sync.stems;
   const info = st.info;
-  const [busyError, setBusyError] = React.useState<string | null>(null);
 
-  const ask = async () => {
-    setBusyError(null);
-    try {
-      await st.separate();
-    } catch (e) {
-      setBusyError((e as Error).message || 'Não foi possível iniciar a separação.');
-    }
-  };
-
-  const running = !!info && (info.status === 'queued' || info.status === 'processing') && !st.stale;
-
-  if (!info || info.status === 'error' || st.stale) {
+  if (!info || info.status === 'error') {
     return (
       <Stack direction='row' sx={{ alignItems: 'center', gap: 1, flexWrap: 'wrap', py: 0.5, borderTop: 1, borderColor: 'divider' }}>
-        <Button
-          size='small'
-          startIcon={<CallSplitRoundedIcon fontSize='small' />}
-          onClick={ask}
-          disabled={st.requesting || !st.available}
-          sx={{ textTransform: 'none' }}
-        >
-          {info ? 'Separar de novo' : 'Separar instrumentos'}
-        </Button>
-        <Typography sx={{ fontSize: 12, color: info || busyError ? 'error.main' : 'text.secondary', flex: 1, minWidth: 160 }}>
-          {busyError
-            || (info?.status === 'error' ? (info.error || 'A separação falhou.') : null)
-            || (st.stale ? 'A separação parou no meio. Tente de novo.' : null)
-            || (!st.available
-              ? 'Este navegador não toca faixas separadas.'
-              : 'Voz, bateria, baixo, guitarra, piano e outros, em segundo plano.')}
+        <ReprocessButton sync={sync} label={info ? 'Processar de novo' : 'Processar com a voz'} />
+        <Typography sx={{ fontSize: 12, color: info ? 'error.main' : 'text.secondary', flex: 1, minWidth: 160 }}>
+          {info
+            ? (info.error || 'Não foi possível separar os instrumentos.')
+            : 'Separa voz, bateria, baixo, guitarra, piano e outros e refaz a sincronia pela letra. Leva alguns minutos.'}
         </Typography>
       </Stack>
-    );
-  }
-
-  if (running) {
-    const pct = Math.round((info.progress ?? 0) * 100);
-    return (
-      <Box sx={{ py: 0.75, borderTop: 1, borderColor: 'divider' }}>
-        <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 0.5 }}>
-          {info.status === 'queued' ? 'Separação na fila…' : `Separando instrumentos… ${pct}%`}
-          {' '}O áudio original continua tocando.
-        </Typography>
-        <LinearProgress variant={info.status === 'queued' ? 'indeterminate' : 'determinate'} value={pct} />
-      </Box>
     );
   }
 
@@ -445,15 +525,8 @@ export function PlaybackManagerDialog({ open, onClose, sync, lyricId, uid, lyric
   const [editing, setEditing] = React.useState<{ id: string; label: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = React.useState<PlaybackType | null>(null);
   const [busy, setBusy] = React.useState<string | null>(null);
-  const [currentHash, setCurrentHash] = React.useState<string | null>(null);
+  const currentHash = useCifraHash(lyricHtml, open);
   const fileRef = React.useRef<HTMLInputElement>(null);
-
-  React.useEffect(() => {
-    if (!open || !lyricHtml) return;
-    let alive = true;
-    cifraHash(lyricHtml).then((h) => alive && setCurrentHash(h)).catch(() => undefined);
-    return () => { alive = false; };
-  }, [open, lyricHtml]);
 
   const onFile = async (file: File | undefined) => {
     if (!file || !uid) return;
@@ -471,7 +544,7 @@ export function PlaybackManagerDialog({ open, onClose, sync, lyricId, uid, lyric
       sync.pick(h.id);
       await h.done;
       setLabel('');
-      enqueueSnackbar('Áudio enviado. A sincronia fica pronta em menos de um minuto.', { variant: 'success' });
+      enqueueSnackbar('Áudio enviado. Separar os instrumentos, reconhecer a letra e sincronizar leva alguns minutos.', { variant: 'success' });
     } catch (e) {
       enqueueSnackbar((e as Error).message || 'Não foi possível enviar o áudio.', { variant: 'error' });
     } finally {
@@ -491,14 +564,8 @@ export function PlaybackManagerDialog({ open, onClose, sync, lyricId, uid, lyric
   const doResync = async (p: PlaybackType) => {
     if (!p.id) return;
     setBusy(p.id);
-    try {
-      await resyncPlayback(p.id);
-      enqueueSnackbar('Sincronia refeita com a cifra atual.', { variant: 'success' });
-    } catch (e) {
-      enqueueSnackbar((e as Error).message || 'Não foi possível re-sincronizar.', { variant: 'error' });
-    } finally {
-      setBusy(null);
-    }
+    await resyncWithFeedback(p.id);
+    setBusy(null);
   };
 
   const doDelete = async () => {
@@ -522,7 +589,7 @@ export function PlaybackManagerDialog({ open, onClose, sync, lyricId, uid, lyric
             <Stack sx={{ mb: 2 }} divider={<Divider flexItem />}>
               {sync.tracks.map((p) => {
                 const isPicked = p.id === sync.track?.id;
-                const changed = p.status === 'ready' && currentHash && p.cifraHash && p.cifraHash !== currentHash;
+                const changed = cifraChanged(p, currentHash);
                 const review = p.timeline?.filter((it) => it.conf != null && it.conf < 0.6).length ?? 0;
                 return (
                   <Stack key={p.id} direction='row' sx={{ alignItems: 'center', gap: 1, py: 1 }}>
@@ -557,9 +624,14 @@ export function PlaybackManagerDialog({ open, onClose, sync, lyricId, uid, lyric
                         {changed && (
                           <Typography sx={{ fontSize: 12, color: 'warning.main' }}>A cifra mudou depois da sincronia</Typography>
                         )}
-                        {p.stems && (
-                          <Typography sx={{ fontSize: 12, color: p.stems.status === 'error' || stemsStale(p) ? 'error.main' : 'text.secondary' }}>
-                            {stemsStatusText(p.stems, stemsStale(p))}
+                        {p.status === 'processing' && (
+                          <Typography sx={{ fontSize: 12, color: processingStale(p) ? 'error.main' : 'text.secondary' }}>
+                            {processingStale(p) ? 'O processamento parou no meio' : processingText(p)}
+                          </Typography>
+                        )}
+                        {stemsStatusText(p) && (
+                          <Typography sx={{ fontSize: 12, color: p.stems?.status === 'error' ? 'error.main' : 'text.secondary' }}>
+                            {stemsStatusText(p)}
                           </Typography>
                         )}
                       </Stack>
