@@ -27,6 +27,10 @@ import {
 } from '../../providers/playbacks/services';
 import { GeneratedCifraPreview } from '../generate-cifra/GeneratedCifraPreview';
 import { LyricsPicker, type LyricsChoice } from '../generate-cifra/LyricsPicker';
+import { mergeAiEnabled, mergeCifraWithAi, type MergeResult } from '../generate-cifra/mergeClient';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import ToggleButton from '@mui/material/ToggleButton';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import { processingText } from './Playback';
 import { displayFontFamily } from '../../theme/createAppTheme';
 
@@ -68,6 +72,16 @@ const GenerateDialog = ({ lyricId, uid, hasUnsavedOffset, saveOffset, onClose }:
   const fileRef = useRef<HTMLInputElement>(null);
   const [lyricsChoice, setLyricsChoice] = useState<LyricsChoice | null>(null);
   const [showLyrics, setShowLyrics] = useState(true);
+  // "Juntar com IA": cifra atual (acordes) + letra + cifra do áudio (estrutura e tempo)
+  const [aiOn, setAiOn] = useState(false);
+  const [merged, setMerged] = useState<{ key: string; result: MergeResult } | null>(null);
+  const [merging, setMerging] = useState(false);
+  const [view, setView] = useState<'merged' | 'audio'>('merged');
+  useEffect(() => {
+    let alive = true;
+    mergeAiEnabled().then((v) => alive && setAiOn(v));
+    return () => { alive = false; };
+  }, []);
   const input = lyricsChoice ? { lyrics: lyricsChoice.lyrics, synced: lyricsChoice.synced, source: lyricsChoice.source } : null;
 
   useEffect(() => {
@@ -124,7 +138,41 @@ const GenerateDialog = ({ lyricId, uid, hasUnsavedOffset, saveOffset, onClose }:
     }
   };
 
-  const fromGenerated = (base: lyricType): lyricType => ({
+  // a junção vale para a cifra gerada que estava na tela quando foi feita
+  const mergedNow = merged && generated && merged.key === generated.lyric ? merged.result : null;
+  const showMerged = !!mergedNow && view === 'merged';
+
+  const doMerge = async () => {
+    if (!lyric?.lyric || !generated?.lyric) return;
+    setMerging(true);
+    setError(null);
+    try {
+      const result = await mergeCifraWithAi({
+        reference: lyric.lyric,
+        referenceTone: lyric.originalTone,
+        audio: generated.lyric,
+        audioTone: generated.tone,
+        lyrics: lyricsChoice?.lyrics,
+        lyricName: lyric.lyricName,
+        composerName: lyric.composerName,
+      });
+      setMerged({ key: generated.lyric, result });
+      setView('merged');
+    } catch (e) {
+      setError((e as Error).message || 'Não foi possível juntar as cifras.');
+    } finally {
+      setMerging(false);
+    }
+  };
+
+  // o que é salvo: a junção (se estiver na tela) ou a gerada pelo áudio
+  const fromGenerated = (base: lyricType): lyricType => (showMerged ? {
+    ...base,
+    lyric: mergedNow!.lyric,
+    originalTone: mergedNow!.tone || base.originalTone,
+    bpm: base.bpm ?? generated!.bpm,
+    generatedFromAudio: true,
+  } : {
     ...base,
     lyric: generated!.lyric!,
     originalTone: generated!.tone || base.originalTone,
@@ -166,7 +214,7 @@ const GenerateDialog = ({ lyricId, uid, hasUnsavedOffset, saveOffset, onClose }:
     }
   };
 
-  const busy = !!saving || !!upload;
+  const busy = !!saving || !!upload || merging;
 
   return (
     <Dialog open onClose={busy ? undefined : onClose} fullWidth maxWidth={generated ? 'md' : 'sm'} fullScreen={fullScreen}>
@@ -273,7 +321,44 @@ const GenerateDialog = ({ lyricId, uid, hasUnsavedOffset, saveOffset, onClose }:
                 Esta versão usou a letra reconhecida na voz, que costuma ter erros. Busque a letra acima e gere de novo.
               </Alert>
             )}
-            {generated && !waiting && <GeneratedCifraPreview generated={generated} />}
+            {generated && !waiting && lyric?.lyric && aiOn && !mergedNow && (
+              <Alert
+                severity='info'
+                icon={<AutoAwesomeIcon fontSize='small' />}
+                sx={{ mb: 1.5 }}
+                action={(
+                  <Button color='inherit' size='small' onClick={doMerge} loading={merging} disabled={busy && !merging}>
+                    Juntar
+                  </Button>
+                )}
+              >
+                Juntar com a cifra atual: a IA usa os acordes da cifra da música, a letra completa e a ordem das partes
+                do áudio para montar a melhor versão.
+              </Alert>
+            )}
+            {merging && <LinearProgress sx={{ mb: 1.5, borderRadius: 4 }} />}
+            {generated && !waiting && mergedNow && (
+              <>
+                <ToggleButtonGroup size='small' exclusive value={view} onChange={(_, v) => v && setView(v)} sx={{ mb: 1.5 }}>
+                  <ToggleButton value='merged'><AutoAwesomeIcon fontSize='small' sx={{ mr: 0.75 }} />Juntada com IA</ToggleButton>
+                  <ToggleButton value='audio'>Só pelo áudio</ToggleButton>
+                </ToggleButtonGroup>
+                {showMerged && mergedNow.notes.length > 0 && (
+                  <Alert severity='warning' sx={{ mb: 1.5 }}>
+                    <Box component='ul' sx={{ m: 0, pl: 2 }}>
+                      {mergedNow.notes.map((n, i) => <li key={i}>{n}</li>)}
+                    </Box>
+                  </Alert>
+                )}
+              </>
+            )}
+            {generated && !waiting && (
+              <GeneratedCifraPreview
+                generated={showMerged
+                  ? { ...generated, lyric: mergedNow!.lyric, tone: mergedNow!.tone || lyric?.originalTone }
+                  : generated}
+              />
+            )}
           </>
         )}
 

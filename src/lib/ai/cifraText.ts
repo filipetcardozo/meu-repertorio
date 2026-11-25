@@ -37,7 +37,7 @@ export type CifraText = {
 export function cifraHtmlToText(html: string): CifraText {
   const tabs: string[] = [];
   const chords = new Set(
-    [...html.replace(TAB_RE, '').matchAll(/<(b|strong)>([^<]*)<\/\1>/gi)].map(([, , c]) => decode(c).trim()).filter(Boolean),
+    [...html.replace(TAB_RE, '').matchAll(/<(b|strong)(?:\s[^>]*)?>([^<]*)<\/\1>/gi)].map(([, , c]) => decode(c).trim()).filter(Boolean),
   );
   const body = html
     .replace(/^\s*<pre[^>]*>/i, '')
@@ -114,9 +114,9 @@ export function cifraTextToHtml(text: string, tabs: string[], known?: Set<string
 // Conferência
 
 /** Acordes do HTML, na ordem, como chave musical (A# = Bb, Am7(11) = Am7/11). */
-function chordKeys(html: string): string[] {
+export function chordKeys(html: string): string[] {
   const noTabs = html.replace(TAB_RE, '');
-  return [...noTabs.matchAll(/<(b|strong)>([^<]*)<\/\1>/gi)].map(([, , raw]) => {
+  return [...noTabs.matchAll(/<(b|strong)(?:\s[^>]*)?>([^<]*)<\/\1>/gi)].map(([, , raw]) => {
     const name = cleanChordToken(decode(raw));
     const p = parseChord(name);
     return p ? `${p.root}/${p.bass}/${[...p.required].sort((a, b) => a - b).join('.')}` : name;
@@ -124,7 +124,7 @@ function chordKeys(html: string): string[] {
 }
 
 /** Palavras da letra, na ordem (sem acordes, títulos, marcadores, pontuação e maiúsculas). */
-function lyricWords(text: string, known?: Set<string>): string[] {
+export function lyricWords(text: string, known?: Set<string>): string[] {
   return text
     .split('\n')
     .filter((l) => !chordTokens(splitHeader(l).rest, known) && !matchHeader(l))

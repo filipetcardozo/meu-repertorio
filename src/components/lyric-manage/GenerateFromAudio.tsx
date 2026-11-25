@@ -14,6 +14,8 @@ import {
 } from '../../providers/playbacks/services';
 import { processingText } from '../lyric-show/Playback';
 import { LyricsPicker, type LyricsChoice } from '../generate-cifra/LyricsPicker';
+import { mergeAiEnabled, mergeCifraWithAi } from '../generate-cifra/mergeClient';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { BrandIcon, Section } from './formUi';
 
 type Props = {
@@ -23,8 +25,13 @@ type Props = {
   /** Nome e artista do formulário (para buscar a letra). */
   lyricName: string;
   artistName: string;
-  /** Cifra pronta: o formulário recebe letra, acordes, tom e andamento. */
-  onGenerated: (generated: PlaybackGenerated, playbackId: string) => void;
+  /**
+   * Cifra que já está no formulário (importada do Cifra Club ou colada), se não veio do áudio: em vez de
+   * substituir, a tela oferece juntar as duas com IA.
+   */
+  reference?: { lyric: string; tone?: string } | null;
+  /** Cifra pronta: o formulário recebe letra, acordes, tom e andamento (`chosen`: a pessoa já escolheu). */
+  onGenerated: (generated: PlaybackGenerated, playbackId: string, chosen?: boolean) => void;
   /** O playback enviado aqui (para o formulário ligar à música ao salvar); null se foi removido. */
   onPlayback: (playbackId: string | null) => void;
 };
@@ -33,13 +40,26 @@ type Props = {
  * "Criar pelo mp3": a letra vem da internet (ou é colada) e o áudio dá os acordes e o tempo de cada
  * palavra. Devolve a cifra pronta para revisar; o áudio fica como playback da música, já sincronizado.
  */
-export function GenerateFromAudio({ uid, lyricId, lyricName, artistName, onGenerated, onPlayback }: Props) {
+export function GenerateFromAudio({ uid, lyricId, lyricName, artistName, reference, onGenerated, onPlayback }: Props) {
   const [pb, setPb] = useState<PlaybackType | null>(null);
   const [pbId, setPbId] = useState<string | null>(null);
   const [upload, setUpload] = useState<{ name: string; progress: number; cancel: () => void } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lyricsChoice, setLyricsChoice] = useState<LyricsChoice | null>(null);
   const [requesting, setRequesting] = useState(false);
+  const [aiOn, setAiOn] = useState(false);
+  const [merging, setMerging] = useState(false);
+  const [notes, setNotes] = useState<string[]>([]);
+  useEffect(() => {
+    let alive = true;
+    mergeAiEnabled().then((v) => alive && setAiOn(v));
+    return () => { alive = false; };
+  }, []);
+  const hasReference = !!reference?.lyric?.trim();
+  const referenceRef = useRef(hasReference);
+  useEffect(() => {
+    referenceRef.current = hasReference;
+  });
   const applied = useRef<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const onGeneratedRef = useRef(onGenerated);
@@ -54,14 +74,47 @@ export function GenerateFromAudio({ uid, lyricId, lyricName, artistName, onGener
     return watchPlayback(pbId, setPb, () => setError('Não foi possível acompanhar o processamento.'));
   }, [pbId]);
 
-  // entrega cada cifra gerada ao formulário uma vez
+  // entrega cada cifra gerada ao formulário uma vez (com cifra importada no formulário, espera a escolha)
   useEffect(() => {
     const g = pb?.generated;
-    if (pb?.id && g?.status === 'ready' && g.lyric && applied.current !== g.lyric) {
+    if (pb?.id && g?.status === 'ready' && g.lyric && applied.current !== g.lyric && !referenceRef.current) {
       applied.current = g.lyric;
       onGeneratedRef.current(g, pb.id);
     }
   }, [pb]);
+
+  const useGeneratedOnly = () => {
+    const g = pb?.generated;
+    if (!pb?.id || !g?.lyric) return;
+    applied.current = g.lyric;
+    setNotes([]);
+    onGenerated(g, pb.id, true);
+  };
+
+  const merge = async () => {
+    const g = pb?.generated;
+    if (!pb?.id || !g?.lyric || !reference?.lyric) return;
+    setMerging(true);
+    setError(null);
+    try {
+      const r = await mergeCifraWithAi({
+        reference: reference.lyric,
+        referenceTone: reference.tone,
+        audio: g.lyric,
+        audioTone: g.tone,
+        lyrics: lyricsChoice?.lyrics,
+        lyricName,
+        composerName: artistName,
+      });
+      applied.current = g.lyric;
+      setNotes(r.notes);
+      onGenerated({ ...g, lyric: r.lyric, tone: r.tone || reference.tone || g.tone }, pb.id, true);
+    } catch (e) {
+      setError((e as Error).message || 'Não foi possível juntar as cifras.');
+    } finally {
+      setMerging(false);
+    }
+  };
 
   const onFile = async (file: File | undefined) => {
     if (!file || !uid) return;
@@ -191,7 +244,27 @@ export function GenerateFromAudio({ uid, lyricId, lyricName, artistName, onGener
           )}
           <input ref={fileRef} type='file' accept='audio/*,.mp3,.m4a,.wav' hidden onChange={(e) => onFile(e.target.files?.[0])} />
 
-          {gen && !waiting && (
+          {gen && !waiting && hasReference && (
+            <Alert severity='info' icon={<AutoAwesomeIcon fontSize='small' />} sx={{ mt: 2 }}>
+              A cifra pelo áudio ficou pronta e o formulário já tem uma cifra (importada ou colada).
+              {aiOn
+                ? ' Juntar as duas com IA usa os acordes da sua cifra, a letra completa e a ordem das partes do áudio.'
+                : ''}
+              <Stack direction='row' sx={{ gap: 1, mt: 1, flexWrap: 'wrap' }}>
+                {aiOn && (
+                  <Button size='small' variant='contained' onClick={merge} loading={merging}>Juntar com IA</Button>
+                )}
+                <Button size='small' color='inherit' onClick={useGeneratedOnly} disabled={merging}>Usar só a gerada</Button>
+              </Stack>
+              {merging && <LinearProgress sx={{ mt: 1, borderRadius: 4 }} />}
+            </Alert>
+          )}
+          {notes.length > 0 && (
+            <Alert severity='warning' sx={{ mt: 2 }}>
+              <Box component='ul' sx={{ m: 0, pl: 2 }}>{notes.map((n, i) => <li key={i}>{n}</li>)}</Box>
+            </Alert>
+          )}
+          {gen && !waiting && !hasReference && (
             <Alert severity={gen.lyricsSource === 'voice' ? 'warning' : 'success'} sx={{ mt: 2 }}>
               {gen.lyricsSource === 'voice'
                 ? 'Cifra gerada com a letra reconhecida na voz, que costuma ter erros. Busque ou cole a letra acima e gere de novo.'
