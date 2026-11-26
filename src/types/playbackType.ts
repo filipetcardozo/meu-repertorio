@@ -109,6 +109,10 @@ export type PlaybackType = {
   generated?: PlaybackGenerated | null;
   /** Acordes reconhecidos pelo worker (consonance-ACE), para regenerar a cifra sem rodar o modelo de novo. */
   chordsPath?: string | null;
+  /** 'local' = processar no PC de quem desenvolve (só admin; ver PROCESS_ON_PC em providers/playbacks). */
+  processor?: 'local';
+  /** Processamento no PC: 'waiting' = na fila do worker/local_listener.py; 'running' = rodando. */
+  localWorker?: 'waiting' | 'running' | null;
   createdAt?: unknown;
   updatedAt?: unknown;
 };

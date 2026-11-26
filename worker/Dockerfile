@@ -1,7 +1,8 @@
 # Processamento completo de um playback (Cloud Run Job `process-playback`). Ver worker/README.md.
 # Contexto do build: a RAIZ do repositório (usa functions/playback_sync, o mesmo código da sincronia).
-#   docker build -f worker/Dockerfile -t meu-repertorio-worker .
-FROM python:3.12-slim
+#   docker build -f worker/Dockerfile -t meu-repertorio-worker .                 (produção: estágio final)
+#   docker build -f worker/Dockerfile --target local -t meu-repertorio-worker .  (local: + BS-RoFormer)
+FROM python:3.12-slim AS base
 
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
     && rm -rf /var/lib/apt/lists/*
@@ -24,3 +25,14 @@ COPY functions/playback_sync ./playback_sync
 COPY worker/separate.py worker/transcribe.py worker/worker.py worker/validate.py worker/chords_ace.py ./
 COPY worker/licenses ./licenses
 ENTRYPOINT ["python", "worker.py"]
+
+# Só para testes locais: separação com o BS-RoFormer-SW (STEMS_MODEL=bs-roformer-sw, ver separate.py).
+# Os pesos (~700 MB, licença desconhecida) são baixados no primeiro uso para ROFORMER_DIR; monte um
+# volume ali para baixar uma vez só. Nunca vai para produção: o Cloud Build usa o estágio final.
+FROM base AS local
+RUN pip install --no-cache-dir bs-roformer-infer==0.1.5
+ENV ROFORMER_DIR=/models/roformer
+COPY worker/local_listener.py ./
+
+# Produção (Cloud Run Job): o estágio final, igual à base.
+FROM base AS prod

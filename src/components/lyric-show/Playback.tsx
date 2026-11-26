@@ -46,6 +46,8 @@ import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import SyncRoundedIcon from '@mui/icons-material/SyncRounded';
 import CallSplitRoundedIcon from '@mui/icons-material/CallSplitRounded';
 import HeadphonesRoundedIcon from '@mui/icons-material/HeadphonesRounded';
+import RemoveRoundedIcon from '@mui/icons-material/RemoveRounded';
+import Portal from '@mui/material/Portal';
 import { enqueueSnackbar } from 'notistack';
 import type { PlaybackSync } from '../../hooks/usePlaybackSync';
 import type { PlaybackType } from '../../types/playbackType';
@@ -129,6 +131,134 @@ async function resyncWithFeedback(id: string) {
   }
 }
 
+// ---------------------------------------------------------------------------------------------
+// Recolher e arrastar o player
+// ---------------------------------------------------------------------------------------------
+
+const BAR_LAYOUT_KEY = 'playbackBarLayout';
+const VIEW_MARGIN = 8;
+/** Acima disso (px) o gesto é arrasto, não clique. */
+const DRAG_THRESHOLD = 5;
+/** O que não começa arrasto (o resto do card é alça). */
+const DRAG_EXCLUDE = 'button, a, input, label, [role="button"], [role="combobox"], [role="slider"], .MuiSlider-root, .MuiSwitch-root, .MuiChip-root';
+/** Mesma camada dos cards de acorde: acima da barra do app, abaixo dos menus/diálogos. */
+const FLOAT_Z = 1250;
+
+type Pos = { x: number; y: number };
+type BarLayout = { collapsed: boolean; pos: Pos | null };
+
+function readBarLayout(): BarLayout {
+  try {
+    const v = JSON.parse(window.localStorage.getItem(BAR_LAYOUT_KEY) || 'null');
+    const pos = v?.pos && Number.isFinite(v.pos.x) && Number.isFinite(v.pos.y) ? { x: v.pos.x, y: v.pos.y } : null;
+    return { collapsed: !!v?.collapsed, pos };
+  } catch {
+    return { collapsed: false, pos: null };
+  }
+}
+
+function clampPos(p: Pos, w: number, h: number): Pos {
+  const maxX = Math.max(VIEW_MARGIN, window.innerWidth - w - VIEW_MARGIN);
+  const maxY = Math.max(VIEW_MARGIN, window.innerHeight - h - VIEW_MARGIN);
+  return {
+    x: Math.min(Math.max(VIEW_MARGIN, p.x), maxX),
+    y: Math.min(Math.max(VIEW_MARGIN, p.y), maxY),
+  };
+}
+
+/**
+ * Estado do player: recolhido (só o ícone) ou aberto, e posição livre na tela
+ * (`pos` null = no lugar padrão, acima dos controles). Fica salvo no navegador.
+ */
+function useBarLayout() {
+  const [layout, setLayout] = React.useState<BarLayout>(readBarLayout);
+  const elRef = React.useRef<HTMLElement | null>(null);
+  const [el, setEl] = React.useState<HTMLElement | null>(null);
+  const setRef = React.useCallback((node: HTMLElement | null) => { elRef.current = node; setEl(node); }, []);
+
+  React.useEffect(() => {
+    try { window.localStorage.setItem(BAR_LAYOUT_KEY, JSON.stringify(layout)); } catch { /* sem storage */ }
+  }, [layout]);
+
+  // Mantém dentro da tela quando o tamanho do player ou da janela muda.
+  React.useEffect(() => {
+    if (!el) return;
+    const fit = () => setLayout((l) => {
+      if (!l.pos) return l;
+      const r = el.getBoundingClientRect();
+      const p = clampPos(l.pos, r.width, r.height);
+      return p.x === l.pos.x && p.y === l.pos.y ? l : { ...l, pos: p };
+    });
+    fit();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(fit) : null;
+    ro?.observe(el);
+    window.addEventListener('resize', fit);
+    return () => { ro?.disconnect(); window.removeEventListener('resize', fit); };
+  }, [el]);
+
+  /** O último gesto foi arrasto: o `click` que vem depois dele deve ser ignorado. */
+  const draggedRef = React.useRef(false);
+  const consumeDrag = React.useCallback(() => {
+    const d = draggedRef.current;
+    draggedRef.current = false;
+    return d;
+  }, []);
+  const [dragging, setDragging] = React.useState(false);
+
+  /**
+   * Arrastar como nos cards de acorde: o card inteiro serve de alça, menos os controles.
+   * Os ouvintes ficam na janela porque, no primeiro arrasto, o player sai da coluna dos
+   * controles para um portal (o elemento é recriado e perderia o pointer capture).
+   */
+  const onPointerDown = React.useCallback((e: React.PointerEvent<HTMLElement>) => {
+    // Eventos de menus (portais) também chegam aqui pela árvore do React.
+    if (!e.currentTarget.contains(e.target as Node)) return;
+    if (e.button !== 0 || !elRef.current) return;
+    const hit = (e.target as Element).closest(DRAG_EXCLUDE);
+    if (hit && hit !== e.currentTarget) return;
+    const rect = elRef.current.getBoundingClientRect();
+    const start = { x: e.clientX, y: e.clientY };
+    const id = e.pointerId;
+    let moved = false;
+    draggedRef.current = false;
+    const onMove = (ev: PointerEvent) => {
+      if (ev.pointerId !== id) return;
+      const dx = ev.clientX - start.x;
+      const dy = ev.clientY - start.y;
+      if (!moved) {
+        if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+        moved = true;
+        draggedRef.current = true;
+        setDragging(true);
+      }
+      ev.preventDefault();
+      const r = elRef.current?.getBoundingClientRect() ?? rect;
+      const pos = clampPos({ x: rect.left + dx, y: rect.top + dy }, r.width, r.height);
+      setLayout((l) => ({ ...l, pos }));
+    };
+    const onUp = (ev: PointerEvent) => {
+      if (ev.pointerId !== id) return;
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      setDragging(false);
+    };
+    window.addEventListener('pointermove', onMove, { passive: false });
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  }, []);
+
+  return {
+    ...layout,
+    setRef,
+    onPointerDown,
+    dragging,
+    consumeDrag,
+    setCollapsed: (collapsed: boolean) => setLayout((l) => ({ ...l, collapsed })),
+    resetPos: () => setLayout((l) => ({ ...l, pos: null })),
+  };
+}
+
 export function PlaybackBar({ sync, onManage, lyricHtml }: {
   sync: PlaybackSync;
   onManage: () => void;
@@ -140,8 +270,61 @@ export function PlaybackBar({ sync, onManage, lyricHtml }: {
   const [dragging, setDragging] = React.useState<number | null>(null);
   const [resyncing, setResyncing] = React.useState<string | null>(null);
   const currentHash = useCifraHash(lyricHtml, sync.open);
+  const bar = useBarLayout();
   const t = sync.track;
   if (!sync.open || !t) return null;
+
+  /** Solto na tela: fora da coluna dos controles (que tem transform), num portal com posição fixa. */
+  const place = (node: React.ReactElement) => (bar.pos ? <Portal>{node}</Portal> : node);
+  /** Mesmo visual e arrasto dos cards de acorde. */
+  const cardSx = {
+    ...(bar.pos ? { position: 'fixed' as const, left: bar.pos.x, top: bar.pos.y, zIndex: FLOAT_Z } : {}),
+    pointerEvents: 'auto' as const,
+    borderRadius: 2,
+    border: 1,
+    borderColor: 'divider',
+    // Sem isso o toque no celular rola a página em vez de arrastar o card.
+    touchAction: 'none' as const,
+    userSelect: 'none' as const,
+    cursor: bar.dragging ? 'grabbing' : 'grab',
+  };
+  const cardProps = {
+    ref: bar.setRef,
+    elevation: 8,
+    'data-follow-controls': true,
+    onPointerDown: bar.onPointerDown,
+    onDoubleClick: (e: React.MouseEvent) => {
+      if (!(e.target as Element).closest(DRAG_EXCLUDE)) bar.resetPos();
+    },
+  };
+
+  if (bar.collapsed) {
+    return place(
+      <Tooltip title='Abrir o player · arraste para mover'>
+        <Paper
+          {...cardProps}
+          onDoubleClick={undefined}
+          role='button'
+          tabIndex={0}
+          aria-label='abrir o player do playback'
+          onClick={() => { if (!bar.consumeDrag()) bar.setCollapsed(false); }}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); bar.setCollapsed(false); } }}
+          sx={{
+            ...cardSx,
+            width: 48,
+            height: 48,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'primary.main',
+            borderColor: sync.playing ? 'primary.main' : 'divider',
+          }}
+        >
+          <QueueMusicRoundedIcon />
+        </Paper>
+      </Tooltip>,
+    );
+  }
 
   const ready = sync.readyTrack;
   const outdated = cifraChanged(ready, currentHash);
@@ -156,14 +339,12 @@ export function PlaybackBar({ sync, onManage, lyricHtml }: {
     ? 'Áudio no tom da cifra'
     : `Áudio no tom da cifra (${signed(wanted)} semitom${Math.abs(wanted) > 1 ? 's' : ''})`;
 
-  return (
+  return place(
     <Paper
-      elevation={6}
-      data-follow-controls
+      {...cardProps}
       sx={{
-        pointerEvents: 'auto',
+        ...cardSx,
         width: 'min(520px, calc(100vw - 32px))',
-        borderRadius: 3,
         px: 1.5,
         pt: 1,
         pb: 0.5,
@@ -183,6 +364,11 @@ export function PlaybackBar({ sync, onManage, lyricHtml }: {
           <Typography sx={{ fontSize: 12, color: 'text.secondary', whiteSpace: 'nowrap' }}>{Math.round(ready.bpm)} BPM</Typography>
         ) : null}
         <Box sx={{ flex: 1 }} />
+        <Tooltip title='Recolher o player'>
+          <IconButton size='small' aria-label='recolher o player' onClick={() => bar.setCollapsed(true)}>
+            <RemoveRoundedIcon fontSize='small' />
+          </IconButton>
+        </Tooltip>
         <Tooltip title='Fechar o player'>
           <IconButton size='small' aria-label='fechar o player' onClick={sync.close}>
             <CloseRoundedIcon fontSize='small' />
@@ -380,6 +566,7 @@ const STAGE_TEXT: Record<string, string> = {
 };
 
 export function processingText(p: PlaybackType): string {
+  if (p.localWorker === 'waiting') return 'Esperando o processamento no seu PC (yarn dev:local)…';
   const base = STAGE_TEXT[p.stage ?? 'queued'] ?? 'Processando…';
   return p.stage && p.stage !== 'queued' ? `${base} ${Math.round((p.progress ?? 0) * 100)}%` : base;
 }

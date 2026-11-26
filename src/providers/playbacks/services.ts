@@ -10,6 +10,12 @@ import type { GenerateInput, PlaybackType } from '../../types/playbackType';
 
 const COL = 'playbacks';
 export const MAX_PLAYBACK_BYTES = 30 * 1024 * 1024;
+/**
+ * App de quem desenvolve rodando com NEXT_PUBLIC_LOCAL_WORKER=1 (`yarn dev:local`): os playbacks enviados
+ * são processados no PC (worker/local_listener.py, com o BS-RoFormer) em vez do Cloud Run. A Function só
+ * aceita isso de conta admin; para as outras, a marca é ignorada.
+ */
+export const PROCESS_ON_PC = process.env.NEXT_PUBLIC_LOCAL_WORKER === '1';
 const FUNCTIONS_REGION = 'us-central1';
 
 /** Acompanha (ao vivo) os playbacks do usuário para uma música. Devolve a função que para de ouvir. */
@@ -82,6 +88,7 @@ export async function uploadPlayback(opts: {
     storagePath,
     status: 'uploading',
     ...(generate ? { generate: true } : {}),
+    ...(PROCESS_ON_PC ? { processor: 'local' as const } : {}),
     ...(generate && generateInput ? { generateInput } : {}),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),

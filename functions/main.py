@@ -15,6 +15,11 @@ generate_cifra (chamável): gera uma cifra a partir do áudio (acordes do conson
   (segundos, sem PyTorch); playback ainda sem análise é processado de novo pelo job, que gera a cifra no
   fim, e playback de antes do ACE (sem `chordsPath`) dispara o job só para os acordes (`chordsJob`).
 cleanup_playback: quando o playback é apagado, apaga a análise, as palavras e as faixas separadas.
+
+Processar no PC (testes de quem desenvolve): playback criado com `processor: 'local'` (app rodando com
+NEXT_PUBLIC_LOCAL_WORKER=1, ver scripts/dev-local.ps1) por uma conta com `users/{uid}.isAdmin` não dispara o
+Cloud Run: fica com `localWorker: 'waiting'` até o worker/local_listener.py, no PC, processar (com o
+BS-RoFormer). Para as outras contas a marca é ignorada.
 """
 from __future__ import annotations
 
@@ -38,8 +43,20 @@ JOB_NAME = "process-playback"
 STALE_SEC = 35 * 60
 
 
-def _dispatch(playback_id: str) -> None:
-    """Produção: executa o Cloud Run Job. Emulador: roda o comando local de PROCESS_LOCAL_CMD."""
+def _on_pc(data: dict) -> bool:
+    """Playback marcado para processar no PC de quem desenvolve (só vale para admin)."""
+    if (data or {}).get("processor") != "local" or not data.get("userId"):
+        return False
+    user = firestore.client().collection("users").document(data["userId"]).get()
+    return bool(user.exists and user.to_dict().get("isAdmin"))
+
+
+def _dispatch(ref, playback_id: str, data: dict) -> None:
+    """Produção: executa o Cloud Run Job. Emulador: roda o comando local de PROCESS_LOCAL_CMD. Marcado
+    para o PC (admin): só avisa o worker/local_listener.py (`localWorker: 'waiting'`)."""
+    if _on_pc(data):
+        ref.update({"localWorker": "waiting"})
+        return
     local_cmd = os.environ.get("PROCESS_LOCAL_CMD")
     if local_cmd:
         import shlex
@@ -58,11 +75,11 @@ def _dispatch(playback_id: str) -> None:
         raise RuntimeError(f"Cloud Run {r.status_code}: {r.text[:200]}")
 
 
-def _queue(ref, playback_id: str) -> None:
+def _queue(ref, playback_id: str, data: dict) -> None:
     ref.update({"status": "processing", "stage": "queued", "progress": 0, "error": None,
                 "updatedAt": firestore.SERVER_TIMESTAMP})
     try:
-        _dispatch(playback_id)
+        _dispatch(ref, playback_id, data)
     except Exception as exc:  # noqa: BLE001
         print(f"falha ao disparar o processamento de {playback_id}: {exc}")
         ref.update({"status": "error", "stage": None, "error": "Não foi possível iniciar o processamento.",
@@ -80,7 +97,7 @@ def analyze_playback(event: storage_fn.CloudEvent[storage_fn.StorageObjectData])
     snap = ref.get()
     if not snap.exists or snap.get("userId") != uid:
         return  # arquivo sem doc correspondente (ou de outro usuário): ignora
-    _queue(ref, playback_id)
+    _queue(ref, playback_id, snap.to_dict())
 
 
 def _owned(req: https_fn.CallableRequest):
@@ -106,7 +123,7 @@ def reprocess_playback(req: https_fn.CallableRequest) -> dict:
         if age < STALE_SEC:
             return {"ok": True, "status": "processing"}
     try:
-        _queue(ref, playback_id)
+        _queue(ref, playback_id, data)
     except Exception:  # noqa: BLE001
         raise https_fn.HttpsError(https_fn.FunctionsErrorCode.UNAVAILABLE, "Não foi possível iniciar o processamento.")
     return {"ok": True, "status": "processing"}
@@ -163,7 +180,7 @@ def generate_cifra(req: https_fn.CallableRequest) -> dict:
             return {"ok": True, "status": "processing"}
         ref.update({"generate": True, "generateInput": gin})
         try:
-            _queue(ref, playback_id)
+            _queue(ref, playback_id, data)
         except Exception:  # noqa: BLE001
             raise https_fn.HttpsError(https_fn.FunctionsErrorCode.UNAVAILABLE, "Não foi possível iniciar o processamento.")
         return {"ok": True, "status": "processing"}
@@ -176,7 +193,7 @@ def generate_cifra(req: https_fn.CallableRequest) -> dict:
                     "generated.error": None, "generated.requestedAt": firestore.SERVER_TIMESTAMP,
                     "updatedAt": firestore.SERVER_TIMESTAMP})
         try:
-            _dispatch(playback_id)
+            _dispatch(ref, playback_id, data)
         except Exception:  # noqa: BLE001
             ref.update({"chordsJob": None, "generated.status": "error",
                         "generated.error": "Não foi possível iniciar o reconhecimento dos acordes."})
