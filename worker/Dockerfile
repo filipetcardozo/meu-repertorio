@@ -1,7 +1,7 @@
 # Processamento completo de um playback (Cloud Run Job `process-playback`). Ver worker/README.md.
 # Contexto do build: a RAIZ do repositório (usa functions/playback_sync, o mesmo código da sincronia).
 #   docker build -f worker/Dockerfile -t meu-repertorio-worker .                 (produção: estágio final)
-#   docker build -f worker/Dockerfile --target local -t meu-repertorio-worker .  (local: + BS-RoFormer)
+#   docker build -f worker/Dockerfile --target local -t meu-repertorio-worker .  (local: + local_listener.py)
 FROM python:3.12-slim AS base
 
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
@@ -10,7 +10,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1 TORCH_HOME=/models WHISPER_DIR=/models/whisper WHISPER_MODEL=small
 COPY worker/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir torch==2.5.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cpu \
+    && pip install --no-cache-dir -r requirements.txt
 
 # Pesos dos modelos embutidos na imagem (sem download a cada execução).
 RUN python -c "from demucs.pretrained import get_model; get_model('htdemucs_6s')"
@@ -22,16 +23,13 @@ ARG ACE_CKPT_SHA256=6ab1a314366fefb3d09e351ae7cb7f826a9e0718e94e7ff164df844ba7bc
 RUN python -c "import hashlib, os, sys, urllib.request; url = 'https://raw.githubusercontent.com/andreamust/consonance-ACE/${ACE_COMMIT}/ACE/checkpoints/conformer_decomposed_smooth.ckpt'; dst = '/models/ace/conformer_decomposed_smooth.ckpt'; os.makedirs(os.path.dirname(dst), exist_ok=True); urllib.request.urlretrieve(url, dst); h = hashlib.sha256(open(dst, 'rb').read()).hexdigest(); sys.exit(0 if h == '${ACE_CKPT_SHA256}' else 'checkpoint do consonance-ACE com hash inesperado: ' + h)"
 
 COPY functions/playback_sync ./playback_sync
-COPY worker/separate.py worker/transcribe.py worker/worker.py worker/validate.py worker/chords_ace.py ./
+COPY worker/separate.py worker/transcribe.py worker/worker.py worker/validate.py worker/chords_ace.py worker/imported.py ./
 COPY worker/licenses ./licenses
 ENTRYPOINT ["python", "worker.py"]
 
-# Só para testes locais: separação com o BS-RoFormer-SW (STEMS_MODEL=bs-roformer-sw, ver separate.py).
-# Os pesos (~700 MB, licença desconhecida) são baixados no primeiro uso para ROFORMER_DIR; monte um
-# volume ali para baixar uma vez só. Nunca vai para produção: o Cloud Build usa o estágio final.
+# Só para processar no PC (yarn dev:local, worker/local_listener.py). Nunca vai para produção: o Cloud
+# Build usa o estágio final.
 FROM base AS local
-RUN pip install --no-cache-dir bs-roformer-infer==0.1.5
-ENV ROFORMER_DIR=/models/roformer
 COPY worker/local_listener.py ./
 
 # Produção (Cloud Run Job): o estágio final, igual à base.

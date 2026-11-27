@@ -7,6 +7,8 @@ só disparam o job, refazem o alinhamento e limpam:
 
 analyze_playback: quando o áudio chega em Storage playbacks/{uid}/{id}.{ext}, marca o playback como
   'processing' e dispara o job. A música só fica pronta quando o job termina (sem nada provisório).
+import_stems (chamável): playback enviado como faixas prontas (ex.: exportadas do Moises, em
+  playbacks/{uid}/import/{id}/): quando todas subiram, dispara o job, que junta as faixas em vez de separar.
 reprocess_playback (chamável): processa de novo um playback (antigo, com erro ou parado no meio).
 resync_playback (chamável): refaz só o alinhamento com a cifra atual, usando a análise e as palavras
   guardadas pelo job (rápido, sem reprocessar o áudio).
@@ -16,10 +18,9 @@ generate_cifra (chamável): gera uma cifra a partir do áudio (acordes do conson
   fim, e playback de antes do ACE (sem `chordsPath`) dispara o job só para os acordes (`chordsJob`).
 cleanup_playback: quando o playback é apagado, apaga a análise, as palavras e as faixas separadas.
 
-Processar no PC (testes de quem desenvolve): playback criado com `processor: 'local'` (app rodando com
-NEXT_PUBLIC_LOCAL_WORKER=1, ver scripts/dev-local.ps1) por uma conta com `users/{uid}.isAdmin` não dispara o
-Cloud Run: fica com `localWorker: 'waiting'` até o worker/local_listener.py, no PC, processar (com o
-BS-RoFormer). Para as outras contas a marca é ignorada.
+Processar no PC (só contas admin; para as outras, a marca é ignorada): playback criado com
+`processor: 'local'` (app rodando com NEXT_PUBLIC_LOCAL_WORKER=1, ver scripts/dev-local.ps1) não dispara
+o Cloud Run; fica com `localWorker: 'waiting'` até o worker/local_listener.py, no PC, processar.
 """
 from __future__ import annotations
 
@@ -43,18 +44,20 @@ JOB_NAME = "process-playback"
 STALE_SEC = 35 * 60
 
 
-def _on_pc(data: dict) -> bool:
-    """Playback marcado para processar no PC de quem desenvolve (só vale para admin)."""
-    if (data or {}).get("processor") != "local" or not data.get("userId"):
-        return False
-    user = firestore.client().collection("users").document(data["userId"]).get()
-    return bool(user.exists and user.to_dict().get("isAdmin"))
+def _admin(data: dict) -> dict:
+    """users/{uid} do dono do playback, se for admin (o app não consegue gravar isAdmin); senão {}."""
+    uid = (data or {}).get("userId")
+    snap = firestore.client().collection("users").document(uid).get() if uid else None
+    user = (snap.to_dict() or {}) if snap and snap.exists else {}
+    return user if user.get("isAdmin") else {}
 
 
 def _dispatch(ref, playback_id: str, data: dict) -> None:
-    """Produção: executa o Cloud Run Job. Emulador: roda o comando local de PROCESS_LOCAL_CMD. Marcado
-    para o PC (admin): só avisa o worker/local_listener.py (`localWorker: 'waiting'`)."""
-    if _on_pc(data):
+    """Produção: executa o Cloud Run Job. Emulador: roda
+    o comando de PROCESS_LOCAL_CMD. Admin com o playback marcado para o PC: só avisa o
+    worker/local_listener.py (`localWorker: 'waiting'`)."""
+    admin = _admin(data)
+    if admin and data.get("processor") == "local":
         ref.update({"localWorker": "waiting"})
         return
     local_cmd = os.environ.get("PROCESS_LOCAL_CMD")
@@ -122,6 +125,33 @@ def reprocess_playback(req: https_fn.CallableRequest) -> dict:
         age = time.time() - upd.timestamp() if hasattr(upd, "timestamp") else STALE_SEC
         if age < STALE_SEC:
             return {"ok": True, "status": "processing"}
+    try:
+        _queue(ref, playback_id, data)
+    except Exception:  # noqa: BLE001
+        raise https_fn.HttpsError(https_fn.FunctionsErrorCode.UNAVAILABLE, "Não foi possível iniciar o processamento.")
+    return {"ok": True, "status": "processing"}
+
+
+def _import_prefix(data: dict, playback_id: str) -> str:
+    return f"playbacks/{data.get('userId')}/import/{playback_id}/"
+
+
+@https_fn.on_call(region=REGION, memory=options.MemoryOption.MB_256, timeout_sec=60)
+def import_stems(req: https_fn.CallableRequest) -> dict:
+    """Faixas prontas (ex.: Moises) terminaram de subir: confere e dispara o job (que junta as faixas)."""
+    playback_id, ref, data = _owned(req)
+    stems = data.get("importStems") or []
+    if data.get("source") != "stems" or not stems:
+        raise https_fn.HttpsError(https_fn.FunctionsErrorCode.FAILED_PRECONDITION, "Playback sem faixas para importar.")
+    if data.get("status") != "uploading":
+        return {"ok": True, "status": data.get("status")}
+    prefix = _import_prefix(data, playback_id)
+    bucket = storage.bucket()
+    for s in stems:
+        path = str((s or {}).get("path") or "")
+        if not path.startswith(prefix) or not bucket.blob(path).exists():
+            raise https_fn.HttpsError(https_fn.FunctionsErrorCode.FAILED_PRECONDITION,
+                                      "Alguma faixa não terminou de subir. Envie de novo.")
     try:
         _queue(ref, playback_id, data)
     except Exception:  # noqa: BLE001
@@ -232,6 +262,13 @@ def cleanup_playback(event: firestore_fn.Event[firestore_fn.DocumentSnapshot | N
             blob = bucket.blob(path)
             if blob.exists():
                 blob.delete()
-    # faixas separadas
-    for blob in bucket.list_blobs(prefix=f"playbacks/{data.get('userId')}/stems/{event.params['playbackId']}/"):
-        blob.delete()
+    # faixas separadas e faixas enviadas que ainda não foram preparadas
+    pid = event.params["playbackId"]
+    for prefix in (f"playbacks/{data.get('userId')}/stems/{pid}/", _import_prefix(data, pid)):
+        for blob in bucket.list_blobs(prefix=prefix):
+            blob.delete()
+    # áudio completo montado pelo worker (playback de faixas importadas)
+    if data.get("source") == "stems" and data.get("storagePath"):
+        blob = bucket.blob(data["storagePath"])
+        if blob.exists():
+            blob.delete()

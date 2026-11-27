@@ -1,6 +1,4 @@
---extra-index-url https://download.pytorch.org/whl/cpu
-torch==2.5.1+cpu
-torchaudio==2.5.1+cpu
+# torch e torchaudio (2.5.1, CPU) são instalados pelo worker/Dockerfile
 demucs==4.0.1
 faster-whisper==1.2.1
 # consonance-ACE (motor de acordes experimental): CQT e leitura do áudio como no projeto original

@@ -6,11 +6,6 @@ Usado pelo worker (worker.py) e pela validação local (validate.py).
 
 Limite do modelo: ele separa por CATEGORIA de instrumento. Guitarra base e solo de guitarra (e violão)
 saem juntos na faixa "guitar"; não há como desligar só o solo.
-
-Só para testes locais: STEMS_MODEL=bs-roformer-sw usa o BS-RoFormer-SW (mesmas 6 faixas, separação
-bem melhor, sobretudo no piano) em vez do Demucs. Ele só existe na imagem local
-(`docker build --target local`, ver worker/Dockerfile): os pesos (~700 MB, baixados no primeiro uso para
-ROFORMER_DIR) têm licença desconhecida, então não vão para produção.
 """
 from __future__ import annotations
 
@@ -22,7 +17,6 @@ from typing import Callable
 import numpy as np
 
 MODEL_NAME = os.environ.get("STEMS_MODEL") or "htdemucs_6s"
-ROFORMER = "bs-roformer-sw"  # só na imagem local
 SR = 44100  # taxa do modelo
 MP3_BITRATE = os.environ.get("STEMS_MP3_BITRATE", "160k")
 
@@ -99,52 +93,7 @@ def _output_scale(stems: np.ndarray) -> float:
     return min(1.0, 0.98 / peak)
 
 
-def _separate_roformer(wav: np.ndarray, on_progress: Callable[[float], None] | None) -> StemsResult:
-    """BS-RoFormer-SW (só local). Mesmas 6 faixas e mesma saída do Demucs."""
-    try:
-        import torch
-        import yaml
-        from bs_roformer import DEFAULT_MODEL, demix_track, ensure_model_assets, get_model_from_config
-        from bs_roformer.inference import SafeLoaderWithTuple
-        from ml_collections import ConfigDict
-    except ImportError as exc:
-        raise RuntimeError("BS-RoFormer só existe na imagem local (docker build --target local)") from exc
-
-    ckpt, cfg_path = ensure_model_assets(DEFAULT_MODEL, models_dir=os.environ.get("ROFORMER_DIR", "/models/roformer"))
-    with open(cfg_path, encoding="utf-8") as f:
-        config = ConfigDict(yaml.load(f, Loader=SafeLoaderWithTuple))
-    model = get_model_from_config("bs_roformer", config)
-    # weights_only: pesos de origem desconhecida não podem executar código ao carregar
-    state = torch.load(ckpt, map_location="cpu", weights_only=True)
-    model.load_state_dict(state.get("state_dict", state) if isinstance(state, dict) else state)
-    model.eval()
-    torch.set_num_threads(max(1, os.cpu_count() or 1))
-    if on_progress:
-        # o demix_track só imprime o andamento: conta as chamadas da rede (uma por trecho) para o app
-        # ver o progresso (na CPU leva ~13x a duração da música; sem isso, o app acharia que travou)
-        step = config.inference.chunk_size // config.inference.num_overlap
-        border = config.inference.chunk_size - step
-        n = wav.shape[1] + (2 * border if wav.shape[1] > 2 * border else 0)
-        total = max(1, (n + step - 1) // step)
-        forward, done = model.forward, [0]
-
-        def counted(*a, **kw):
-            out = forward(*a, **kw)
-            done[0] += 1
-            on_progress(min(1.0, done[0] / total))
-            return out
-
-        model.forward = counted
-    res, _ = demix_track(config, model, torch.from_numpy(wav), torch.device("cpu"))
-    names = list(config.training.instruments)
-    stems = np.stack([res[n] for n in names]).astype(np.float32)
-    scale = _output_scale(stems)
-    return StemsResult(names=names, stems=stems * scale, gain=1.0 / scale, duration=wav.shape[1] / SR)
-
-
 def separate(wav: np.ndarray, on_progress: Callable[[float], None] | None = None) -> StemsResult:
-    if MODEL_NAME == ROFORMER:
-        return _separate_roformer(wav, on_progress)
     import torch
     from demucs.apply import apply_model
 

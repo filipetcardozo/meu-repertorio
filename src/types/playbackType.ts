@@ -35,9 +35,11 @@ export type StemName = 'vocals' | 'drums' | 'bass' | 'guitar' | 'piano' | 'other
  */
 export type PlaybackStems = {
   status: 'ready' | 'error';
+  /** Separador usado; 'import' = faixas enviadas prontas (ex.: exportadas do Moises). */
   model?: string;
   error?: string | null;
-  tracks?: { name: StemName | string; path: string }[];
+  /** `label`: nome para mostrar (faixas importadas; sem ele, o nome vem de STEM_LABELS). */
+  tracks?: { name: StemName | string; path: string; label?: string }[];
   /** Ganho para a soma das faixas voltar ao volume do original (as faixas são gravadas com folga). */
   gain?: number;
   durationSec?: number;
@@ -76,8 +78,18 @@ export type GenerateInput = {
   source: string | null;
 };
 
+/** Faixa enviada pronta, esperando o worker montar o playback (Storage `playbacks/{uid}/import/{id}/...`). */
+export type ImportStem = { name: string; label: string; path: string };
+
 export type PlaybackType = {
   id?: string;
+  /**
+   * 'stems' = enviado como faixas prontas (ex.: exportadas do Moises): o worker não separa nada, só junta
+   * as faixas no áudio completo (`storagePath`, gravado por ele) e segue com a voz e a sincronia.
+   */
+  source?: 'stems';
+  /** Faixas enviadas que o worker ainda vai preparar (apagado quando ele termina essa etapa). */
+  importStems?: ImportStem[] | null;
   /** '' = enviado na tela de adicionar música, antes de a música existir (ligado ao salvar). */
   lyricId: string;
   userId: string;

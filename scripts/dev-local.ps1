@@ -1,22 +1,19 @@
 ﻿<#
 .SYNOPSIS
   App local apontando para PRODUÇÃO (banco, Storage, login, Functions), com o processamento dos mp3
-  enviados rodando neste PC com o BS-RoFormer em vez do Cloud Run.
+  enviados rodando neste PC (Docker) em vez do Cloud Run.
 
 .DESCRIPTION
-  yarn dev:local                       app em http://localhost:3000 + worker local (BS-RoFormer)
-  yarn dev:local -Separador demucs     worker local com o Demucs (o mesmo de produção)
+  yarn dev:local                       app em http://localhost:3000 + worker local (o mesmo de produção)
   yarn dev:local -Rebuild              recompila a imagem local do worker antes
 
   Abre uma janela com o worker local (worker/local_listener.py, no Docker) e roda o app aqui mesmo
   (Ctrl+C para parar; feche a janela do worker quando terminar). Só os uploads feitos por este app,
   com uma conta admin, vão para o PC (functions/main.py, _dispatch); o site e as outras contas
-  continuam no Cloud Run com o Demucs. Precisa do login do gcloud com acesso ao projeto
+  continuam no Cloud Run. Precisa do login do gcloud com acesso ao projeto
   (gcloud auth application-default login).
 #>
 param(
-  [ValidateSet('roformer', 'demucs')]
-  [string]$Separador = 'roformer',
   [switch]$Rebuild
 )
 # 'Continue': no Windows PowerShell 5.1, 'Stop' transforma em erro fatal qualquer saída de erro de
@@ -50,11 +47,11 @@ if ($LASTEXITCODE -ne 0) {
   if (-not $ready) { throw 'O Docker não respondeu em 3 minutos.' }
 }
 
-Step 'Imagem local do worker (Demucs + BS-RoFormer)'
+Step 'Imagem local do worker'
 $hasLocal = $false
 docker image inspect $image 2>$null | Out-Null
 if ($LASTEXITCODE -eq 0) {
-  docker run --rm --entrypoint python $image -c "import bs_roformer, local_listener" 2>$null | Out-Null
+  docker run --rm --entrypoint python $image -c "import local_listener" 2>$null | Out-Null
   $hasLocal = ($LASTEXITCODE -eq 0)
 }
 if ($Rebuild -or -not $hasLocal) {
@@ -67,17 +64,15 @@ if ($Rebuild -or -not $hasLocal) {
 $busy = Get-NetTCPConnection -State Listen -LocalPort 3000 -ErrorAction SilentlyContinue
 if ($busy) { throw 'A porta 3000 já está em uso: feche o "npm run dev" e rode de novo.' }
 
-Step "Worker local ($Separador) numa janela à parte"
-$stems = if ($Separador -eq 'roformer') { 'bs-roformer-sw' } else { 'htdemucs_6s' }
+Step 'Worker local numa janela à parte'
 docker rm -f $worker 2>$null | Out-Null
-$cmd = "`$host.UI.RawUI.WindowTitle='Worker local ($Separador)'; docker run --rm -it --name $worker " +
-  "-v `"$env:APPDATA\gcloud:/root/.config/gcloud:ro`" -v meu-repertorio-roformer:/models/roformer " +
+$cmd = "`$host.UI.RawUI.WindowTitle='Worker local'; docker run --rm -it --name $worker " +
+  "-v `"$env:APPDATA\gcloud:/root/.config/gcloud:ro`" " +
   "-e GOOGLE_CLOUD_PROJECT=$project -e GOOGLE_CLOUD_QUOTA_PROJECT=$project " +
-  "-e STORAGE_BUCKET=$project.appspot.com -e STEMS_MODEL=$stems " +
+  "-e STORAGE_BUCKET=$project.appspot.com " +
   "--entrypoint python $image local_listener.py"
 Start-Process powershell -WorkingDirectory $root -ArgumentList '-NoExit', '-Command', $cmd
 
 Step 'App em http://localhost:3000 (produção; uploads processados no PC)'
-Write-Host "Separador: $Separador. Com o BS-RoFormer, uma música de 4 min leva ~1 h neste PC."
 $env:NEXT_PUBLIC_LOCAL_WORKER = '1'
 yarn next dev -p 3000

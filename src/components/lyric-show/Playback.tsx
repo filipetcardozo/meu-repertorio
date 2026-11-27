@@ -47,13 +47,16 @@ import SyncRoundedIcon from '@mui/icons-material/SyncRounded';
 import CallSplitRoundedIcon from '@mui/icons-material/CallSplitRounded';
 import HeadphonesRoundedIcon from '@mui/icons-material/HeadphonesRounded';
 import RemoveRoundedIcon from '@mui/icons-material/RemoveRounded';
+import LibraryMusicRoundedIcon from '@mui/icons-material/LibraryMusicRounded';
 import Portal from '@mui/material/Portal';
 import { enqueueSnackbar } from 'notistack';
 import type { PlaybackSync } from '../../hooks/usePlaybackSync';
 import type { PlaybackType } from '../../types/playbackType';
 import {
   MAX_PLAYBACK_BYTES, cifraHash, deletePlayback, processingStale, renamePlayback, resyncPlayback, uploadPlayback,
+  uploadStems,
 } from '../../providers/playbacks/services';
+import { collectStemFiles, type StemFile } from '../../lib/stemsImport';
 
 const fmt = (t: number) => {
   if (!Number.isFinite(t) || t < 0) t = 0;
@@ -435,8 +438,8 @@ export function PlaybackBar({ sync, onManage, lyricHtml }: {
           />
           {t.status === 'processing' && (
             <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.75 }}>
-              Separa os instrumentos, reconhece a letra na voz e sincroniza com a cifra. Leva alguns minutos;
-              pode fechar e voltar depois.
+              {importedStems(t) ? 'Junta as faixas' : 'Separa os instrumentos'}, reconhece a letra na voz e sincroniza
+              com a cifra. Leva alguns minutos; pode fechar e voltar depois.
             </Typography>
           )}
         </Box>
@@ -551,7 +554,15 @@ export function PlaybackBar({ sync, onManage, lyricHtml }: {
 
 export const STEM_LABELS: Record<string, string> = {
   vocals: 'Voz', drums: 'Bateria', bass: 'Baixo', guitar: 'Guitarra', piano: 'Piano', other: 'Outros',
+  // faixas importadas (ex.: Moises): ver src/lib/stemsImport.ts
+  lead_vocals: 'Voz principal', backing_vocals: 'Backing vocal', instrumental: 'Instrumental',
+  acoustic_guitar: 'Violão', electric_guitar: 'Guitarra elétrica', keys: 'Teclado', strings: 'Cordas',
+  wind: 'Sopros', percussion: 'Percussão', kick: 'Bumbo', snare: 'Caixa', toms: 'Tons', hihat: 'Chimbal',
+  cymbals: 'Pratos', click: 'Metrônomo',
 };
+
+const stemLabel = (name: string, label?: string | null) => label || STEM_LABELS[name] || name;
+const importedStems = (p: PlaybackType | null | undefined) => p?.source === 'stems';
 
 /** Limite do modelo, sempre visível junto das faixas. */
 export const STEMS_LIMIT_TEXT =
@@ -567,7 +578,9 @@ const STAGE_TEXT: Record<string, string> = {
 
 export function processingText(p: PlaybackType): string {
   if (p.localWorker === 'waiting') return 'Esperando o processamento no seu PC (yarn dev:local)…';
-  const base = STAGE_TEXT[p.stage ?? 'queued'] ?? 'Processando…';
+  const base = importedStems(p) && p.stage === 'separating'
+    ? 'Preparando as faixas…'
+    : STAGE_TEXT[p.stage ?? 'queued'] ?? 'Processando…';
   return p.stage && p.stage !== 'queued' ? `${base} ${Math.round((p.progress ?? 0) * 100)}%` : base;
 }
 
@@ -599,12 +612,24 @@ function stemsStatusText(p: PlaybackType): string | null {
   if (p.status !== 'ready') return null;
   if (!p.stems) return 'Sem faixas separadas (processado antes da voz)';
   if (p.stems.status === 'error') return 'Não foi possível separar os instrumentos';
-  return p.voiceWords ? 'Instrumentos separados · sincronizado pela letra' : 'Instrumentos separados';
+  const n = p.stems.tracks?.length ?? 0;
+  const base = importedStems(p) ? `${n} faixa${n === 1 ? '' : 's'} importada${n === 1 ? '' : 's'}` : 'Instrumentos separados';
+  return p.voiceWords ? `${base} · sincronizado pela letra` : base;
 }
+
+const MIXER_KEY = 'playbackMixerOpen';
 
 function StemsSection({ sync }: { sync: PlaybackSync }) {
   const st = sync.stems;
   const info = st.info;
+  // Volumes abertos (lembra no aparelho)
+  const [mixerOpen, setMixerOpenState] = React.useState(() => {
+    try { return window.localStorage.getItem(MIXER_KEY) === '1'; } catch { return false; }
+  });
+  const setMixerOpen = (v: boolean) => {
+    setMixerOpenState(v);
+    try { window.localStorage.setItem(MIXER_KEY, v ? '1' : '0'); } catch { /* sem storage */ }
+  };
 
   if (!info || info.status === 'error') {
     return (
@@ -620,9 +645,44 @@ function StemsSection({ sync }: { sync: PlaybackSync }) {
   }
 
   // pronto
+  const imported = info.model === 'import';
   const anySolo = st.names.some((n) => st.mix[n]?.solo);
-  const changed = st.names.some((n) => st.mix[n] && (st.mix[n].solo || !st.mix[n].on));
-  const guitarOff = st.names.includes('guitar') && st.gains[st.names.indexOf('guitar')] === 0;
+  const changed = st.names.some((n) => st.mix[n] && (st.mix[n].solo || !st.mix[n].on || (st.mix[n].vol ?? 1) !== 1));
+  const guitarOff = !imported && st.names.includes('guitar') && st.gains[st.names.indexOf('guitar')] === 0;
+  const showing = st.useStems && st.available && !st.error;
+  const switchLabel = imported ? 'Faixas' : 'Faixas separadas';
+
+  const chip = (n: string, i: number, fixedWidth?: boolean) => {
+    const m = st.mix[n] ?? { on: true, solo: false };
+    const audible = st.audible[i];
+    const label = stemLabel(n, st.labels[i]);
+    return (
+      <Chip
+        key={n}
+        size='small'
+        label={label}
+        color={m.solo ? 'secondary' : 'primary'}
+        variant={audible ? 'filled' : 'outlined'}
+        disabled={!st.active}
+        onClick={() => st.toggle(n)}
+        onDelete={() => st.solo(n)}
+        deleteIcon={(
+          <Tooltip title={m.solo ? `Tirar ${label} do solo` : `Ouvir só ${label}`}>
+            <HeadphonesRoundedIcon aria-label={m.solo ? `tirar ${label} do solo` : `ouvir só ${label}`} />
+          </Tooltip>
+        )}
+        aria-pressed={audible}
+        aria-label={`${label}: ${audible ? 'ligada' : 'desligada'}${m.solo ? ', em solo' : ''}`}
+        sx={{
+          fontWeight: 600,
+          textDecoration: audible ? 'none' : 'line-through',
+          opacity: !audible && anySolo && !m.on ? 0.6 : 1,
+          ...(fixedWidth ? { width: 136, justifyContent: 'space-between', flexShrink: 0 } : {}),
+        }}
+      />
+    );
+  };
+
   return (
     <Box sx={{ py: 0.5, borderTop: 1, borderColor: 'divider' }}>
       <Stack direction='row' sx={{ alignItems: 'center', gap: 1, minHeight: 30 }}>
@@ -634,59 +694,79 @@ function StemsSection({ sync }: { sync: PlaybackSync }) {
               checked={st.useStems && st.available}
               disabled={!st.available}
               onChange={(e) => st.setUseStems(e.target.checked)}
-              slotProps={{ input: { 'aria-label': 'tocar com as faixas separadas' } }}
+              slotProps={{ input: { 'aria-label': `tocar com as ${switchLabel.toLowerCase()}` } }}
             />
           )}
-          label={st.available ? 'Faixas separadas' : 'Faixas separadas (este navegador não toca)'}
+          label={st.available ? switchLabel : `${switchLabel} (este navegador não toca)`}
         />
         {st.loading && (
           <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>carregando as faixas…</Typography>
         )}
         <Box sx={{ flex: 1 }} />
         {st.active && changed && (
-          <Button size='small' color='inherit' onClick={st.reset} sx={{ textTransform: 'none', fontSize: 12, minWidth: 0 }}>
-            Todas
-          </Button>
+          <Tooltip title='Todas ligadas, sem solo e no volume normal'>
+            <Button size='small' color='inherit' onClick={st.reset} sx={{ textTransform: 'none', fontSize: 12, minWidth: 0 }}>
+              Restaurar
+            </Button>
+          </Tooltip>
+        )}
+        {showing && (
+          <Tooltip title={mixerOpen ? 'Esconder os volumes' : 'Volume de cada faixa'}>
+            <IconButton
+              size='small'
+              aria-label='volumes das faixas'
+              aria-pressed={mixerOpen}
+              color={mixerOpen ? 'primary' : 'default'}
+              onClick={() => setMixerOpen(!mixerOpen)}
+            >
+              <TuneRoundedIcon fontSize='small' />
+            </IconButton>
+          </Tooltip>
         )}
       </Stack>
       {st.loading && <LinearProgress sx={{ mb: 0.5 }} />}
       {st.error && <Typography sx={{ fontSize: 12, color: 'error.main' }}>{st.error}</Typography>}
-      {st.useStems && st.available && !st.error && (
+      {showing && (
         <>
-          <Stack direction='row' sx={{ flexWrap: 'wrap', gap: 0.75, py: 0.5 }} role='group' aria-label='faixas'>
-            {st.names.map((n, i) => {
-              const m = st.mix[n] ?? { on: true, solo: false };
-              const audible = st.gains[i] > 0;
-              const label = STEM_LABELS[n] ?? n;
-              return (
-                <Chip
-                  key={n}
-                  size='small'
-                  label={label}
-                  color={m.solo ? 'secondary' : 'primary'}
-                  variant={audible ? 'filled' : 'outlined'}
-                  disabled={!st.active}
-                  onClick={() => st.toggle(n)}
-                  onDelete={() => st.solo(n)}
-                  deleteIcon={(
-                    <Tooltip title={m.solo ? `Tirar ${label} do solo` : `Ouvir só ${label}`}>
-                      <HeadphonesRoundedIcon aria-label={m.solo ? `tirar ${label} do solo` : `ouvir só ${label}`} />
-                    </Tooltip>
-                  )}
-                  aria-pressed={audible}
-                  aria-label={`${label}: ${audible ? 'ligada' : 'desligada'}${m.solo ? ', em solo' : ''}`}
-                  sx={{
-                    fontWeight: 600,
-                    textDecoration: audible ? 'none' : 'line-through',
-                    opacity: !audible && anySolo && !m.on ? 0.6 : 1,
-                  }}
-                />
-              );
-            })}
-          </Stack>
+          {mixerOpen ? (
+            <Stack
+              role='group'
+              aria-label='volumes das faixas'
+              sx={{ py: 0.5, gap: 0.25, maxHeight: '40vh', overflowY: 'auto', overflowX: 'hidden', pr: 0.5 }}
+            >
+              {st.names.map((n, i) => {
+                const vol = st.mix[n]?.vol ?? 1;
+                const label = stemLabel(n, st.labels[i]);
+                return (
+                  <Stack key={n} direction='row' sx={{ alignItems: 'center', gap: 1.5, minHeight: 30 }}>
+                    {chip(n, i, true)}
+                    <Slider
+                      size='small'
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={Math.round(vol * 100)}
+                      disabled={!st.active}
+                      onChange={(_, v) => st.setVolume(n, (v as number) / 100)}
+                      slotProps={{ input: { 'aria-label': `volume de ${label}` } }}
+                      sx={{ flex: 1, opacity: st.audible[i] ? 1 : 0.45 }}
+                    />
+                    <Typography sx={{ fontSize: 11.5, color: 'text.secondary', width: 34, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                      {Math.round(vol * 100)}%
+                    </Typography>
+                  </Stack>
+                );
+              })}
+            </Stack>
+          ) : (
+            <Stack direction='row' sx={{ flexWrap: 'wrap', gap: 0.75, py: 0.5 }} role='group' aria-label='faixas'>
+              {st.names.map((n, i) => chip(n, i))}
+            </Stack>
+          )}
           <Typography sx={{ fontSize: 11.5, color: guitarOff ? 'warning.main' : 'text.secondary', lineHeight: 1.35 }}>
-            {STEMS_LIMIT_TEXT}
-            {' '}Toque para ligar/desligar; <HeadphonesRoundedIcon sx={{ fontSize: 12, verticalAlign: '-2px' }} /> ouve só a faixa.
+            {imported ? '' : `${STEMS_LIMIT_TEXT} `}
+            Toque para ligar/desligar; <HeadphonesRoundedIcon sx={{ fontSize: 12, verticalAlign: '-2px' }} /> ouve só a faixa
+            {mixerOpen ? '.' : <>; <TuneRoundedIcon sx={{ fontSize: 12, verticalAlign: '-2px' }} /> ajusta o volume de cada uma.</>}
           </Typography>
         </>
       )}
@@ -714,6 +794,46 @@ export function PlaybackManagerDialog({ open, onClose, sync, lyricId, uid, lyric
   const [busy, setBusy] = React.useState<string | null>(null);
   const currentHash = useCifraHash(lyricHtml, open);
   const fileRef = React.useRef<HTMLInputElement>(null);
+  const stemsRef = React.useRef<HTMLInputElement>(null);
+  /** Faixas escolhidas, esperando confirmar a importação. */
+  const [pending, setPending] = React.useState<StemFile[] | null>(null);
+  const [reading, setReading] = React.useState(false);
+
+  const onStemFiles = async (list: FileList | null) => {
+    const files = Array.from(list ?? []);
+    if (stemsRef.current) stemsRef.current.value = '';
+    if (!files.length) return;
+    setReading(true);
+    try {
+      setPending(await collectStemFiles(files));
+    } catch (e) {
+      enqueueSnackbar((e as Error).message || 'Não foi possível ler as faixas.', { variant: 'error' });
+    } finally {
+      setReading(false);
+    }
+  };
+
+  const doImport = async () => {
+    const stems = pending;
+    if (!stems?.length || !uid) return;
+    setPending(null);
+    setUpload({ name: `${stems.length} faixas`, progress: 0, cancel: () => undefined });
+    try {
+      const h = await uploadStems({
+        lyricId, uid, stems, label,
+        onProgress: (p) => setUpload((u) => (u ? { ...u, progress: p } : u)),
+      });
+      setUpload((u) => (u ? { ...u, cancel: h.cancel } : u));
+      sync.pick(h.id);
+      await h.done;
+      setLabel('');
+      enqueueSnackbar('Faixas enviadas. Juntar as faixas, reconhecer a letra e sincronizar leva alguns minutos.', { variant: 'success' });
+    } catch (e) {
+      enqueueSnackbar((e as Error).message || 'Não foi possível enviar as faixas.', { variant: 'error' });
+    } finally {
+      setUpload(null);
+    }
+  };
 
   const onFile = async (file: File | undefined) => {
     if (!file || !uid) return;
@@ -769,7 +889,7 @@ export function PlaybackManagerDialog({ open, onClose, sync, lyricId, uid, lyric
         <DialogTitle>Playbacks</DialogTitle>
         <DialogContent>
           <Typography sx={{ fontSize: 14, color: 'text.secondary', mb: 2 }}>
-            Envie o mp3 do playback (ou da música) e a cifra passa sozinha junto com o áudio. Os arquivos ficam só na sua conta.
+            Envie o mp3 do playback (ou da música) e a cifra passa sozinha junto com o áudio. Já tem as faixas separadas (ex.: exportadas do Moises)? Use Importar faixas. Os arquivos ficam só na sua conta.
           </Typography>
 
           {sync.tracks.length > 0 && (
@@ -880,6 +1000,19 @@ export function PlaybackManagerDialog({ open, onClose, sync, lyricId, uid, lyric
               >
                 Enviar áudio
               </Button>
+              <Tooltip title='Faixas já separadas (ex.: exportadas do Moises): vários arquivos ou o .zip'>
+                <span>
+                  <Button
+                    variant='outlined'
+                    startIcon={reading ? <CircularProgress size={16} color='inherit' /> : <LibraryMusicRoundedIcon />}
+                    onClick={() => stemsRef.current?.click()}
+                    disabled={!uid || reading}
+                    sx={{ whiteSpace: 'nowrap', width: { xs: '100%', sm: 'auto' } }}
+                  >
+                    Importar faixas
+                  </Button>
+                </span>
+              </Tooltip>
               <input
                 ref={fileRef}
                 type='file'
@@ -887,11 +1020,51 @@ export function PlaybackManagerDialog({ open, onClose, sync, lyricId, uid, lyric
                 hidden
                 onChange={(e) => onFile(e.target.files?.[0])}
               />
+              <input
+                ref={stemsRef}
+                type='file'
+                multiple
+                accept='audio/*,.mp3,.m4a,.wav,.flac,.ogg,.aiff,.zip'
+                hidden
+                onChange={(e) => onStemFiles(e.target.files)}
+              />
             </Stack>
           )}
         </DialogContent>
         <DialogActions>
           <Button onClick={onClose}>Fechar</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={!!pending} onClose={() => setPending(null)} fullWidth maxWidth='xs'>
+        <DialogTitle>Importar {pending?.length ?? 0} faixa{pending?.length === 1 ? '' : 's'}</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 1.5 }}>
+            Viram um playback só: no player dá para ligar, desligar, ouvir só uma e ajustar o volume de cada
+            faixa. A letra é reconhecida na faixa de voz.
+          </Typography>
+          <Stack divider={<Divider flexItem />}>
+            {pending?.map((s) => (
+              <Stack key={s.name} direction='row' sx={{ alignItems: 'center', gap: 1, py: 0.75 }}>
+                <Typography sx={{ fontWeight: 600, fontSize: 14, minWidth: 120 }}>{s.label}</Typography>
+                <Typography noWrap sx={{ fontSize: 12, color: 'text.secondary', flex: 1, minWidth: 0 }} title={s.file.name}>
+                  {s.file.name}
+                </Typography>
+                <Typography sx={{ fontSize: 12, color: 'text.secondary', whiteSpace: 'nowrap' }}>
+                  {(s.file.size / 1024 / 1024).toFixed(1)} MB
+                </Typography>
+              </Stack>
+            ))}
+          </Stack>
+          {pending && !pending.some((s) => ['vocals', 'lead_vocals', 'backing_vocals'].includes(s.name)) && (
+            <Alert severity='info' sx={{ mt: 1.5 }}>
+              Nenhuma faixa de voz: a sincronia com a cifra vai só pelos acordes.
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPending(null)}>Cancelar</Button>
+          <Button variant='contained' onClick={doImport}>Importar</Button>
         </DialogActions>
       </Dialog>
 

@@ -4,7 +4,8 @@ Processamento completo de um playback (Cloud Run Job `process-playback`).
 Disparado pela Function `analyze_playback` quando o áudio chega no Storage (ou por
 `reprocess_playback`). Cada execução cuida de UM playback, nesta ordem:
 
-1. separa o áudio em 6 faixas (Demucs htdemucs_6s) e grava em `playbacks/{uid}/stems/{id}/{faixa}.mp3`;
+1. separa o áudio em 6 faixas (Demucs htdemucs_6s) e grava em `playbacks/{uid}/stems/{id}/{faixa}.mp3`
+   (playback de faixas prontas, `source: 'stems'`, ex.: Moises: só junta as faixas enviadas, imported.py);
 2. reconhece a letra na faixa de voz (faster-whisper), com o tempo de cada palavra;
 3. analisa a harmonia do áudio original e alinha com a cifra usando acordes + letra;
 4. grava a linha do tempo, a análise e as palavras (para re-sincronizar quando a cifra mudar);
@@ -115,6 +116,39 @@ def chords_job(ref, data: dict, bucket, playback_id: str) -> int:
         return 1
 
 
+def separate_stems(src: str, tmp: str, uid: str, playback_id: str, bucket, uploaded: list[str], progress,
+                   t0: float):
+    """Separa o áudio (Demucs) e grava as faixas. Devolve (stems_field, voz ou None).
+    Se falhar, segue sem faixas (stems_field com status 'error')."""
+    vocals = None
+    try:
+        from separate import MODEL_NAME, decode, encode_mp3, separate
+
+        res = separate(decode(src), on_progress=progress(P_SEPARATE))
+        print(f"separado em {time.monotonic() - t0:.1f}s ({res.duration:.0f}s de áudio)")
+        order = [n for n in STEM_ORDER if n in res.names] + [n for n in res.names if n not in STEM_ORDER]
+        tracks = []
+        for i, name in enumerate(order):
+            local = os.path.join(tmp, f"{name}.mp3")
+            encode_mp3(res.stems[res.names.index(name)], local)
+            path = f"playbacks/{uid}/stems/{playback_id}/{name}.mp3"
+            blob = bucket.blob(path)
+            blob.cache_control = "private, max-age=31536000"
+            blob.upload_from_filename(local, content_type="audio/mpeg")
+            uploaded.append(path)
+            tracks.append({"name": name, "path": path})
+            progress(P_UPLOAD)((i + 1) / len(order))
+        stems_field = {"status": "ready", "tracks": tracks, "gain": round(res.gain, 4),
+                       "durationSec": round(res.duration, 2), "model": MODEL_NAME, "error": None}
+        if "vocals" in res.names:
+            vocals = res.stems[res.names.index("vocals")]
+        del res
+    except Exception as exc:  # noqa: BLE001 — segue sem faixas
+        traceback.print_exc()
+        stems_field = {"status": "error", "error": f"Não foi possível separar: {exc}"[:300]}
+    return stems_field, vocals
+
+
 def main(playback_id: str) -> int:
     _init_firebase()
     db = firestore.client()
@@ -166,38 +200,31 @@ def main(playback_id: str) -> int:
         if cifra is None and not want_generate:
             raise ValueError("Música sem cifra")  # sem cifra não adianta processar o resto
         with tempfile.TemporaryDirectory() as tmp:
-            src = os.path.join(tmp, os.path.basename(data["storagePath"]))
-            bucket.blob(data["storagePath"]).download_to_filename(src)
-
             # 1. faixas
             stems_field: dict
             vocals = None
             stage("separating", P_SEPARATE[0])
-            try:
-                from separate import MODEL_NAME, decode, encode_mp3, separate
+            if data.get("source") == "stems":
+                # faixas prontas (ex.: Moises): junta em vez de separar (imported.py)
+                import imported
 
-                res = separate(decode(src), on_progress=progress(P_SEPARATE))
-                print(f"separado em {time.monotonic() - t0:.1f}s ({res.duration:.0f}s de áudio)")
-                order = [n for n in STEM_ORDER if n in res.names] + [n for n in res.names if n not in STEM_ORDER]
-                tracks = []
-                for i, name in enumerate(order):
-                    local = os.path.join(tmp, f"{name}.mp3")
-                    encode_mp3(res.stems[res.names.index(name)], local)
-                    path = f"playbacks/{uid}/stems/{playback_id}/{name}.mp3"
-                    blob = bucket.blob(path)
-                    blob.cache_control = "private, max-age=31536000"
-                    blob.upload_from_filename(local, content_type="audio/mpeg")
-                    uploaded.append(path)
-                    tracks.append({"name": name, "path": path})
-                    progress(P_UPLOAD)((i + 1) / len(order))
-                stems_field = {"status": "ready", "tracks": tracks, "gain": round(res.gain, 4),
-                               "durationSec": round(res.duration, 2), "model": MODEL_NAME, "error": None}
-                if "vocals" in res.names:
-                    vocals = res.stems[res.names.index("vocals")]
-                del res
-            except Exception as exc:  # noqa: BLE001 — segue sem faixas
-                traceback.print_exc()
-                stems_field = {"status": "error", "error": f"Não foi possível separar: {exc}"[:300]}
+                if data.get("importStems"):
+                    stems_field, vocals, src, paths, originals = imported.from_import(
+                        data, bucket, tmp, playback_id, on_progress=progress((P_SEPARATE[0], P_UPLOAD[1])))
+                    uploaded.extend(paths)
+                    # grava já: se algo der errado depois, reprocessar usa as faixas convertidas
+                    update({"stems": stems_field, "importStems": firestore.DELETE_FIELD})
+                    for p in originals:
+                        try:
+                            bucket.blob(p).delete()
+                        except Exception:  # noqa: BLE001
+                            traceback.print_exc()
+                else:
+                    stems_field, vocals, src = imported.from_saved(data, bucket, tmp)
+            else:
+                src = os.path.join(tmp, os.path.basename(data["storagePath"]))
+                bucket.blob(data["storagePath"]).download_to_filename(src)
+                stems_field, vocals = separate_stems(src, tmp, uid, playback_id, bucket, uploaded, progress, t0)
 
             # 2. letra na voz
             words: list[dict] = []

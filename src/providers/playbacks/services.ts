@@ -6,13 +6,14 @@ import {
   collection, deleteDoc, doc, onSnapshot, query, serverTimestamp, setDoc, updateDoc, where,
 } from 'firebase/firestore';
 import { database, getAppFunctions, getAppStorage } from '../../../firebaseConfig';
-import type { GenerateInput, PlaybackType } from '../../types/playbackType';
+import type { GenerateInput, ImportStem, PlaybackType } from '../../types/playbackType';
+import { audioContentType, extOf, type StemFile } from '../../lib/stemsImport';
 
 const COL = 'playbacks';
 export const MAX_PLAYBACK_BYTES = 30 * 1024 * 1024;
 /**
  * App de quem desenvolve rodando com NEXT_PUBLIC_LOCAL_WORKER=1 (`yarn dev:local`): os playbacks enviados
- * são processados no PC (worker/local_listener.py, com o BS-RoFormer) em vez do Cloud Run. A Function só
+ * são processados no PC (worker/local_listener.py) em vez do Cloud Run. A Function só
  * aceita isso de conta admin; para as outras, a marca é ignorada.
  */
 export const PROCESS_ON_PC = process.env.NEXT_PUBLIC_LOCAL_WORKER === '1';
@@ -114,6 +115,96 @@ export async function uploadPlayback(opts: {
   return { id: ref.id, done, cancel: () => task.cancel() };
 }
 
+/**
+ * Cria um playback a partir de faixas prontas (ex.: exportadas do Moises): envia cada faixa para
+ * `playbacks/{uid}/import/{id}/` e pede o processamento (Function `import_stems`). O worker junta as
+ * faixas no áudio completo, reconhece a letra na voz e sincroniza; não separa nada. `onProgress`: 0..1.
+ */
+export async function uploadStems(opts: {
+  lyricId: string;
+  uid: string;
+  stems: StemFile[];
+  label: string;
+  onProgress?: (fraction: number) => void;
+}): Promise<UploadHandle> {
+  const { lyricId, uid, stems, label, onProgress } = opts;
+  if (!stems.length) throw new Error('Escolha as faixas.');
+  const ref = doc(collection(database, COL));
+  const importStems: ImportStem[] = stems.map((s, i) => {
+    const ext = extOf(s.file.name).replace(/[^a-z0-9]/g, '') || 'mp3';
+    return { name: s.name, label: s.label, path: `playbacks/${uid}/import/${ref.id}/${String(i).padStart(2, '0')}-${s.name}.${ext}` };
+  });
+  // "Musica - Vocals.flac" -> "Musica"; sem título no nome do arquivo, um nome genérico
+  const first = stems[0].file.name.split('/').pop()!.replace(/\.[^.]+$/, '');
+  const title = first.replace(/\s*[-_(]\s*[^-_(]*$/, '').trim();
+  const data: PlaybackType = {
+    lyricId,
+    userId: uid,
+    label: label.trim() || (title && title !== first ? title : 'Faixas importadas'),
+    fileName: stems.map((s) => s.file.name).join(', ').slice(0, 300),
+    // áudio completo, montado pelo worker com a soma das faixas
+    storagePath: `playbacks/${uid}/${ref.id}.mix.mp3`,
+    status: 'uploading',
+    source: 'stems',
+    importStems,
+    ...(PROCESS_ON_PC ? { processor: 'local' as const } : {}),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+  await setDoc(ref, data);
+
+  const { ref: sref, uploadBytesResumable, deleteObject } = await import('firebase/storage');
+  const storage = await getAppStorage();
+  const total = stems.reduce((n, s) => n + s.file.size, 0) || 1;
+  const sent = stems.map(() => 0);
+  const tasks: ReturnType<typeof uploadBytesResumable>[] = [];
+  let canceled = false;
+
+  const one = (i: number) => new Promise<void>((resolve, reject) => {
+    if (canceled) { reject(new Error('Envio cancelado.')); return; }
+    const s = stems[i];
+    const task = uploadBytesResumable(sref(storage, importStems[i].path), s.file, {
+      contentType: audioContentType(s.file.name, s.file.type),
+    });
+    tasks.push(task);
+    task.on(
+      'state_changed',
+      (snap) => {
+        sent[i] = snap.bytesTransferred;
+        onProgress?.(sent.reduce((a, b) => a + b, 0) / total);
+      },
+      (err) => reject(err.code === 'storage/canceled' ? new Error('Envio cancelado.') : err),
+      () => resolve(),
+    );
+  });
+
+  const done = (async () => {
+    try {
+      // 3 de cada vez: rápido sem engasgar a conexão
+      let next = 0;
+      const lane = async () => { while (next < stems.length) await one(next++); };
+      await Promise.all([lane(), lane(), lane()]);
+      const { httpsCallable } = await import('firebase/functions');
+      const call = httpsCallable<{ playbackId: string }, { ok: boolean }>(
+        await getAppFunctions(FUNCTIONS_REGION),
+        'import_stems',
+      );
+      await call({ playbackId: ref.id });
+    } catch (e) {
+      canceled = true;
+      tasks.forEach((t) => { try { t.cancel(); } catch { /* já terminou */ } });
+      await Promise.all(importStems.map((s) => deleteObject(sref(storage, s.path)).catch(() => undefined)));
+      await deleteDoc(ref).catch(() => undefined);
+      throw e;
+    }
+  })();
+  return {
+    id: ref.id,
+    done,
+    cancel: () => { canceled = true; tasks.forEach((t) => { try { t.cancel(); } catch { /* já terminou */ } }); },
+  };
+}
+
 export async function renamePlayback(id: string, label: string) {
   await updateDoc(doc(database, COL, id), { label: label.trim(), updatedAt: serverTimestamp() });
 }
@@ -210,8 +301,8 @@ export function needsReprocess(p: PlaybackType): boolean {
   return p.status === 'ready' && !p.stems;
 }
 
-/** Faixas ligadas/desligadas/solo de cada playback (no aparelho). */
-export type StemMix = Record<string, { on: boolean; solo: boolean }>;
+/** Faixas ligadas/desligadas/solo e volume (0..1, padrão 1) de cada playback (no aparelho). */
+export type StemMix = Record<string, { on: boolean; solo: boolean; vol?: number }>;
 const mixKey = (playbackId: string) => `playback:stems:${playbackId}`;
 export function loadStemPrefs(playbackId: string): { mix: StemMix; useStems: boolean } | null {
   try {

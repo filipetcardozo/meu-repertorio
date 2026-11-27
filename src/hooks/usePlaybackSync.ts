@@ -243,7 +243,7 @@ export function usePlaybackSync(opts: {
     enginePromiseRef.current = null;
   }, []);
 
-  // ---------- Faixas separadas (voz, bateria, baixo, guitarra, piano, outros) ----------
+  // ---------- Faixas separadas (voz, bateria, baixo, guitarra, piano, outros) ou importadas (ex.: Moises) ----------
   const stems = readyTrack?.stems ?? null;
   const stemTracks = React.useMemo(
     () => (stems?.status === 'ready' && stems.tracks?.length ? stems.tracks : null),
@@ -270,10 +270,15 @@ export function usePlaybackSync(opts: {
     setStemsError(null);
   }
 
-  const gains = React.useMemo(() => {
+  /** Faixas que estão soando (ligadas, ou em solo) e o volume final de cada uma. */
+  const audible = React.useMemo(() => {
     const anySolo = stemNames.some((n) => mix[n]?.solo);
-    return stemNames.map((n) => (anySolo ? (mix[n]?.solo ? 1 : 0) : (mix[n]?.on ?? true) ? 1 : 0));
+    return stemNames.map((n) => (anySolo ? !!mix[n]?.solo : (mix[n]?.on ?? true)));
   }, [stemNames, mix]);
+  const gains = React.useMemo(
+    () => stemNames.map((n, i) => (audible[i] ? Math.max(0, Math.min(1, mix[n]?.vol ?? 1)) : 0)),
+    [stemNames, mix, audible],
+  );
   const gainsRef = React.useRef(gains);
   const stemsGainRef = React.useRef(1);
   React.useEffect(() => {
@@ -363,7 +368,7 @@ export function usePlaybackSync(opts: {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `stemPaths` está resumido em `sourceKey`
   }, [sourceKey, srcPath, getEngine, events]);
 
-  // Liga/desliga/solo: muda o volume das faixas na hora, sem parar.
+  // Liga/desliga/solo/volume: muda o volume das faixas na hora, sem parar.
   React.useEffect(() => {
     if (loadedMode === 'stems') engineRef.current?.setTrackGains(gains);
   }, [gains, loadedMode]);
@@ -399,6 +404,14 @@ export function usePlaybackSync(opts: {
     updateMix((m) => {
       const cur = m[name] ?? { on: true, solo: false };
       return { ...m, [name]: { ...cur, solo: !cur.solo } };
+    });
+  }, [updateMix]);
+
+  /** Volume de uma faixa (0..1), sem mexer em ligar/desligar/solo. */
+  const setStemVolume = React.useCallback((name: string, vol: number) => {
+    updateMix((m) => {
+      const cur = m[name] ?? { on: true, solo: false };
+      return { ...m, [name]: { ...cur, vol: Math.max(0, Math.min(1, vol)) } };
     });
   }, [updateMix]);
 
@@ -595,6 +608,10 @@ export function usePlaybackSync(opts: {
       error: stemsError,
       mix,
       gains,
+      /** Nome para mostrar de cada faixa (faixas importadas trazem o próprio). */
+      labels: stemTracks?.map((t) => t.label ?? null) ?? [],
+      audible,
+      setVolume: setStemVolume,
       toggle: toggleStem,
       solo: soloStem,
       reset: resetMix,
