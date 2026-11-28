@@ -239,6 +239,12 @@ export const LyricShowComponent = ({
     () => (stacked ? (lyricHtml ? [lyricHtml] : []) : splitChordColumns(htmlLyric, linesPerColumn)),
     [stacked, lyricHtml, htmlLyric, linesPerColumn],
   );
+  // O HTML de cada coluna só é convertido de novo quando a cifra muda (não a cada atualização da tela,
+  // como o andamento do playback ou a linha atual).
+  const columnBodies = React.useMemo(
+    () => columns.map((html, i) => <div key={i} data-lyric-body><Markup content={html} /></div>),
+    [columns],
+  );
   // Prévia da próxima (nível 0): embaixo da última coluna se ela for curta; senão, numa coluna própria.
   const nextInLastColumn = stacked || (columns.length > 1 && countLines(columns[columns.length - 1]) < 20);
   const showNextInColumns = hasNextMusic && (stacked || fitLevel === 0);
@@ -678,9 +684,7 @@ export const LyricShowComponent = ({
         >
           {columns.map((html, i) => (
             <Box key={i} sx={stacked ? { flex: '1 1 auto', minWidth: 0 } : { flex: '0 0 auto' }}>
-              <div data-lyric-body>
-                <Markup content={html} />
-              </div>
+              {columnBodies[i]}
               {showNextInColumns && nextInLastColumn && i === columns.length - 1 && NextMusic()}
             </Box>
           ))}

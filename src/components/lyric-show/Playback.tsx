@@ -50,7 +50,7 @@ import RemoveRoundedIcon from '@mui/icons-material/RemoveRounded';
 import LibraryMusicRoundedIcon from '@mui/icons-material/LibraryMusicRounded';
 import Portal from '@mui/material/Portal';
 import { enqueueSnackbar } from 'notistack';
-import type { PlaybackSync } from '../../hooks/usePlaybackSync';
+import { usePlaybackTime, type PlaybackSync } from '../../hooks/usePlaybackSync';
 import type { PlaybackType } from '../../types/playbackType';
 import {
   MAX_PLAYBACK_BYTES, cifraHash, deletePlayback, processingStale, renamePlayback, resyncPlayback, uploadPlayback,
@@ -274,6 +274,7 @@ export function PlaybackBar({ sync, onManage, lyricHtml }: {
   const [resyncing, setResyncing] = React.useState<string | null>(null);
   const currentHash = useCifraHash(lyricHtml, sync.open);
   const bar = useBarLayout();
+  const time = usePlaybackTime(sync.timeStore);
   const t = sync.track;
   if (!sync.open || !t) return null;
 
@@ -459,7 +460,7 @@ export function PlaybackBar({ sync, onManage, lyricHtml }: {
       ) : (
         <>
           <Stack direction='row' sx={{ alignItems: 'center', gap: 0.5 }}>
-            <IconButton size='small' aria-label='voltar 5 segundos' onClick={() => sync.seek(sync.time - 5)}>
+            <IconButton size='small' aria-label='voltar 5 segundos' onClick={() => sync.seek(time - 5)}>
               <Replay5RoundedIcon fontSize='small' />
             </IconButton>
             <IconButton
@@ -470,11 +471,11 @@ export function PlaybackBar({ sync, onManage, lyricHtml }: {
             >
               {sync.playing ? <PauseRoundedIcon /> : <PlayArrowRoundedIcon />}
             </IconButton>
-            <IconButton size='small' aria-label='avançar 5 segundos' onClick={() => sync.seek(sync.time + 5)}>
+            <IconButton size='small' aria-label='avançar 5 segundos' onClick={() => sync.seek(time + 5)}>
               <Forward5RoundedIcon fontSize='small' />
             </IconButton>
             <Typography sx={{ fontSize: 12, fontVariantNumeric: 'tabular-nums', color: 'text.secondary', minWidth: 34, textAlign: 'right' }}>
-              {fmt(dragging ?? sync.time)}
+              {fmt(dragging ?? time)}
             </Typography>
             <Slider
               size='small'
@@ -482,7 +483,7 @@ export function PlaybackBar({ sync, onManage, lyricHtml }: {
               min={0}
               max={Math.max(1, sync.duration)}
               step={0.1}
-              value={dragging ?? sync.time}
+              value={dragging ?? time}
               onChange={(_, v) => setDragging(v as number)}
               onChangeCommitted={(_, v) => { setDragging(null); sync.seek(v as number); }}
               sx={{ mx: 1, flex: 1 }}

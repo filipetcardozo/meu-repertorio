@@ -3,10 +3,10 @@
  * (Signalsmith Stretch: WASM num AudioWorklet, licença MIT).
  *
  * - O tempo da música (para a sincronia) é calculado pelo relógio do Web Audio a partir do que foi
- *   agendado (início, posição e velocidade): exato, sem depender das mensagens do worklet.
- * - Faixas separadas (voz, bateria, baixo...): todas vão para UM nó de stretch com 2 canais por
- *   faixa, então posição, velocidade e tom são os mesmos para todas (sem defasagem entre elas).
- *   Depois do stretch, cada canal tem um ganho: ligar, desligar e solar é instantâneo.
+ *   agendado (início, posição, velocidade e o atraso fixo do stretch): exato, sem depender do worklet.
+ * - Faixas separadas/importadas (voz, bateria, baixo...): tocam juntas em fontes nativas do Web Audio,
+ *   cada uma com seu volume, e são somadas ANTES do stretch (um stretch estéreo só, qualquer que seja o
+ *   número de faixas). Ligar, desligar, solar e mudar o volume é instantâneo.
  * - Sem AudioWorklet (navegador antigo) ou se a biblioteca falhar, cai para o <audio> comum:
  *   velocidade funciona, troca de tom e faixas separadas não (`canShiftPitch`/`canMultitrack` = false).
  * - Baixar o arquivo com fetch exige CORS liberado no bucket do Storage (ver cors.json).
@@ -29,9 +29,9 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
 
 type StretchNode = AudioNode & {
   schedule: (o: Record<string, number | boolean>) => void;
-  /** O último argumento opcional é a lista de transferência do postMessage (evita copiar o áudio). */
-  addBuffers: (bufs: Float32Array[], transfer?: Transferable[]) => Promise<number>;
-  dropBuffers: () => Promise<unknown>;
+  /** Atraso da saída em relação à entrada, em segundos (modo entrada ao vivo). */
+  latency?: () => number | Promise<number>;
+  configure?: (o: Record<string, number | boolean | string>) => unknown;
 };
 
 /** Rampa dos ganhos das faixas (liga/desliga sem estalo). */
@@ -76,18 +76,28 @@ export interface PlaybackEngine {
   destroy(): void;
 }
 
-/** Quanto à frente agendar as mudanças (dá tempo do stretch compensar a própria latência). */
+/** Quanto à frente agendar as mudanças (dá tempo de todos os nós receberem o mesmo instante). */
 const LEAD_S = 0.06;
+/** Fade curto para pausar/pular sem estalo. */
+const FADE_S = 0.015;
 
-/** Faixas carregadas num nó de stretch: 2 canais por faixa, cada canal com seu ganho. */
-type Graph = {
-  node: StretchNode;
-  splitter: ChannelSplitterNode;
-  gains: GainNode[];
-  merger: ChannelMergerNode;
-  tracks: number;
-};
+/** Uma faixa carregada: o áudio decodificado e o volume dela (antes da soma). */
+type Track = { buffer: AudioBuffer; gain: GainNode };
 
+/** Trecho da linha do tempo de saída: a partir de `out` (relógio do áudio), a música está em `input` e anda a `rate`. */
+type OutAnchor = { out: number; input: number; rate: number };
+
+/**
+ * Faixas (1 = o áudio original; várias = faixas separadas/importadas) tocam em AudioBufferSourceNodes
+ * nativos, todas com o mesmo `start` e o mesmo `playbackRate` (sincronia exata). Cada faixa passa pelo
+ * próprio volume, são SOMADAS e só a soma estéreo entra no stretch, em modo "entrada ao vivo". Assim o
+ * custo do stretch não cresce com o número de faixas (medido: 8 faixas = ~5% de um núcleo, contra ~45%
+ * com uma passada do stretch por faixa).
+ *
+ * Velocidade: muda o `playbackRate` das fontes (o que também muda o tom) e o stretch corrige o tom em
+ * -12·log2(velocidade) semitons, mais a transposição pedida. O stretch atrasa a saída em `latency`
+ * segundos (fixo, ~0,12 s): o relógio da música (`currentTime`) já desconta isso.
+ */
 class StretchEngine implements PlaybackEngine {
   readonly canShiftPitch = true;
   readonly canMultitrack = true;
@@ -96,16 +106,25 @@ class StretchEngine implements PlaybackEngine {
   private rate = 1;
   private semitones = 0;
   private pos = 0; // posição quando pausado
-  private anchor = { out: 0, input: 0 }; // tocando: na hora `out` (relógio do áudio), a música estava em `input`
+  private tracks: Track[] = [];
+  private trackGains: number[] = [1];
+  private sources: AudioBufferSourceNode[] = [];
+  /** Relógio das fontes: no instante `t` (relógio do áudio), elas estavam em `input`. */
+  private src = { t: 0, input: 0 };
+  /** Linha do tempo do que sai no alto-falante (as últimas mudanças de velocidade). */
+  private outs: OutAnchor[] = [];
   private loadToken = 0;
   private endTimer: ReturnType<typeof setInterval> | null = null;
-  private graph: Graph | null = null;
-  private trackGains: number[] = [1];
 
   private constructor(
     private ctx: AudioContext,
-    private factory: StretchFactory,
+    private node: StretchNode,
+    /** Soma das faixas (estéreo) -> stretch. */
+    private sum: GainNode,
+    /** Silencia a saída nas emendas (pausa, pulo) para não tocar o que ficou no stretch. */
+    private duck: GainNode,
     private master: GainNode,
+    private latency: number,
     private ev: PlayerEvents,
   ) {}
 
@@ -113,62 +132,85 @@ class StretchEngine implements PlaybackEngine {
     if (typeof AudioWorkletNode === 'undefined') throw new Error('sem AudioWorklet');
     const mod = (await import(/* webpackIgnore: true */ /* turbopackIgnore: true */ STRETCH_URL)) as { default: StretchFactory };
     const ctx = new AudioContext({ latencyHint: 'playback' });
-    const master = ctx.createGain();
-    master.connect(ctx.destination);
-    const engine = new StretchEngine(ctx, mod.default, master, ev);
     try {
-      // já monta o nó estéreo (e descobre se o worklet funciona neste navegador)
-      engine.graph = await withTimeout(engine.buildGraph(1), CREATE_TIMEOUT_MS);
+      const node = (await withTimeout(mod.default(ctx, {
+        numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2],
+      }), CREATE_TIMEOUT_MS)) as unknown as StretchNode;
+      // espalha o cálculo pelo tempo (sem picos num bloco de áudio só, que é o que causa estalo)
+      await node.configure?.({ blockMs: 120, intervalMs: 30, splitComputation: true });
+      const sum = ctx.createGain();
+      sum.channelCount = 2;
+      sum.channelCountMode = 'explicit';
+      const duck = ctx.createGain();
+      duck.gain.value = 0;
+      const master = ctx.createGain();
+      sum.connect(node);
+      node.connect(duck);
+      duck.connect(master);
+      master.connect(ctx.destination);
+      const latency = Number(await withTimeout(Promise.resolve(node.latency?.() ?? 0.12), CREATE_TIMEOUT_MS)) || 0.12;
+      return new StretchEngine(ctx, node, sum, duck, master, latency, ev);
     } catch (e) {
       ctx.close().catch(() => undefined);
       throw e;
     }
-    return engine;
   }
 
-  get trackCount() { return this.graph?.tracks ?? 0; }
+  get trackCount() { return this.tracks.length; }
 
-  private async buildGraph(tracks: number): Promise<Graph> {
-    const ch = 2 * tracks;
-    const node = (await this.factory(this.ctx, {
-      numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [ch],
-    })) as unknown as StretchNode;
-    const splitter = this.ctx.createChannelSplitter(ch);
-    const merger = this.ctx.createChannelMerger(2);
-    node.connect(splitter);
-    const gains = Array.from({ length: ch }, (_, c) => {
-      const g = this.ctx.createGain();
-      g.gain.value = this.trackGains[c >> 1] ?? 1;
-      splitter.connect(g, c);
-      g.connect(merger, 0, c & 1); // canais pares → esquerda, ímpares → direita (somados)
-      return g;
+  /** Correção de tom do stretch: desfaz a mudança de tom da velocidade e aplica a transposição. */
+  private correction(rate = this.rate) {
+    return this.semitones - 12 * Math.log2(rate);
+  }
+
+  /** Onde as fontes estão (ou estarão) no instante `t` do relógio do áudio. */
+  private srcPos(t: number) {
+    return this.src.input + (t - this.src.t) * this.rate;
+  }
+
+  private startSources(at: number, input: number) {
+    this.sources = this.tracks.map((tr) => {
+      const s = this.ctx.createBufferSource();
+      s.buffer = tr.buffer;
+      s.playbackRate.value = this.rate;
+      s.connect(tr.gain);
+      if (input < tr.buffer.duration) s.start(at, Math.max(0, input));
+      s.onended = () => { try { s.disconnect(); } catch { /* já desligado */ } };
+      return s;
     });
-    merger.connect(this.master);
-    return { node, splitter, gains, merger, tracks };
+    this.src = { t: at, input };
   }
 
-  private disposeGraph(g: Graph, afterS = 0) {
-    try { g.node.schedule({ active: false, output: this.ctx.currentTime + afterS }); } catch { /* já desligado */ }
-    const free = () => {
-      try {
-        g.node.dropBuffers().catch(() => undefined);
-        g.node.disconnect();
-        g.splitter.disconnect();
-        g.merger.disconnect();
-        g.gains.forEach((x) => x.disconnect());
-      } catch { /* já desligado */ }
-    };
-    if (afterS > 0) setTimeout(free, afterS * 1000 + 250); else free();
+  private stopSources(at: number) {
+    for (const s of this.sources) {
+      try { s.stop(at); } catch { /* não tinha começado */ }
+    }
+    this.sources = [];
   }
 
-  private async decode(url: string): Promise<Float32Array[]> {
+  /** Saída em silêncio de agora até `from`, e volta (rápido) a partir dele. */
+  private duckUntil(from: number) {
+    const g = this.duck.gain;
+    const t = this.ctx.currentTime;
+    g.cancelScheduledValues(t);
+    g.setValueAtTime(g.value, t);
+    g.linearRampToValueAtTime(0, t + FADE_S);
+    g.setValueAtTime(0, Math.max(t + FADE_S, from));
+    g.linearRampToValueAtTime(1, Math.max(t + FADE_S, from) + FADE_S);
+  }
+
+  private fadeOut() {
+    const g = this.duck.gain;
+    const t = this.ctx.currentTime;
+    g.cancelScheduledValues(t);
+    g.setValueAtTime(g.value, t);
+    g.linearRampToValueAtTime(0, t + FADE_S);
+  }
+
+  private async decode(url: string): Promise<AudioBuffer> {
     const res = await fetch(url);
     if (!res.ok) throw new Error(`download ${res.status}`);
-    const audio = await this.ctx.decodeAudioData(await res.arrayBuffer());
-    // cópia própria: é transferida para o worklet (sem duplicar) e o AudioBuffer pode ser liberado
-    const l = audio.getChannelData(0).slice();
-    const r = audio.numberOfChannels > 1 ? audio.getChannelData(1).slice() : l.slice();
-    return [l, r];
+    return this.ctx.decodeAudioData(await res.arrayBuffer());
   }
 
   async load(src: string | string[], opts?: LoadOptions) {
@@ -181,51 +223,43 @@ class StretchEngine implements PlaybackEngine {
       this.duration = 0;
     }
     // Enquanto baixa e decodifica, o áudio atual continua tocando (keepPosition).
-    const decoded = await Promise.all(urls.map((u) => this.decode(u)));
+    const buffers = await Promise.all(urls.map((u) => this.decode(u)));
     if (token !== this.loadToken) return; // trocou de faixa no meio
-    const len = Math.max(...decoded.map((d) => d[0].length));
-    const chans: Float32Array[] = [];
-    for (const d of decoded) {
-      for (const c of d) {
-        if (c.length === len) chans.push(c);
-        else { const p = new Float32Array(len); p.set(c); chans.push(p); }
-      }
-    }
 
-    // Mesmo número de faixas e parado: reaproveita o nó. Senão, monta outro e troca na hora.
-    const old = this.graph;
-    const reuse = !!old && old.tracks === urls.length && !(keep && this.playing);
-    const g = reuse && old ? old : await this.buildGraph(urls.length);
-    if (token !== this.loadToken) { if (g !== old) this.disposeGraph(g); return; }
-    if (reuse) await g.node.dropBuffers();
-    await g.node.addBuffers(chans, chans.map((c) => c.buffer));
-    if (token !== this.loadToken) { if (g !== old) this.disposeGraph(g); return; }
-
-    const at = keep ? this.currentTime() : 0;
     const gains = Array.from({ length: urls.length }, (_, i) => opts?.gains?.[i] ?? 1);
+    const next: Track[] = buffers.map((buffer, i) => {
+      const gain = this.ctx.createGain();
+      gain.gain.value = gains[i];
+      gain.connect(this.sum);
+      return { buffer, gain };
+    });
+    const old = this.tracks;
+    this.tracks = next;
     this.trackGains = gains;
-    g.gains.forEach((x, c) => { x.gain.value = gains[c >> 1]; });
+    this.duration = Math.max(...buffers.map((b) => b.duration));
     if (opts?.masterGain != null) this.setMasterGain(opts.masterGain);
-    this.graph = g;
-    this.duration = len / this.ctx.sampleRate;
-    if (keep) {
-      this.pos = Math.min(at, this.duration);
-      if (this.playing) this.startAt(this.pos);
+
+    if (keep && this.playing) {
+      // troca na hora, no mesmo ponto da música: o stretch recebe o som sem emenda
+      const at = this.ctx.currentTime + LEAD_S;
+      const input = Math.min(this.srcPos(at), this.duration);
+      this.stopSources(at);
+      this.startSources(at, input);
+    } else if (keep) {
+      this.pos = Math.min(this.pos, this.duration);
     }
-    // o antigo para no mesmo instante em que o novo entra (sem buraco nem eco)
-    if (old && g !== old) this.disposeGraph(old, this.playing ? LEAD_S : 0);
+    // o volume das faixas antigas sai depois que elas param
+    setTimeout(() => old.forEach((tr) => { try { tr.gain.disconnect(); } catch { /* já desligado */ } }), 500);
   }
 
   setTrackGains(gains: number[]) {
     this.trackGains = gains.slice();
-    const g = this.graph;
-    if (!g) return;
     const t = this.ctx.currentTime;
-    g.gains.forEach((x, c) => {
-      const v = gains[c >> 1] ?? 1;
-      x.gain.cancelScheduledValues(t);
-      x.gain.setValueAtTime(x.gain.value, t);
-      x.gain.linearRampToValueAtTime(v, t + GAIN_RAMP_S);
+    this.tracks.forEach((tr, i) => {
+      const v = gains[i] ?? 1;
+      tr.gain.gain.cancelScheduledValues(t);
+      tr.gain.gain.setValueAtTime(tr.gain.gain.value, t);
+      tr.gain.gain.linearRampToValueAtTime(v, t + GAIN_RAMP_S);
     });
   }
 
@@ -245,14 +279,22 @@ class StretchEngine implements PlaybackEngine {
   currentTime() {
     if (!this.playing) return this.pos;
     const t = this.outNow();
-    if (t <= this.anchor.out) return this.anchor.input;
-    return Math.min(this.duration, this.anchor.input + (t - this.anchor.out) * this.rate);
+    let a = this.outs[0];
+    if (!a) return this.pos;
+    for (const x of this.outs) if (x.out <= t) a = x;
+    if (t <= a.out) return a.input;
+    return Math.min(this.duration, a.input + (t - a.out) * a.rate);
   }
 
+  /** Começa (ou recomeça, ao pular) a tocar de `input`: fontes novas, saída em silêncio até elas chegarem. */
   private startAt(input: number) {
-    const out = this.ctx.currentTime + LEAD_S;
-    this.graph?.node.schedule({ active: true, input, rate: this.rate, semitones: this.semitones, output: out });
-    this.anchor = { out, input };
+    const at = this.ctx.currentTime + LEAD_S;
+    const heard = at + this.latency;
+    this.stopSources(at);
+    this.node.schedule({ active: true, semitones: this.correction(), output: at });
+    this.startSources(at, input);
+    this.duckUntil(heard);
+    this.outs = [{ out: heard, input, rate: this.rate }];
   }
 
   async play() {
@@ -269,7 +311,10 @@ class StretchEngine implements PlaybackEngine {
     if (!this.playing) return;
     this.pos = this.currentTime();
     this.playing = false;
-    this.graph?.node.schedule({ active: false, output: this.ctx.currentTime });
+    this.fadeOut();
+    const end = this.ctx.currentTime + FADE_S;
+    this.stopSources(end);
+    this.node.schedule({ active: false, output: end + 0.005 });
     if (this.endTimer) clearInterval(this.endTimer);
     this.endTimer = null;
     this.ev.onPause?.();
@@ -282,20 +327,25 @@ class StretchEngine implements PlaybackEngine {
 
   setRate(r: number) {
     if (r === this.rate) return;
-    if (this.playing) {
-      const at = this.currentTime();
+    if (!this.playing) {
       this.rate = r;
-      this.startAt(at);
-    } else {
-      this.rate = r;
+      return;
     }
+    // muda a velocidade das fontes num instante e, quando esse som sair do stretch, corrige o tom
+    const at = this.ctx.currentTime + LEAD_S;
+    const input = this.srcPos(at);
+    for (const s of this.sources) s.playbackRate.setValueAtTime(r, at);
+    this.rate = r;
+    this.src = { t: at, input };
+    this.node.schedule({ active: true, semitones: this.correction(r), output: at + this.latency });
+    this.outs = [...this.outs.slice(-2), { out: at + this.latency, input, rate: r }];
   }
 
   setSemitones(s: number) {
     if (s === this.semitones) return;
     this.semitones = s;
-    // muda só o tom; posição e velocidade seguem (a âncora continua valendo)
-    this.graph?.node.schedule({ semitones: s, output: this.ctx.currentTime });
+    // muda só o tom; posição e velocidade seguem
+    this.node.schedule({ semitones: this.correction(), output: this.ctx.currentTime });
   }
 
   private watchEnd() {
@@ -312,8 +362,16 @@ class StretchEngine implements PlaybackEngine {
   destroy() {
     this.loadToken++;
     if (this.endTimer) clearInterval(this.endTimer);
-    if (this.graph) this.disposeGraph(this.graph);
-    try { this.master.disconnect(); } catch { /* já desligado */ }
+    this.stopSources(this.ctx.currentTime);
+    try {
+      this.node.schedule({ active: false, output: this.ctx.currentTime });
+      this.node.disconnect();
+      this.sum.disconnect();
+      this.duck.disconnect();
+      this.master.disconnect();
+      this.tracks.forEach((tr) => tr.gain.disconnect());
+    } catch { /* já desligado */ }
+    this.tracks = [];
     this.ctx.close().catch(() => undefined);
   }
 }

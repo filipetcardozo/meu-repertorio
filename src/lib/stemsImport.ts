@@ -15,7 +15,7 @@ export type StemFile = {
   label: string;
 };
 
-/** Máximo por arquivo (FLAC/WAV de uma faixa de 5-6 min cabe com folga). */
+/** Máximo por arquivo (FLAC/WAV de uma faixa de 5-6 min cabe com folga). Igual ao storage.rules. */
 export const MAX_STEM_BYTES = 150 * 1024 * 1024;
 export const MAX_STEMS = 16;
 

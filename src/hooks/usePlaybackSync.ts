@@ -134,6 +134,36 @@ function mapByText(timeline: PlaybackSyncItem[], lines: LyricLine[]): (number | 
   });
 }
 
+/**
+ * Posição do player (atualizada ~4x por segundo enquanto toca). Fica fora do estado do React do
+ * usePlaybackSync de propósito: só quem mostra o tempo (o player) se inscreve e redesenha, e não a
+ * tela inteira da cifra.
+ */
+export type TimeStore = {
+  get: () => number;
+  set: (t: number) => void;
+  subscribe: (fn: () => void) => () => void;
+};
+
+function createTimeStore(): TimeStore {
+  let value = 0;
+  const fns = new Set<() => void>();
+  return {
+    get: () => value,
+    set: (t) => {
+      if (t === value) return;
+      value = t;
+      fns.forEach((f) => f());
+    },
+    subscribe: (fn) => { fns.add(fn); return () => { fns.delete(fn); }; },
+  };
+}
+
+/** Posição do player, para quem mostra o tempo (redesenha só esse componente). */
+export function usePlaybackTime(store: TimeStore): number {
+  return React.useSyncExternalStore(store.subscribe, store.get, () => 0);
+}
+
 export function usePlaybackSync(opts: {
   lyricId: string;
   uid?: string;
@@ -149,7 +179,7 @@ export function usePlaybackSync(opts: {
   const [pickedId, setPickedId] = React.useState<string | null>(null);
   const [open, setOpen] = React.useState(false); // barra do player visível
   const [playing, setPlaying] = React.useState(false);
-  const [time, setTime] = React.useState(0);
+  const [timeStore] = React.useState(createTimeStore);
   const [duration, setDuration] = React.useState(0);
   const [audioLoading, setAudioLoading] = React.useState(false);
   const [rate, setRateState] = React.useState(1);
@@ -296,7 +326,6 @@ export function usePlaybackSync(opts: {
   const [prevSrc, setPrevSrc] = React.useState<string | null>(null);
   if (prevSrc !== srcPath) {
     setPrevSrc(srcPath);
-    setTime(0);
     setDuration(0);
     setAudioError(null);
     setAudioLoading(!!srcPath);
@@ -311,7 +340,10 @@ export function usePlaybackSync(opts: {
     }
     // mesmo playback já carregado (só mudou original ↔ faixas): mantém posição e reprodução
     const sameTrack = loadedSrcRef.current === srcPath;
-    if (!sameTrack) engineRef.current?.pause();
+    if (!sameTrack) {
+      engineRef.current?.pause();
+      timeStore.set(0);
+    }
     const paths = stemPaths;
     let alive = true;
     if (sameTrack && paths) setStemsLoading(true);
@@ -366,7 +398,7 @@ export function usePlaybackSync(opts: {
       });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `stemPaths` está resumido em `sourceKey`
-  }, [sourceKey, srcPath, getEngine, events]);
+  }, [sourceKey, srcPath, getEngine, events, timeStore]);
 
   // Liga/desliga/solo/volume: muda o volume das faixas na hora, sem parar.
   React.useEffect(() => {
@@ -491,14 +523,14 @@ export function usePlaybackSync(opts: {
       if (e) {
         const t = e.currentTime();
         applyAt(t);
-        if (Math.abs(t - shown) >= 0.25) { shown = t; setTime(t); }
+        if (Math.abs(t - shown) >= 0.25) { shown = t; timeStore.set(t); }
       }
       raf = requestAnimationFrame(loop);
     };
     lastItemRef.current = -2;
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [active, applyAt]);
+  }, [active, applyAt, timeStore]);
 
   // Toque numa linha: pula para a próxima vez que ela toca (ou a primeira).
   React.useEffect(() => {
@@ -531,9 +563,9 @@ export function usePlaybackSync(opts: {
     const e = engineRef.current;
     if (!e) return;
     e.seek(Math.max(0, Math.min(t, (e.duration || t) - 0.05)));
-    setTime(e.currentTime());
+    timeStore.set(e.currentTime());
     lastItemRef.current = -2;
-  }, []);
+  }, [timeStore]);
 
   const setRate = React.useCallback((r: number) => {
     setRateState(r);
@@ -568,7 +600,8 @@ export function usePlaybackSync(opts: {
     close,
     playing,
     togglePlay,
-    time,
+    /** Posição do player: leia com usePlaybackTime(sync.timeStore) (não redesenha a tela toda). */
+    timeStore,
     duration: duration || readyTrack?.durationSec || 0,
     audioLoading,
     seek,

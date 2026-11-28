@@ -10,6 +10,15 @@ service firebase.storage {
         && request.resource.contentType.matches('audio/.*');
     }
 
+    // Faixas prontas enviadas pelo app (ex.: exportadas do Moises), até 150 MB cada: o worker junta,
+    // converte para playbacks/{uid}/stems/{playbackId}/ e apaga daqui.
+    match /playbacks/{uid}/import/{playbackId}/{fileName} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create: if request.auth != null && request.auth.uid == uid
+        && request.resource.size < 150 * 1024 * 1024
+        && request.resource.contentType.matches('audio/.*');
+    }
+
     // Faixas separadas (voz, bateria...): gravadas só pelo worker da separação (Admin SDK).
     match /playbacks/{uid}/stems/{playbackId}/{fileName} {
       allow read: if request.auth != null && request.auth.uid == uid;
